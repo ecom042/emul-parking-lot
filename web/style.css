@@ -1,0 +1,25 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { max-width: 1200px; margin: auto; padding: 1rem; line-height: 1.5; }
+header p { margin-top: 0; }
+section, details { border: 1px solid #888; padding: 1rem; margin: 1rem 0; border-radius: .4rem; }
+button, select { font: inherit; padding: .45rem; margin: .3rem; }
+label { display: inline-block; margin: .4rem; }
+button { cursor: pointer; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid #007aff; }
+.scene { display: grid; grid-template-columns: minmax(0, 1fr) 260px; align-items: center; gap: 1rem; }
+svg { width: 100%; background: #d6e9cb; color: #111; }
+svg text { fill: #111; font-size: 16px; }
+.road { fill: #858585; }
+.marking { stroke: #fff; stroke-width: 3; stroke-dasharray: 30 20; }
+.beam { stroke: #0071bc; stroke-width: 4; stroke-dasharray: 8; }
+.beam.active { stroke: #b00020; stroke-width: 8; }
+#car { fill: #1769aa; }
+#car text { fill: white; font-size: 14px; }
+.arm { fill: white; stroke: #222; }
+.arm-stripes { stroke: #b00020; stroke-width: 10; }
+#red, #green { fill: #555; stroke: #111; stroke-width: 2; }
+#red.on { fill: #e00020; } #green.on { fill: #00c050; }
+canvas { width: 240px; height: 320px; image-rendering: pixelated; background: black; border: 2px solid #777; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow-y: auto; font-size: .85rem; }
+#error { color: #c33; font-weight: bold; }
+@media (max-width: 750px) { .scene { grid-template-columns: 1fr; } }

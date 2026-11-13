@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Local parking laboratory</title>
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js" defer></script>
+<header><h1>Parking laboratory</h1><p>Local equipment simulation · nucleo_u5a5zj_q + ADC4 · Debug deferred</p></header>
+<main>
+<p id="connection" role="status">Connecting to the local session…</p>
+<section aria-labelledby="controls"><h2 id="controls">Run controls</h2>
+<label>Scenario <select id="scenario"></select></label>
+<button id="select">Load scenario and reset</button>
+<button id="start">Start / resume</button><button id="pause">Pause</button><button id="reset">Reset</button>
+<p id="runstate"></p><p id="error" role="alert"></p>
+</section>
+<section aria-labelledby="lane-heading"><h2 id="lane-heading">Equipment state</h2>
+<div class="scene">
+<svg viewBox="0 0 900 300" role="img" aria-labelledby="scene-title scene-description">
+<title id="scene-title">One-lane parking environment</title>
+<desc id="scene-description">The car position, barrier angle, signals, and sensors come from source-time equipment snapshots.</desc>
+<rect x="0" y="70" width="900" height="150" class="road"/>
+<path d="M0 145 H900" class="marking"/>
+<text x="35" y="40">Approach → sensor → passage</text>
+<path d="M620 70 V220" id="beam" class="beam"/>
+<g id="car"><rect x="-32" y="-20" width="64" height="40" rx="8"/><circle cx="-20" cy="22" r="6"/><circle cx="20" cy="22" r="6"/><text x="-18" y="5">CAR</text></g>
+<g transform="translate(640,220)"><rect x="-12" y="-15" width="24" height="50"/><g id="barrier"><rect x="-5" y="-150" width="10" height="150" class="arm"/><path d="M-5 -130 H5 M-5 -100 H5 M-5 -70 H5 M-5 -40 H5" class="arm-stripes"/></g></g>
+<circle id="red" cx="710" cy="45" r="16"/><text x="735" y="50">Red</text>
+<circle id="green" cx="805" cy="45" r="16"/><text x="830" y="50">Green</text>
+<text id="sensor" x="35" y="270"></text>
+</svg>
+<div><h3>Actual SPI framebuffer</h3><canvas id="display" width="240" height="320" role="img" aria-label="ST7789V actual RGB565 pixels from SPI writes"></canvas>
+<p>Simulated payment only. Not PIX.</p></div>
+</div>
+<p id="equipment"></p>
+</section>
+<section aria-labelledby="actions"><h2 id="actions">Equipment actions</h2>
+<p>Actions instruct equipment, never motor outputs. Manual mode holds payment until “Pay”. In assessment scenarios, actions can change the expected outcome.</p>
+<button data-signal="vehicle.speed" data-value="-2000">Car arrival / move forward</button>
+<button data-signal="vehicle.speed" data-value="0">Stop car</button>
+<button data-signal="vehicle.next" data-value="1">Next car (after passage)</button>
+<button data-signal="payment.replay" data-value="1">Pay / repeat terminal reply</button>
+<button data-signal="payment.cancel" data-value="1">Cancel payment</button>
+<label><input type="checkbox" id="obstruction">Obstruction / passage beam</label>
+<label><input type="checkbox" id="jam">Barrier jam</label>
+<label>Limit feedback <select id="limits"><option value="0">Normal</option><option value="1">Missing upper</option><option value="2">Missing lower</option><option value="3">Contradictory</option></select></label>
+<label>ADC noise <select id="noise"><option value="0">Off</option><option value="16">±16 codes</option><option value="64">±64 codes</option></select></label>
+</section>
+<details><summary>Advanced diagnostics: GPIO, ADC, UART, SPI, assessment</summary>
+<h3>GPIO / ADC / SPI</h3><pre id="diagnostics"></pre>
+<h3>Ordered source events (bounded recent window)</h3><pre id="events"></pre>
+<h3>UART bytes (source equipment, not firmware logs)</h3><pre id="uart"></pre>
+<h3>Commands and test results</h3><pre id="results"></pre>
+</details>
+</main>
+</html>
