@@ -11,6 +11,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import threading
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -130,12 +131,51 @@ def run_parallel(jobs, workers):
     return codes
 
 
+_children = set()
+_children_lock = threading.Lock()
+
+
+def run_one(command, log, timeout):
+    """Run one command to `log` in its own process group; safe from threads.
+
+    Returns its exit code, or -9 after killing it at `timeout` seconds.
+    """
+    Path(log).parent.mkdir(parents=True, exist_ok=True)
+    with open(log, "wb") as stream:
+        proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=stream,
+                                stderr=subprocess.STDOUT, start_new_session=True)
+        with _children_lock:
+            _children.add(proc)
+        try:
+            return proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            _kill(proc)
+            return -9
+        finally:
+            with _children_lock:
+                _children.discard(proc)
+
+
+def kill_children():
+    """Stop every command still running from run_one (e.g. after Ctrl-C)."""
+    with _children_lock:
+        running = list(_children)
+    for proc in running:
+        _kill(proc)
+
+
 def _kill(proc):
     try:
         os.killpg(proc.pid, signal.SIGKILL)
     except ProcessLookupError:
         pass
     proc.wait()
+
+
+def source_hashes(app):
+    """sha256 of every file an application build reads, keyed by relative path."""
+    return lab.source_hashes(Path(app), ["CMakeLists.txt", "Kconfig", "prj.conf",
+                                         "app.overlay", "boards", "src"])
 
 
 def passed(record):

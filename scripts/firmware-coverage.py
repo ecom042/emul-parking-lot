@@ -61,9 +61,10 @@ def measure(args, output):
     codes = workspace.run_parallel(jobs, args.jobs)
     elf = output / "firmware/zephyr/zephyr.elf"
     ranges = linecov.line_ranges(elf, args.app)
-    hits, statuses = {}, {}
+    hits, statuses, elapsed = {}, {}, {}
     for name, code in zip(names, codes):
         records = workspace.records(output / "scenarios" / name)
+        elapsed[name] = round(records[0]["elapsed"], 1) if records else None
         statuses[name] = ("pass" if code == 0 and records and workspace.passed(records[0])
                           else "timeout" if code == -9 else "fail")
         blocks = linecov.read_blocks(sorted((output / "blocks" / name).glob("*.txt")))
@@ -74,7 +75,10 @@ def measure(args, output):
     counted = {name: lines for name, lines in hits.items() if statuses[name] == "pass"}
     summary, line_map = linecov.summarize(ranges, counted, excluded, problems)
     summary.update(v=1, app=str(args.app.resolve()), elapsed_s=round(time.monotonic() - began, 1),
-                   scenarios=statuses,
+                   sources=workspace.source_hashes(args.app),
+                   cmake_args=COVERAGE_CMAKE + args.cmake_arg,
+                   scenarios_dirs=[str(d.resolve()) for d in args.scenarios_dir],
+                   scenarios=statuses, scenario_elapsed_s=elapsed,
                    scenario_lines={name: len(lines) for name, lines in sorted(hits.items())})
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     (output / "coverage-map.json").write_text(json.dumps(line_map, indent=1) + "\n")

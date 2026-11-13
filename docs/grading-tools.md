@@ -51,3 +51,92 @@ Outputs in the output directory:
 | `scenarios/<name>/` | the assessment evidence of each scenario run |
 
 `--min 95` makes the exit status 1 below 95%.
+
+## Mutation score
+
+```sh
+python scripts/mutation-test.py --module "$ZVB_MODULE" \
+  --renode "$RENODE_ROOT/renode" --output build/mutation-01 \
+  --coverage build/coverage-01 --sample 60 --seed 1
+```
+
+The tool needs a coverage run of the same, unchanged sources: it refuses to
+start when a file's hash differs. It generates deterministic mutants of
+`<app>/src`, each changing one place:
+
+| Operator | Change |
+|---|---|
+| ROR | `<` `<=` `>` `>=` `==` `!=` to a neighbour or the negation |
+| LCR | `&&` ↔ `||` |
+| AOR | `+` ↔ `-`, `/` → `*`, `%` → `/` |
+| NEG | `if (c)` / `while (c)` → `if (!(c))` (not the `while` of a `do`) |
+| CRP | integer constant: `0` → `1`, `1` → `0`, `n` → `n + 1` (not inside `[ ]` or a `= { … }` initializer such as a font table) |
+| SDL | a call statement inside a function body is deleted |
+
+Comments, strings and preprocessor lines are skipped, except the value of an
+object-like `#define`. A mutant id, `<file>:<line>:<column>:<op>:<to>`, stays
+the same while its line keeps its text.
+
+`--sample N --seed S` evaluates N mutants (default 60; `0` means all), chosen
+deterministically from the seed. Each of the `--jobs` workers owns a copy of
+the application and a build directory that later mutants rebuild
+incrementally. A mutant runs against the passing scenarios that cover its line,
+shortest first, in one Renode process that stops at the first failure:
+
+- **killed**: a scenario failed or timed out (limit: 60 s plus twice the
+  scenarios' baseline time);
+- **survived**: every covering scenario passed;
+- **not covered**: no passing scenario reaches the line; it counts as a
+  survivor and is not run;
+- **invalid**: it does not compile; it does not count;
+- **error**: the assessment stopped without a failing scenario (a harness
+  problem such as a Renode transport error); it does not count and is listed
+  with its log in `logs/` so it can be re-run.
+
+Lines without a DWARF address (`#define` values, initializers) run against
+every passing scenario. Declared equivalent mutants are listed in
+`<app>/mutation-equivalent.json` as `[{"id": "...", "reason": "..."}]`. They
+are removed only when they did not die and stay within 5% of the evaluated
+mutants. An entry without a reason, or exceeding the cap, disables all of
+them.
+
+`score = killed / (killed + survived)`. The output directory holds
+`summary.json`, `mutants.json` (status, scenarios and killer per mutant) and
+the assessment log of every mutant that ran in `logs/`.
+The surviving mutants are printed with their source line. `--min 90` makes
+the exit status 1 below 90%.
+
+## Static check
+
+```sh
+python scripts/static-check.py --module "$ZVB_MODULE" \
+  --renode "$RENODE_ROOT/renode" --output build/static-01
+```
+
+This builds the application with Zephyr's GCC analyzer variant
+(`ZEPHYR_SCA_VARIANT=gcc`, that is `-fanalyzer`) plus `-Wall -Wextra -Wshadow
+-Wundef -Wdouble-promotion -Wformat=2 -Wcast-qual -Wstrict-prototypes
+-Wmissing-prototypes -Wnull-dereference -Wswitch-enum`. The analyzer ships with
+the pinned SDK, so nothing is installed. Zephyr is compiled with the same flags,
+but only diagnostics located in `<app>/src` count, once per file, line and
+flag. The exit status is 1 when there is any finding or the build fails.
+
+## Grade
+
+```sh
+python scripts/grade.py --module "$ZVB_MODULE" \
+  --renode "$RENODE_ROOT/renode" --output build/grade-01
+```
+
+`grade.py` builds the application normally and runs every scenario, then runs
+the three tools above. It prints the gates and points of the
+[challenge](desafio.md#avaliação) in Portuguese. The instructor adds
+`--scenarios-dir` for the hidden set and `--manual items.json`:
+
+```json
+{"no_fabrication": true, "ai_log": true, "report": 16, "defense": "pass"}
+```
+
+Without them, the hidden scenarios, the manual gates and the report are shown
+as pending and the grade is partial. Weights and bands are the constants at the
+top of `scripts/grade.py`; change them together with the challenge brief.
