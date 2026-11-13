@@ -21,18 +21,35 @@ exti: IRQControllers.CourseSTM32U5EXTI @ sysbus 0x46022000
 gpioc:
     [0-15] -> exti#2@[0-15]
 
+// Exit lane: the original single-lane wiring, plus payment and display.
 physical: Miscellaneous.ParkingPhysical @ gpiob 1
     adc: u5adc4
+    adcChannel: 18
+    lane: "exit"
     0 -> gpioc@2
     1 -> gpioc@3
     2 -> gpioc@4
+// Entry lane: same equipment contract, no payment terminal or display.
+physicalEntry: Miscellaneous.ParkingPhysical @ gpiob 12
+    adc: u5adc4
+    adcChannel: 17
+    lane: "entry"
+    0 -> gpioc@5
+    1 -> gpioc@6
+    2 -> gpioc@8
 gpiob:
     1 -> physical@0
     2 -> physical@1
+    12 -> physicalEntry@0
+    13 -> physicalEntry@1
 
 protocols: Miscellaneous.ParkingProtocols @ gpiod 1
     camera: usart2
     payment: lpuart1
+    lane: "exit"
+protocolsEntry: Miscellaneous.ParkingProtocols @ gpioe 2
+    camera: usart3
+    lane: "entry"
 gpiod:
     1 -> protocols@0
     2 -> protocols@1
@@ -41,4 +58,7 @@ gpiod:
     15 -> display@1
 gpioe:
     0 -> display@2
+    2 -> protocolsEntry@0
+    3 -> protocolsEntry@1
+    4 -> protocolsEntry@2
 display: Video.CourseST7789V @ spi1

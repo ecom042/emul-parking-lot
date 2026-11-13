@@ -11,14 +11,20 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
     // Course engineering model. GPIO commands are observed, never overwritten.
     public sealed class ParkingPhysical : IPeripheral, IGPIOReceiver, INumberedGPIOOutput
     {
-        public ParkingPhysical(IMachine machine, CourseSTM32U5ADC4 adc)
+        // One instance per lane. The lane is a validated label for snapshots;
+        // event device names stay lane-independent so oracles apply per owner.
+        public ParkingPhysical(IMachine machine, CourseSTM32U5ADC4 adc,
+            int adcChannel = 18, string lane = "exit")
         {
+            if(lane != "entry" && lane != "exit")
+                throw new RecoverableException("Lane must be entry or exit");
             this.machine = machine;
+            Lane = lane;
             Connections = new Dictionary<int, IGPIO> {
                 { 0, new GPIO() }, { 1, new GPIO() }, { 2, new GPIO() }
             };
             timeline = new EquipmentTimeline(machine, Step, Validate, Execute);
-            adc.SampleProvider = channel => channel == 18 ? (uint)AdcCode : 0;
+            adc.ConnectSource(adcChannel, () => (uint)AdcCode);
             Reset();
         }
 
@@ -88,7 +94,8 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
         public int Speed { get; private set; }
         public int Vehicle { get; private set; }
         public int AdcCode { get; private set; }
-        public string Snapshot => "{\"v\":1,\"run\":" + Run + ",\"tick\":" + Tick +
+        public string Lane { get; }
+        public string Snapshot => "{\"v\":1,\"lane\":\"" + Lane + "\",\"run\":" + Run + ",\"tick\":" + Tick +
             ",\"seq\":" + timeline.Sequence + ",\"time_us\":" + timeline.TimeMicroseconds +
             ",\"position_mdeg\":" + Position + ",\"speed_mdeg_s\":" + Speed +
             ",\"vehicle_mm\":" + Vehicle + ",\"adc_code\":" + AdcCode +

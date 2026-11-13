@@ -1,0 +1,23 @@
+# Parking laboratory teaching parameters. These are course defaults, not
+# product policy; the launcher reads the built values from zephyr/.config.
+
+mainmenu "Parking laboratory"
+
+config PARKING_CAPACITY
+	int "Parking lot capacity (simultaneous sessions)"
+	range 1 8
+	default 4
+	help
+	  Number of vehicles that may be parked at the same time. The entry
+	  lane requests assistance instead of opening when the lot is full.
+
+config PARKING_TARIFF_UNIT_MS
+	int "Tariff unit in virtual milliseconds"
+	range 1000 60000
+	default 60000
+	help
+	  Charge 200 centavos for the first started unit, then 100 per
+	  additional started unit. Finite tests and the interactive lab
+	  select shorter units explicitly.
+
+source "Kconfig.zephyr"
