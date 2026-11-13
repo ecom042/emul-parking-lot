@@ -122,6 +122,8 @@ class Driver:
         # The deque only feeds the view; totals keep every verdict of the run.
         self.verdicts = collections.deque(maxlen=256)
         self.totals = {"pass": 0, "fail": 0}
+        # Failures stay listed even after the recent window has moved on.
+        self.failures = collections.deque(maxlen=256)
         self.ctl = None
         for profile in cars if cars is not None else [{} for _ in range(5)]:
             self.add(profile)
@@ -197,6 +199,7 @@ class Driver:
         now = self.ctl.tick if self.ctl else 0
         return {"cars": [c.view(now) for c in self.cars.values()],
                 "verdicts": list(self.verdicts), "totals": dict(self.totals),
+                "failures": list(self.failures),
                 "halted": dict(self.halted),
                 "inside": self.inside(), "capacity": self.capacity,
                 "lanes": {lane: None if v is None else {"car": v.car.id, "phase": v.phase}
@@ -254,9 +257,12 @@ class Driver:
         status = "pass" if observed in expected else "fail"
         self.totals[status] += 1
         car = visit.car
-        self.verdicts.append({"car": car.id, "plate": visit.plate, "lane": visit.lane,
-                              "tick": now, "expected": sorted(expected),
-                              "observed": observed, "status": status, "reason": reason})
+        verdict = {"car": car.id, "plate": visit.plate, "lane": visit.lane,
+                   "tick": now, "expected": sorted(expected),
+                   "observed": observed, "status": status, "reason": reason}
+        self.verdicts.append(verdict)
+        if status == "fail":
+            self.failures.append(verdict)
         car.note = f"{visit.lane}: {observed} ({status})"
         return status
 

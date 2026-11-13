@@ -199,6 +199,7 @@ class LaneTests(unittest.TestCase):
         self.assertEqual(len(driver.verdicts), 256)
         self.assertTrue(all(v["status"] == "pass" for v in driver.verdicts))
         self.assertEqual(driver.view()["totals"], {"pass": 300, "fail": 1})
+        self.assertEqual([v["status"] for v in driver.view()["failures"]], ["fail"])
 
     def test_refused_exit_is_stuck_until_retry(self):
         driver, ctl = setup({"exit_capture": "misread"})

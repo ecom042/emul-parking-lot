@@ -101,7 +101,7 @@ test("complete prefix and overlapping publications do not diagnose a gap or dupl
   view.render(snapshot(2, {physical: [event(1), event(2)],
     protocol: [event(1), event(2), event(3)]}));
   assert(!view.text("uart").includes(warning));
-  assert.equal(view.text("uart"), before + "[30µs terminal tx_byte] A\n");
+  assert.equal(view.text("uart"), before + "[30µs entry terminal tx_byte] A\n");
 });
 
 test("empty initial windows defer prefix diagnosis until the first event arrives", () => {
@@ -134,9 +134,9 @@ test("reset with fresh source runs clears prior history and restarts sequence tr
   reset.revision = 3;
   reset.events["entry.protocol"] = [{...event(1), run: "protocol-2"}];
   view.render(reset);
-  assert.equal(view.text("uart"), "[10µs terminal tx_byte] A\n");
+  assert.equal(view.text("uart"), "[10µs entry terminal tx_byte] A\n");
   view.render(snapshot(1, {protocol: [event(30)]}));
-  assert.equal(view.text("uart"), "[10µs terminal tx_byte] A\n");
+  assert.equal(view.text("uart"), "[10µs entry terminal tx_byte] A\n");
 });
 
 test("source-run changes, not host epochs, scope independent sequence cursors", () => {
@@ -218,8 +218,8 @@ test("car queue fills the street, bays and verdict log", () => {
   const car = (id, state, extra = {}) => ({id, plate: `ABC${id}D2${id}`, state, park_s: 5,
     spot: null, remaining_s: null, note: "", profile: {entry_capture: "normal",
       exit_capture: "normal", payment: "paid", quirk: "none"}, ...extra});
-  view.render(snapshot(1, {}, {queue: {
-    capacity: 3, inside: 2, halted: {exit: "barrier did not close"},
+  view.render(snapshot(1, {}, {lot: {capacity: 3, sessions: ["ABC3D23", "ABC4D24"]}, queue: {
+    capacity: 3, inside: 3, halted: {exit: "barrier did not close"},
     lanes: {entry: {car: 1, phase: "wait"}, exit: null},
     cars: [car(1, "entering"), car(2, "queued", {profile: {entry_capture: "failed",
       exit_capture: "normal", payment: "paid", quirk: "none"}}),
@@ -247,4 +247,27 @@ test("verdict score counts the whole run, not just the recent list", () => {
     verdicts: [{car: 1, plate: "ABC1D23", lane: "entry", tick: 10, expected: ["entered"],
       observed: "entered", status: "pass", reason: "opened for ABC1D23"}]}}));
   assert.equal(view.text("verdict-score"), "300 of 301 passed");
+});
+
+test("UART lines name their lane and merge both lanes in virtual-time order", () => {
+  const view = renderer();
+  const frame = snapshot(1);
+  frame.events["entry.protocol"] = [event(1, "tx_byte", 65), {...event(2, "tx_byte", 67), time_us: 40}];
+  frame.events["exit.protocol"] = [{...event(1, "rx_byte", 66), run: "protocol-x", time_us: 30}];
+  view.render(frame);
+  assert.equal(view.text("uart"),
+    "[10µs entry terminal tx_byte] A\n[30µs exit terminal rx_byte] B\n[40µs entry terminal tx_byte] C\n");
+});
+
+test("failures older than the recent window stay listed", () => {
+  const view = renderer();
+  const verdict = (car, tick, status) => ({car, plate: `ABC${car}D23`, lane: "entry", tick,
+    expected: ["entered"], observed: status === "pass" ? "entered" : "refused", status, reason: ""});
+  const early = verdict(1, 10, "fail");
+  view.render(snapshot(1, {}, {queue: {capacity: 4, inside: 0, halted: {},
+    lanes: {entry: null, exit: null}, cars: [], totals: {pass: 2, fail: 1},
+    verdicts: [verdict(2, 20, "pass"), verdict(3, 30, "pass")], failures: [early]}}));
+  const items = view.element("verdicts").children;
+  assert.equal(items.length, 3);
+  assert.equal(items[2].className, "verdict fail");
 });

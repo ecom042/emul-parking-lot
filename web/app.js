@@ -145,7 +145,10 @@ function renderQueue(next) {
     : "The street is empty. Add a car to send it to the entry.");
   draw("queue", JSON.stringify(waiting), () => waiting.map(chip));
   const parked = queue.cars.filter(c => c.spot !== null && c.spot !== undefined);
-  text("lot-count", `${queue.inside} of ${queue.capacity} spots taken`);
+  // Occupancy as the lot checker counts it: sessions open and close at the
+  // beam, slightly before a car's drawn manoeuvre ends.
+  const taken = next.lot ? next.lot.sessions.length : queue.inside;
+  text("lot-count", `${taken} of ${queue.capacity} spots taken`);
   const bays = Array.from({length: queue.capacity}, (_, spot) => parked.find(c => c.spot === spot));
   draw("bays", JSON.stringify(bays.map(c => c && [c.id, c.plate, c.state, Math.ceil(c.remaining_s || 0)])),
     () => bays.map((car, spot) => {
@@ -170,7 +173,12 @@ function renderQueue(next) {
     fail: verdicts.filter(v => v.status === "fail").length};
   const served = totals.pass + totals.fail;
   text("verdict-score", served ? `${totals.pass} of ${served} passed` : "No cars served yet");
-  draw("verdicts", JSON.stringify(verdicts), () => verdicts.slice().reverse().map(v => {
+  // Failures older than the recent window stay listed after it.
+  const key = v => `${v.car}/${v.lane}/${v.tick}`;
+  const recent = new Set(verdicts.map(key));
+  const earlier = (queue.failures || []).filter(v => !recent.has(key(v)));
+  const shown = [...verdicts.slice().reverse(), ...earlier.slice().reverse()];
+  draw("verdicts", JSON.stringify(shown), () => shown.map(v => {
     const item = el("li", `verdict ${v.status}`);
     const expected = v.expected.map(e => OUTCOME[e] || e).join(" or ");
     item.append(el("span", "mark", v.status === "pass" ? "✓" : "✗"),
@@ -241,6 +249,7 @@ function render(next) {
     ctx.putImageData(image, 0, 0);
   }
   const owners = Object.keys(next.events).sort();
+  const lines = [];
   for (const owner of owners) {
     const [lane, kind] = owner.split(".");
     if (sourceRuns[owner] !== lanes[lane][kind].run) {
@@ -257,13 +266,19 @@ function render(next) {
       // This also applies on first connection/reload, when the cursor is zero.
       if (event.seq > cursor[owner] + 1) {
         uartTruncated = true;
-        uart += "\n[Source window gap; state resynchronized. UART history incomplete.]\n";
+        lines.push({at: event.time_us, owner, seq: event.seq - 0.5,
+          text: "\n[Source window gap; state resynchronized. UART history incomplete.]\n"});
       }
       cursor[owner] = event.seq;
-      if (owner.endsWith(".protocol") && ["rx_byte", "tx_byte"].includes(event.signal))
-        uart += `[${event.time_us}µs ${event.device} ${event.signal}] ${event.value === 10 ? "\\n\n" : String.fromCharCode(event.value)}\n`;
+      if (owner.endsWith(".protocol") && ["rx_byte", "tx_byte"].includes(event.signal)) {
+        lines.push({at: event.time_us, owner, seq: event.seq, text:
+          `[${event.time_us}µs ${owner.split(".")[0]} ${event.device} ${event.signal}] ${event.value === 10 ? "\\n\n" : String.fromCharCode(event.value)}\n`});
+      }
     }
   }
+  // Both lanes share one virtual clock: merge their bytes in time order.
+  lines.sort((a, b) => a.at - b.at || a.owner.localeCompare(b.owner) || a.seq - b.seq);
+  for (const line of lines) uart += line.text;
   if (uart.length > 32768) uartTruncated = true;
   uart = uart.slice(-32768);
   text("uart", (uartTruncated
@@ -435,8 +450,10 @@ document.addEventListener("keydown", event => {
   }
 });
 // Wide screens have a column for diagnostics, so show them open there.
-if (typeof matchMedia === "function" && matchMedia("(min-width: 1500px)").matches) {
-  $("drawer").open = true;
+if (typeof matchMedia === "function") {
+  const wide = matchMedia("(min-width: 1500px)");
+  $("drawer").open = wide.matches;
+  wide.addEventListener("change", event => { $("drawer").open = event.matches; });
 }
 connect().catch(error => {
   setConnection("lost", "Not connected. Open the link the launcher printed.");
