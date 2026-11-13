@@ -15,8 +15,12 @@ def main():
     ap.add_argument("--renode", type=Path, required=True)
     ap.add_argument("--machine-script", type=Path, required=True)
     ap.add_argument("--output", type=Path, required=True)
-    ap.add_argument("--scenario", choices=[p.stem for p in (root / "tests/scenarios").glob("*.json")],
-                    help="run one retained fixture (default: all)")
+    ap.add_argument("--scenario", action="append", default=[],
+                    help="run this fixture; repeat for several, in order (default: all)")
+    ap.add_argument("--scenarios-dir", type=Path, action="append", default=[],
+                    help="also load fixtures from this trusted directory (instructor hidden set)")
+    ap.add_argument("--trace-dir", type=Path,
+                    help="write the executed blocks of each machine run here (coverage only)")
     ap.add_argument("--lot", type=int, metavar="SECONDS",
                     help="run the car queue for this many virtual seconds instead")
     ap.add_argument("--cars", type=Path,
@@ -26,16 +30,27 @@ def main():
         ap.error("--lot must be 1..3600 virtual seconds")
     if args.cars and args.lot is None:
         ap.error("--cars requires --lot")
+    scenario_dirs = [root / "tests/scenarios", *(d.resolve() for d in args.scenarios_dir)]
+    names = [p.stem for d in scenario_dirs for p in d.glob("*.json")]
+    if len(names) != len(set(names)):
+        ap.error("scenario names must be unique across --scenarios-dir")
+    for name in args.scenario:
+        if name not in names:
+            ap.error(f"unknown scenario {name}")
+    environment = {"PARKING_BOOT": str(args.machine_script.resolve()),
+                   "PARKING_RESET": str(args.machine_script.resolve().with_name("reset.resc"))}
+    if args.trace_dir:
+        args.trace_dir.mkdir(parents=True, exist_ok=False)
+        environment["PARKING_TRACE_DIR"] = str(args.trace_dir.resolve())
+        environment["PARKING_COVERAGE_MODEL"] = str(root / "models/BlockCoverage.cs")
     sys.path.insert(0, str(args.module.resolve() / "src"))
     from zvb.stdio import StdioRuntime
     from parking_web import ParkingEngine, built_config
     args.output.mkdir(parents=True, exist_ok=False)
     boot = args.machine_script.resolve()
     runtime = StdioRuntime(args.renode.resolve(), root / "scripts/parking_embedded.py",
-                           own_session=False,
-                           environment={"PARKING_BOOT": str(boot),
-                                        "PARKING_RESET": str(boot.with_name("reset.resc"))})
-    engine = ParkingEngine(runtime, root / "tests/scenarios", args.output / "runs",
+                           own_session=False, environment=environment)
+    engine = ParkingEngine(runtime, scenario_dirs, args.output / "runs",
                            pace=0, step_ticks=100, **built_config(boot))
     results = []
     def command(op, **fields):
@@ -44,7 +59,7 @@ def main():
     try:
         if args.lot is not None:
             return lot(args, engine, command, boot)
-        for name in ([args.scenario] if args.scenario else engine.scenarios):
+        for name in (args.scenario or engine.scenarios):
             began = time.monotonic()
             command("select", scenario=name)
             command("start")

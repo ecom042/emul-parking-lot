@@ -5,6 +5,10 @@ import System
 
 boot = System.Environment.GetEnvironmentVariable("PARKING_BOOT")
 reset = System.Environment.GetEnvironmentVariable("PARKING_RESET")
+# Coverage runs only: a trusted directory for one block list per machine run.
+trace_dir = System.Environment.GetEnvironmentVariable("PARKING_TRACE_DIR")
+coverage_model = System.Environment.GetEnvironmentVariable("PARKING_COVERAGE_MODEL")
+traces = [0]
 LANES = ["entry", "exit"]
 # Fixed owner table: browser text never selects a device path.
 PATHS = {
@@ -23,6 +27,20 @@ def include_file(path):
         raise Exception("invalid trusted path")
     if not monitor.Parse("include @" + path.replace(" ", "\\ ")):
         raise Exception("script failed")
+
+
+def start_trace():
+    """Begin a new block-coverage file; boot and every reset each start one."""
+    if not trace_dir:
+        return
+    if any(c in trace_dir for c in ['"', ";", "\n", "\r", "\\"]):
+        raise Exception("invalid trace directory")
+    if not traces[0]:
+        include_file(coverage_model)
+    traces[0] += 1
+    path = "%s/blocks-%04d.txt" % (trace_dir, traces[0])
+    if not monitor.Parse("sysbus.cpu0 StartBlockCoverage @" + path.replace(" ", "\\ ")):
+        raise Exception("block coverage failed")
 
 
 def lane_device(lane, kind):
@@ -71,11 +89,13 @@ def handle_request(request):
     op = request["op"]
     if op == "init":
         include_file(boot)
+        start_trace()
         for owner in PATHS:
             devices[owner] = monitor.Machine[PATHS[owner]]
         devices["display"] = monitor.Machine["sysbus.spi1.display"]
     elif op == "reset":
         include_file(reset)
+        start_trace()
         for owner in PATHS:
             last_sequences[owner] = 0
         last_pixels = None

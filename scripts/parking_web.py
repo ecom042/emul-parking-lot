@@ -43,7 +43,12 @@ class ParkingEngine:
         self.step_ticks = step_ticks
         self.capacity = capacity
         self.tariff_unit_ms = tariff_unit_ms
-        self.scenarios = {p.stem: parser.load(p) for p in sorted(Path(scenarios).glob("*.json"))}
+        # One trusted directory, or several (public fixtures plus a hidden set).
+        directories = [scenarios] if isinstance(scenarios, (str, Path)) else list(scenarios)
+        paths = sorted((p for d in directories for p in Path(d).glob("*.json")), key=lambda p: p.stem)
+        self.scenarios = {p.stem: parser.load(p) for p in paths}
+        if len(self.scenarios) != len(paths):
+            raise HarnessFailure("scenario names must be unique across directories")
         self.evidence = Path(evidence)
         self.evidence.mkdir(parents=True, exist_ok=False)
         self.requests = queue.Queue(maxsize=32)

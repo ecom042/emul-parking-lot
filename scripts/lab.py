@@ -28,14 +28,17 @@ def source_hashes(root, directories):
 TARIFF_UNIT_MS = {"headless": 1000, "interactive": 5000}
 
 
-def commands(module, renode, output, headless=None, capacity=None):
+def commands(module, renode, output, headless=None, capacity=None, app=None, cmake_args=()):
+    """Build, prepare and launch commands. Grading tools pass another `app`
+    (a submitted copy of student/) and extra CMake arguments."""
     firmware = output / "firmware"
     unit = TARIFF_UNIT_MS["headless" if headless else "interactive"]
     build = [sys.executable, "-m", "west", "build", "-b", "nucleo_u5a5zj_q",
-             str(ROOT / "student"), "-d", str(firmware), "--",
+             str(app or ROOT / "student"), "-d", str(firmware), "--",
              f"-DCONFIG_PARKING_TARIFF_UNIT_MS={unit}"]
     if capacity is not None:
         build.append(f"-DCONFIG_PARKING_CAPACITY={capacity}")
+    build.extend(cmake_args)
     prepare = [sys.executable, str(ROOT / "scripts/prepare-smoke.py"),
                "--build-dir", str(firmware), "--config",
                str(ROOT / "student/boards/zvb/nucleo_u5a5zj_q/zvb.yml")]

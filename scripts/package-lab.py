@@ -39,11 +39,13 @@ EXCLUDED = {
 }
 STUDENT_DOCS = {
     "agent-context.md", "architecture.md", "browser.md", "device-protocols.md",
+    "grading-tools.md",
     "hardware-models.md", "physical-model.md", "release-checklist.md",
     "scenarios.md", "setup.md", "student-specification.md",
 }
 STUDENT_SCRIPTS = {
-    "assess.py", "bounded-command.py", "check-student-launch.py", "lab.py",
+    "assess.py", "bounded-command.py", "check-student-launch.py", "firmware-coverage.py",
+    "grading/__init__.py", "grading/linecov.py", "grading/workspace.py", "lab.py",
     "package-lab.py", "parking-web.py", "parking_embedded.py", "parking_web.py",
     "prepare-smoke.py", "scenario-run.py", "scenario-schema.py",
     "scenario/__init__.py", "scenario/assessment.py", "scenario/driver.py",
@@ -53,6 +55,7 @@ STUDENT_SCRIPTS = {
 }
 STUDENT_TESTS = {
     "scenario.robot", "test_bounded_command.py", "test_browser_history.cjs", "test_driver.py",
+    "test_grading_coverage.py",
     "test_lab.py", "test_lab_launch_validation.py", "test_package_lab.py",
     "test_parking_observations.py", "test_parking_web.py", "test_scenario.py",
     "test_scenario_obstruction.py",
