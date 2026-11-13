@@ -20,7 +20,7 @@ def main():
     args = ap.parse_args()
     sys.path.insert(0, str(args.module.resolve() / "src"))
     from zvb.stdio import StdioRuntime
-    from parking_web import ParkingEngine
+    from parking_web import ParkingEngine, built_config
     args.output.mkdir(parents=True, exist_ok=False)
     boot = args.machine_script.resolve()
     runtime = StdioRuntime(args.renode.resolve(), root / "scripts/parking_embedded.py",
@@ -28,7 +28,7 @@ def main():
                            environment={"PARKING_BOOT": str(boot),
                                         "PARKING_RESET": str(boot.with_name("reset.resc"))})
     engine = ParkingEngine(runtime, root / "tests/scenarios", args.output / "runs",
-                           pace=0, step_ticks=100)
+                           pace=0, step_ticks=100, **built_config(boot))
     results = []
     def command(op, **fields):
         return engine.command({"v": 1, "run": engine.snapshot()["run"],

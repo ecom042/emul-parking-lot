@@ -9,17 +9,39 @@ import threading
 import time
 import uuid
 
-from scenario import parser
-from scenario.assessment import FirmwareFailure, HarnessFailure, Stream, assess, checkpoint
-from scenario.observations import charge_uuids, frames
+from scenario import parser, runner
+from scenario.assessment import FirmwareFailure, HarnessFailure
+
+# The interactive lot: unscheduled, both lanes open, payment held until "Pay".
+LOT = "lot"
+LOT_PAYMENT = {"delay_ticks": 10, "fragment_bytes": 8, "result": "PAID", "missing": True}
+
+
+def built_config(boot):
+    """Read capacity/tariff from the trusted build next to boot.resc."""
+    config = Path(boot).parent / "zephyr/.config"
+    values = {"capacity": 4, "tariff_unit_ms": 60000}
+    keys = {"CONFIG_PARKING_CAPACITY": "capacity",
+            "CONFIG_PARKING_TARIFF_UNIT_MS": "tariff_unit_ms"}
+    if not config.is_file():
+        raise HarnessFailure(f"missing trusted build configuration {config}")
+    for line in config.read_text().splitlines():
+        key, _, value = line.partition("=")
+        if key in keys:
+            values[keys[key]] = int(value)
+    return values
 
 
 class ParkingEngine:
-    def __init__(self, runtime, scenarios, evidence, *, pace=0.05, step_ticks=5):
+    def __init__(self, runtime, scenarios, evidence, *, pace=0.05, step_ticks=5,
+                 capacity=4, tariff_unit_ms=60000):
         parser.integer(step_ticks, 1, 100)
+        parser.integer(capacity, 1, 8)
         self.runtime = runtime
         self.pace = pace
         self.step_ticks = step_ticks
+        self.capacity = capacity
+        self.tariff_unit_ms = tariff_unit_ms
         self.scenarios = {p.stem: parser.load(p) for p in sorted(Path(scenarios).glob("*.json"))}
         self.evidence = Path(evidence)
         self.evidence.mkdir(parents=True, exist_ok=False)
@@ -28,19 +50,17 @@ class ParkingEngine:
         self.stop = threading.Event()
         self.publish = lambda snapshot: None
         self.view = {}
-        self.state = None
         self.commands = collections.deque(maxlen=128)
-        self.results = collections.deque(maxlen=128)
         self.running = False
-        self.selected = "manual"
+        self.selected = LOT
         self.scenario = None
         self.run_index = 0
-        self.streams = {}
         self.failure = None
-        self.command_id = 0
+        self.finished = False
         self.revision = 0
+        self.run = None
         self._new_epoch()
-        self._rpc({"op": "init"})
+        self.state = self.runtime.request({"op": "init"})
         self._configure_run()
         self._refresh()
         self.thread = threading.Thread(target=self._loop, daemon=True)
@@ -50,50 +70,29 @@ class ParkingEngine:
         self.epoch = uuid.uuid4().hex
         self.ids = set()
 
-    def _rpc(self, payload):
-        result = self.runtime.request(payload)
-        if "physical" in result:
-            if "pixels" not in result and self.state:
-                result["pixels"] = self.state["pixels"]
-            self.state = result
-            for owner in ("physical", "protocol"):
-                source = result[owner]
-                if owner not in self.streams:
-                    self.streams[owner] = Stream(source["run"], source["time_us"])
-                elif self.streams[owner].run != source["run"]:
-                    raise HarnessFailure("unexpected source run change")
-                self.streams[owner].collect(result["events"][owner])
-        return result
-
     @property
     def tick(self):
-        return self.state["physical"]["tick"]
+        return self.run.tick
+
+    def _spec(self):
+        if self.scenario:
+            return self.scenario["runs"][self.run_index]
+        spec = runner.open_run()
+        spec["lanes"]["exit"]["payment"] = dict(LOT_PAYMENT)
+        return spec
 
     def _configure_run(self):
-        if any(self.state[o]["tick"] != 0 or self.state[o]["pending"]
-               for o in ("physical", "protocol")):
-            raise HarnessFailure("run configuration requires empty paused Tick 0")
-        self.processed = set()
-        self.checked = set()
-        self.finished = False
         self.failure = None
-        self.command_id = 0
-        self.scheduled_ids = set()
-        self.run_spec = self.scenario["runs"][self.run_index] if self.scenario else {
-            "initial": {"position_mdeg": 0, "vehicle_mm": 6000},
-            "duration_ticks": 6000, "actions": [], "expect": [],
-            "green": [{"after_tick": 0, "before_tick": 6000,
-                       "payment_required": bool(i % 2)} for i in range(32)]}
-        initial = self.run_spec["initial"]
-        self._rpc({"op": "initial", **initial,
-                   "seed": self.scenario["seed"] if self.scenario else 1})
-        for kind in ("camera", "payment"):
-            if kind in self.run_spec:
-                self._rpc({"op": "configure", "kind": kind,
-                           "config": self.run_spec[kind]})
-        if not self.scenario:
-            self._rpc({"op": "configure", "kind": "payment", "config": {
-                "delay_ticks": 10, "fragment_bytes": 8, "result": "PAID", "missing": True}})
+        self.finished = False
+        data = self.scenario or {}
+        self.run = runner.RunController(
+            self.runtime.request, self._spec(), self.state,
+            seed=data.get("seed", 1), capacity=self.capacity,
+            motor_ms=data.get("deadlines", {}).get("motor_ms", 2500),
+            step_ticks=self.step_ticks,
+            evidence=self.evidence / f"{self.epoch}-{self.run_index}.events.jsonl.gz",
+            required_capacity=data.get("capacity"))
+        self.state = self.run.state
 
     def snapshot(self):
         with self.lock:
@@ -104,7 +103,7 @@ class ParkingEngine:
             raise RuntimeError("engine is closing")
         # Validate before admission; no path, code, monitor syntax or arbitrary
         # model method can pass this domain boundary.
-        parser.fields(payload, ["v", "run", "id", "op"], ["scenario", "signal", "value"])
+        parser.fields(payload, ["v", "run", "id", "op"], ["scenario", "lane", "signal", "value"])
         parser.integer(payload["v"], 1, 1)
         parser.require(type(payload["run"]) is str and len(payload["run"]) == 32, "invalid run")
         parser.require(type(payload["id"]) is str and len(payload["id"]) <= 64
@@ -112,16 +111,18 @@ class ParkingEngine:
         op = payload["op"]
         parser.require(type(op) is str, "invalid operation")
         allowed = {"start": set(), "pause": set(), "reset": set(),
-                   "select": {"scenario"}, "submit": {"signal", "value"}}
+                   "select": {"scenario"}, "submit": {"lane", "signal", "value"}}
         parser.require(op in allowed, "unknown operation")
         parser.require(set(payload) == {"v", "run", "id", "op"} | allowed[op],
                        "unexpected operation fields")
         if op == "select":
             parser.require(type(payload["scenario"]) is str and
-                           payload["scenario"] in {"manual", *self.scenarios}, "unknown scenario")
+                           payload["scenario"] in {LOT, *self.scenarios}, "unknown scenario")
         if op == "submit":
+            parser.require(payload["lane"] in parser.LANES, "unknown lane")
             signal = payload["signal"]
             parser.require(type(signal) is str and signal in parser.SIGNALS, "unknown signal")
+            parser.lane_signal(payload["lane"], signal)
             low, high, step = parser.SIGNALS[signal]
             parser.integer(payload["value"], low, high)
             parser.require(payload["value"] % step == 0, "invalid signal step")
@@ -139,46 +140,17 @@ class ParkingEngine:
                 raise RuntimeError("command expired before execution")
             raise RuntimeError("runtime command outcome uncertain; inspect snapshot")
 
-    def _submit(self, signal, value, at_tick, *, scheduled=False):
-        owner = "protocol" if signal.startswith("payment.") else "physical"
-        self.command_id += 1
-        if scheduled:
-            self.scheduled_ids.add(self.command_id)
-        command = {"v": 1, "run": self.state[owner]["run"], "id": self.command_id,
-                   "at_tick": at_tick, "signal": signal, "value": value}
-        ack = self._rpc({"op": "submit", "owner": owner, "command": command})
-        if not ack.get("accepted"):
-            raise RuntimeError(f"equipment rejected command: {ack}")
-        return ack
-
     def _reset(self, selection=None):
         self.running = False
         self._retain_run("reset")
         if selection is not None:
             self.selected = selection
             self.scenario = self.scenarios.get(selection)
-        self.results.clear()
         self.commands.clear()
         self._new_epoch()
-        self._reset_equipment()
+        self.state = runner.reset(self.runtime.request, self.state)
         self.run_index = 0
         self._configure_run()
-
-    def _reset_equipment(self):
-        previous = self.state
-        self.streams = {}
-        self._rpc({"op": "reset"})
-        for owner in ("physical", "protocol"):
-            if self.state[owner]["run"] == previous[owner]["run"]:
-                raise HarnessFailure("reset retained source run identity")
-            if self.state[owner]["time_us"] < previous[owner]["time_us"]:
-                raise HarnessFailure("reset moved source time backwards")
-            signal = "sensor.noise" if owner == "physical" else "payment.replay"
-            ack = self._rpc({"op": "submit", "owner": owner, "command": {
-                "v": 1, "run": previous[owner]["run"], "id": 2147483647,
-                "at_tick": 1, "signal": signal, "value": 0 if owner == "physical" else 1}})
-            if ack.get("accepted") is not False or ack.get("error") != "stale_run":
-                raise HarnessFailure("old source run command did not reject")
 
     def _execute(self, command):
         if command["run"] != self.epoch:
@@ -202,84 +174,56 @@ class ParkingEngine:
         else:
             if self.finished or self.failure:
                 raise ValueError("reset required after completion or failure")
-            return self._submit(command["signal"], command["value"], self.tick + 1)
+            return self.run.submit(command["lane"], command["signal"], command["value"])
         return {"accepted": True, "run": self.epoch, "op": op}
 
-    def _scheduled(self):
-        for index, action in enumerate(self.run_spec["actions"]):
-            if index in self.processed or action["at_tick"] != self.tick + 1:
-                continue
-            self.processed.add(index)
-            if action["kind"] == "submit":
-                self._submit(action["signal"], action["value"], action["at_tick"], scheduled=True)
-            elif action["kind"] in ("camera", "payment"):
-                self._rpc({"op": "configure", "kind": action["kind"], "config": action["config"]})
-            else:
-                q = self.streams["protocol"].events
-                uuids = charge_uuids(frames(q, "payment", "tx_byte", -1,
-                                           self.state["protocol"]["time_us"]))
-                if action["charge"] > len(uuids):
-                    raise RuntimeError("replay references unobserved charge")
-                self._rpc({"op": "replay", "uuid": uuids[action["charge"] - 1],
-                           "delay_ticks": action["delay_ticks"]})
-
     def _advance(self):
-        self._scheduled()
-        boundaries = [self.run_spec["duration_ticks"], self.tick + self.step_ticks]
-        boundaries += [a["at_tick"] - 1 for i, a in enumerate(self.run_spec["actions"])
-                       if i not in self.processed and a["at_tick"] - 1 > self.tick]
-        boundaries += [e["at_tick"] for i, e in enumerate(self.run_spec["expect"])
-                       if i not in self.checked and e["at_tick"] > self.tick]
-        target = min(boundaries)
-        self._rpc({"op": "step", "ticks": target - self.tick})
-        if any(self.state[o]["tick"] != target for o in ("physical", "protocol")):
-            raise HarnessFailure("finite step did not reach exact source tick")
-        p, q = (self.streams[o].events for o in ("physical", "protocol"))
-        for event in self.state["events"]["physical"] + self.state["events"]["protocol"]:
-            if event["category"] == "command" and event["signal"] == "failed":
-                self.commands.append({"status": "failed", "event": event})
-                if event["value"] in self.scheduled_ids:
-                    raise HarnessFailure("scheduled scenario equipment command failed")
-        final = self.tick == self.run_spec["duration_ticks"]
-        assess(p, q, self.state["physical"], self.run_spec["green"],
-               final=final and self.scenario is not None)
-        for index, expectation in enumerate(self.run_spec["expect"]):
-            if index not in self.checked and expectation["at_tick"] == self.tick:
-                checkpoint(expectation["state"], self.state["physical"], self.state["protocol"], q)
-                self.checked.add(index)
-                self.results.append({"status": "pass", "run_index": self.run_index,
-                                     "tick": self.tick, "expected": expectation["state"]})
-        if final:
-            self._retain_run("pass")
-            if self.scenario and self.run_index + 1 < len(self.scenario["runs"]):
-                self._reset_equipment()
-                self._new_epoch()
-                self.run_index += 1
-                self._configure_run()
-            else:
-                self.finished = True
-                self.running = False
+        final = self.run.advance()
+        self.state = self.run.state
+        if not final:
+            return
+        self._retain_run("pass")
+        if self.scenario and self.run_index + 1 < len(self.scenario["runs"]):
+            self.state = runner.reset(self.runtime.request, self.state)
+            self._new_epoch()
+            self.run_index += 1
+            self._configure_run()
+        else:
+            self.finished = True
+            self.running = False
 
     def _retain_run(self, status):
-        if not self.state:
+        if not self.run or self.run.log is None:
             return
-        record = {"v": 1, "status": status, "scenario": self.selected,
+        run = self.run
+        record = {"v": 2, "status": status, "scenario": self.selected,
                   "run": self.epoch, "index": self.run_index, "failure": self.failure,
-                  "state": {k: v for k, v in self.state.items() if k != "events"},
-                  "events": {o: s.events for o, s in self.streams.items()},
-                  "commands": list(self.commands), "results": list(self.results)}
+                  "capacity": self.capacity, "tariff_unit_ms": self.tariff_unit_ms,
+                  "state": {k: v for k, v in run.state.items() if k not in ("events", "pixels")},
+                  "events_file": run.log.path.name,
+                  "event_counts": {o: s.count for o, s in run.streams.items()},
+                  "sessions": sorted(run.lot.sessions), "cycles": {
+                      lane: list(m.cycles) for lane, m in run.monitors.items()},
+                  "commands": list(self.commands), "equipment": list(run.commands),
+                  "results": list(run.results)}
+        run.close()
         name = f"{self.epoch}-{self.run_index}-{status}.json"
         (self.evidence / name).write_text(json.dumps(record) + "\n")
 
     def _refresh(self):
         self.revision += 1
-        source = {k: v for k, v in self.state.items() if k != "events"}
-        view = {"v": 1, "revision": self.revision, "run": self.epoch, "running": self.running,
-                "scenario": self.selected, "scenarios": ["manual", *self.scenarios],
+        run = self.run
+        state = run.state
+        view = {"v": 2, "revision": self.revision, "run": self.epoch, "running": self.running,
+                "scenario": self.selected, "scenarios": [LOT, *self.scenarios],
                 "run_index": self.run_index, "finished": self.finished,
-                "failure": self.failure, **source,
-                "commands": list(self.commands), "results": list(self.results),
-                "events": {o: s.events[-128:] for o, s in self.streams.items()}}
+                "failure": self.failure, "lanes": state["lanes"],
+                "display": state.get("display"), "pixels": state.get("pixels"),
+                "lot": {"capacity": self.capacity, "tariff_unit_ms": self.tariff_unit_ms,
+                        "sessions": sorted(run.lot.sessions)},
+                "counts": {lane: dict(m.counts) for lane, m in run.monitors.items()},
+                "commands": list(self.commands), "equipment": list(run.commands),
+                "results": list(run.results), "events": run.recent_events()}
         with self.lock:
             self.view = view
         self.publish(view)

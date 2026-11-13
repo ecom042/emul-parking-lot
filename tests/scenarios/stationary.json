@@ -1,12 +1,20 @@
 {
-  "version": 1, "name": "stationary", "seed": 1,
+  "version": 2, "name": "stationary", "seed": 1,
   "deadlines": {"motor_ms": 2500},
-  "runs": [{
-    "initial": {"position_mdeg": 0, "vehicle_mm": 800}, "duration_ticks": 900,
-    "actions": [], "green": [{"after_tick": 0, "before_tick": 600, "payment_required": false}],
-    "expect": [
-      {"at_tick": 600, "state": {"captures": 1, "vehicle_mm": 800, "position_mdeg": 90000, "enable": false, "green": true}},
-      {"at_tick": 900, "state": {"captures": 1, "vehicle_mm": 800, "green_count": 1, "enable": false, "green": true}}
-    ]
-  }]
+  "runs": [
+    {
+      "duration_ticks": 900,
+      "lanes": {
+        "entry": {"initial": {"position_mdeg": 0, "vehicle_mm": 800},
+          "green": [{"after_tick": 0, "before_tick": 600}]},
+        "exit": {"initial": {"position_mdeg": 0, "vehicle_mm": 6000},
+          "green": []}
+      },
+      "actions": [],
+      "expect": [
+        {"at_tick": 600, "state": {"captures": 1, "vehicle_mm": 800, "position_mdeg": 90000, "enable": false, "green": true}, "lane": "entry"},
+        {"at_tick": 900, "state": {"captures": 1, "vehicle_mm": 800, "green_count": 1, "enable": false, "green": true}, "lane": "entry"}
+      ]
+    }
+  ]
 }

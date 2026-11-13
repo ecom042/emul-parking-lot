@@ -22,7 +22,7 @@ gpioc:
     [0-15] -> exti#2@[0-15]
 
 // Exit lane: the original single-lane wiring, plus payment and display.
-physical: Miscellaneous.ParkingPhysical @ gpiob 1
+physicalExit: Miscellaneous.ParkingPhysical @ gpiob 1
     adc: u5adc4
     adcChannel: 18
     lane: "exit"
@@ -38,12 +38,12 @@ physicalEntry: Miscellaneous.ParkingPhysical @ gpiob 12
     1 -> gpioc@6
     2 -> gpioc@8
 gpiob:
-    1 -> physical@0
-    2 -> physical@1
+    1 -> physicalExit@0
+    2 -> physicalExit@1
     12 -> physicalEntry@0
     13 -> physicalEntry@1
 
-protocols: Miscellaneous.ParkingProtocols @ gpiod 1
+protocolsExit: Miscellaneous.ParkingProtocols @ gpiod 1
     camera: usart2
     payment: lpuart1
     lane: "exit"
@@ -51,9 +51,9 @@ protocolsEntry: Miscellaneous.ParkingProtocols @ gpioe 2
     camera: usart3
     lane: "entry"
 gpiod:
-    1 -> protocols@0
-    2 -> protocols@1
-    3 -> protocols@2
+    1 -> protocolsExit@0
+    2 -> protocolsExit@1
+    3 -> protocolsExit@2
     14 -> display@0
     15 -> display@1
 gpioe:

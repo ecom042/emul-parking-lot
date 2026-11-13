@@ -36,6 +36,7 @@
 </section>
 <section aria-labelledby="actions"><h2 id="actions">Equipment actions</h2>
 <p>Actions instruct equipment, never motor outputs. Manual mode holds payment until “Pay”. In assessment scenarios, actions can change the expected outcome.</p>
+<label>Lane <select id="lane"><option value="entry">Entry</option><option value="exit">Exit (payment)</option></select></label>
 <button data-signal="vehicle.speed" data-value="-2000">Car arrival / move forward</button>
 <button data-signal="vehicle.speed" data-value="0">Stop car</button>
 <button data-signal="vehicle.next" data-value="1">Next car (after passage)</button>
