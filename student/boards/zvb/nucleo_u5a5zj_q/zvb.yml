@@ -1,0 +1,12 @@
+title: Parking student laboratory
+machine: parking_student
+console_uart: usart1
+cpu: cpu0
+elf: zephyr/zephyr.elf
+dts: zephyr/zephyr.dts
+clock_hz: 160000000
+overlay: ../../../../hardware/renode/parking.repl
+equipment_timeline: true
+leds: []
+tags:
+  - {address: "0x40030404", size: "0x4", name: ICACHE_SR, value: "0x0"}
