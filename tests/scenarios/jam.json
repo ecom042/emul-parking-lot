@@ -1,0 +1,10 @@
+{
+  "version": 1, "name": "jam", "seed": 1,
+  "deadlines": {"motor_ms": 2500},
+  "runs": [{
+    "initial": {"position_mdeg": 0, "vehicle_mm": 800}, "duration_ticks": 600,
+    "actions": [{"at_tick": 1, "kind": "submit", "signal": "fault.jam", "value": 1}],
+    "green": [],
+    "expect": [{"at_tick": 600, "state": {"captures": 1, "position_mdeg": 0, "enable": false, "green": false, "buzzer_count": 1}}]
+  }]
+}

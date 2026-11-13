@@ -1,0 +1,17 @@
+{
+  "version": 1, "name": "reset-capture", "seed": 1,
+  "deadlines": {"motor_ms": 2500},
+  "runs": [
+    {
+      "initial": {"position_mdeg": 0, "vehicle_mm": 800}, "duration_ticks": 80,
+      "camera": {"plate": "ABC1D23", "confidences": [93], "delay_ticks": 500, "fragment_bytes": 2, "missing": false},
+      "actions": [], "green": [],
+      "expect": [{"at_tick": 80, "state": {"captures": 1, "pending": 1, "replies": 0, "enable": false}}]
+    },
+    {
+      "initial": {"position_mdeg": 0, "vehicle_mm": 6000}, "duration_ticks": 1200,
+      "actions": [], "green": [],
+      "expect": [{"at_tick": 1200, "state": {"captures": 0, "payments": 0, "pending": 0, "replies": 0, "position_mdeg": 0, "enable": false, "green": false}}]
+    }
+  ]
+}

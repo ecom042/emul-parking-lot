@@ -1,0 +1,13 @@
+{
+  "version": 1, "name": "noisy-threshold", "seed": 12345,
+  "deadlines": {"motor_ms": 2500},
+  "runs": [{
+    "initial": {"position_mdeg": 0, "vehicle_mm": 1000}, "duration_ticks": 900,
+    "actions": [{"at_tick": 1, "kind": "submit", "signal": "sensor.noise", "value": 64}],
+    "green": [{"after_tick": 0, "before_tick": 600, "payment_required": false}],
+    "expect": [
+      {"at_tick": 600, "state": {"captures": 1, "vehicle_mm": 1000, "position_mdeg": 90000, "enable": false, "green": true}},
+      {"at_tick": 900, "state": {"captures": 1, "green_count": 1, "enable": false}}
+    ]
+  }]
+}

@@ -1,0 +1,22 @@
+{
+  "version": 1, "name": "payment-missing", "seed": 1,
+  "deadlines": {"motor_ms": 2500},
+  "runs": [{
+    "initial": {"position_mdeg": 0, "vehicle_mm": 800}, "duration_ticks": 1800,
+    "payment": {"delay_ticks": 10, "fragment_bytes": 2, "result": "PAID", "missing": true},
+    "actions": [
+      {"at_tick": 600, "kind": "submit", "signal": "vehicle.speed", "value": -2000},
+      {"at_tick": 630, "kind": "submit", "signal": "sensor.obstruction", "value": 1},
+      {"at_tick": 730, "kind": "submit", "signal": "sensor.obstruction", "value": 0},
+      {"at_tick": 751, "kind": "submit", "signal": "vehicle.speed", "value": 0},
+      {"at_tick": 1001, "kind": "submit", "signal": "vehicle.next", "value": 1},
+      {"at_tick": 1011, "kind": "submit", "signal": "vehicle.speed", "value": -2000},
+      {"at_tick": 1271, "kind": "submit", "signal": "vehicle.speed", "value": 0}
+    ],
+    "green": [{"after_tick": 0, "before_tick": 600, "payment_required": false}],
+    "expect": [
+      {"at_tick": 1400, "state": {"position_mdeg": 0, "enable": false, "green": false, "payments": 1}},
+      {"at_tick": 1800, "state": {"position_mdeg": 0, "enable": false, "green": false, "payments": 1, "buzzer_count": 1}}
+    ]
+  }]
+}

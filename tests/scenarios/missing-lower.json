@@ -1,0 +1,16 @@
+{
+  "version": 1, "name": "missing-lower", "seed": 1,
+  "deadlines": {"motor_ms": 2500},
+  "runs": [{
+    "initial": {"position_mdeg": 0, "vehicle_mm": 800}, "duration_ticks": 1100,
+    "actions": [
+      {"at_tick": 600, "kind": "submit", "signal": "vehicle.speed", "value": -2000},
+      {"at_tick": 630, "kind": "submit", "signal": "sensor.obstruction", "value": 1},
+      {"at_tick": 700, "kind": "submit", "signal": "fault.limits", "value": 2},
+      {"at_tick": 730, "kind": "submit", "signal": "sensor.obstruction", "value": 0},
+      {"at_tick": 751, "kind": "submit", "signal": "vehicle.speed", "value": 0}
+    ],
+    "green": [{"after_tick": 0, "before_tick": 600, "payment_required": false}],
+    "expect": [{"at_tick": 1100, "state": {"position_mdeg": 0, "enable": false, "green": false, "buzzer_count": 1}}]
+  }]
+}

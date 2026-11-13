@@ -1,0 +1,10 @@
+{
+  "version": 1, "name": "confidence-retry", "seed": 1,
+  "deadlines": {"motor_ms": 2500},
+  "runs": [{
+    "initial": {"position_mdeg": 0, "vehicle_mm": 800}, "duration_ticks": 600,
+    "camera": {"plate": "ABC1D23", "confidences": [62,79,93], "delay_ticks": 10, "fragment_bytes": 2, "missing": false},
+    "actions": [], "green": [{"after_tick": 0, "before_tick": 600, "payment_required": false}],
+    "expect": [{"at_tick": 600, "state": {"captures": 3, "position_mdeg": 90000, "enable": false, "green": true}}]
+  }]
+}

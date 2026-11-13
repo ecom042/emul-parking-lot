@@ -1,0 +1,10 @@
+{
+  "version": 1, "name": "contradictory-limits", "seed": 1,
+  "deadlines": {"motor_ms": 2500},
+  "runs": [{
+    "initial": {"position_mdeg": 0, "vehicle_mm": 800}, "duration_ticks": 600,
+    "actions": [{"at_tick": 1, "kind": "submit", "signal": "fault.limits", "value": 3}],
+    "green": [],
+    "expect": [{"at_tick": 600, "state": {"position_mdeg": 0, "enable": false, "green": false, "red": true, "buzzer_count": 1}}]
+  }]
+}
