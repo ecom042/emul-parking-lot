@@ -8,16 +8,30 @@ const vm = require("node:vm");
 const source = fs.readFileSync(path.join(__dirname, "../web/app.js"), "utf8");
 const warning = "UART history incomplete.";
 
+// Minimal DOM: records text, classes, attributes and rebuilt children.
+function node() {
+  const classes = new Set();
+  return {
+    textContent: "", options: [{}], value: "", disabled: false, dataset: {}, style: {},
+    children: [], attributes: {},
+    classList: {toggle(name, on) { if (on) classes.add(name); else classes.delete(name); },
+      contains: name => classes.has(name)},
+    setAttribute(name, value) { this.attributes[name] = value; },
+    addEventListener() {},
+    append(...items) { this.children.push(...items); },
+    replaceChildren(...items) { this.children = items; },
+  };
+}
+
 function renderer() {
   const elements = new Map();
   const element = id => {
-    if (!elements.has(id)) elements.set(id, {
-      textContent: "", options: [{}], classList: {toggle() {}}, setAttribute() {}
-    });
+    if (!elements.has(id)) elements.set(id, node());
     return elements.get(id);
   };
   const context = vm.createContext({
-    document: {getElementById: element, querySelectorAll: () => []},
+    document: {getElementById: element, querySelectorAll: () => [],
+      createElement: () => node(), addEventListener() {}},
     URLSearchParams, location: {hash: "", pathname: "/"},
     history: {replaceState() {}},
     // Leave bootstrap pending: tests supply snapshots directly, without I/O.
@@ -30,7 +44,8 @@ function renderer() {
       context.snapshot = JSON.parse(JSON.stringify(snapshot));
       vm.runInContext("render(snapshot)", context, {timeout: 1000});
     },
-    text: id => element(id).textContent
+    text: id => element(id).textContent,
+    element
   };
 }
 
@@ -70,9 +85,10 @@ for (const owner of ["physical", "protocol"]) {
     const view = renderer();
     view.render(snapshot(1, {[owner]: [event(17)]}));
     assert.equal(view.text("uart").split(warning).length - 1, 1);
-    assert.equal(view.text("connection"), "Connected · current source snapshot");
-    assert.match(view.text("sensor"), /Vehicle 1234 mm · ADC4 987/);
-    assert.match(view.text("equipment"), /Barrier 90\.0°/);
+    assert.equal(view.text("connection"), "Connected");
+    assert.equal(view.text("entry-vehicle"), "1234 mm");
+    assert.equal(view.text("entry-adc"), "987");
+    assert.equal(view.text("entry-angle"), "90.0°");
     assert.equal(JSON.parse(view.text("diagnostics")).lanes.entry.physical.tick, 1);
   });
 }
@@ -160,6 +176,64 @@ test("local text eviction keeps a persistent suffix notice without invalidating 
   }
   assert(view.text("uart").startsWith("[Recent UART suffix only;"));
   assert(view.text("uart").length < 33000);
-  assert.equal(view.text("connection"), "Connected · current source snapshot");
+  assert.equal(view.text("connection"), "Connected");
   assert(!view.text("uart").includes("[10µs"));
+});
+
+test("controls follow the run state", () => {
+  const view = renderer();
+  view.render(snapshot(1, {}, {running: true}));
+  assert.equal(view.text("runstate"), "Running");
+  assert.equal(view.element("start").disabled, true);
+  assert.equal(view.element("pause").disabled, false);
+  view.render(snapshot(2, {}, {running: false, finished: true}));
+  assert.equal(view.text("runstate"), "Completed");
+  assert.equal(view.element("start").disabled, true);
+  assert.equal(view.element("pause").disabled, true);
+  view.render(snapshot(3, {}, {failure: {kind: "firmware_failure", message: "motor_deadline"}}));
+  assert.equal(view.text("runstate"), "Failed");
+  assert.match(view.text("error"), /firmware broke a lab rule: motor_deadline/);
+});
+
+test("lane scene reflects equipment state, not firmware claims", () => {
+  const view = renderer();
+  const frame = snapshot(1);
+  frame.lanes.exit.physical = {...frame.lanes.exit.physical, enable: true, direction: true,
+    obstruction: true, jam: true, position_mdeg: 45000};
+  frame.lanes.exit.protocol.buzzer = true;
+  view.render(frame);
+  assert.equal(view.text("exit-motor"), "opening");
+  assert.equal(view.text("exit-beam-state"), "blocked");
+  assert.equal(view.text("exit-badge"), "Barrier jammed");
+  assert.equal(view.element("exit-barrier").attributes.transform, "rotate(-45)");
+  assert(view.element("exit-buzzer").classList.contains("on"));
+  assert(view.element("entry-green").classList.contains("on"));
+  assert(!view.element("entry-red").classList.contains("on"));
+});
+
+test("car queue fills the street, bays and verdict log", () => {
+  const view = renderer();
+  const car = (id, state, extra = {}) => ({id, plate: `ABC${id}D2${id}`, state, park_s: 5,
+    spot: null, remaining_s: null, note: "", profile: {entry_capture: "normal",
+      exit_capture: "normal", payment: "paid", quirk: "none"}, ...extra});
+  view.render(snapshot(1, {}, {queue: {
+    capacity: 3, inside: 2, halted: {exit: "barrier did not close"},
+    lanes: {entry: {car: 1, phase: "wait"}, exit: null},
+    cars: [car(1, "entering"), car(2, "queued", {profile: {entry_capture: "failed",
+      exit_capture: "normal", payment: "paid", quirk: "none"}}),
+      car(3, "parked", {spot: 0, remaining_s: 4.2}), car(4, "stuck", {spot: 2})],
+    verdicts: [{car: 5, plate: "XYZ9A87", lane: "exit", tick: 900, expected: ["exited"],
+      observed: "refused", status: "fail", reason: "no opening before deadline"},
+      {car: 6, plate: "XYZ9A88", lane: "entry", tick: 950, expected: ["refused"],
+        observed: "refused", status: "pass", reason: "assistance requested"},
+      {car: 6, plate: "XYZ9A88", lane: "entry", tick: 960, expected: ["assisted"],
+        observed: "pending", status: "info", reason: ""}]}}));
+  assert.equal(view.element("queue").children.length, 1);
+  assert.equal(view.element("bays").children.length, 3);
+  assert.equal(view.text("lot-count"), "2 of 3 spots taken");
+  assert.equal(view.text("entry-car-plate"), "ABC1D21");
+  assert.match(view.text("exit-badge"), /Reset required: barrier did not close/);
+  assert.equal(view.element("verdicts").children.length, 2);
+  assert.equal(view.text("verdict-score"), "1 of 2 passed");
+  assert.equal(view.element("add-car").disabled, false);
 });
