@@ -6,8 +6,9 @@ This laboratory lets students implement a Zephyr parking controller without
 physical equipment. GPIO, ADC, UART and SPI operations drive observable Renode
 devices; console messages are diagnostics, not simulation commands.
 
-The current configuration uses `nucleo_u5a5zj_q`, one lane, one point vehicle and
-one active parking session. The required workflow is bounded teaching behavior,
+The current configuration uses `nucleo_u5a5zj_q`, an entry lane and an exit
+lane working concurrently (one point vehicle each), and a lot of up to
+`CONFIG_PARKING_CAPACITY` parking sessions. The required workflow is bounded teaching behavior,
 not a production parking product or a certified safety controller.
 Only macOS arm64 has runtime qualification. See [setup](setup.md) for versions
 and [hardware models](hardware-models.md) for peripheral limitations.
@@ -54,7 +55,7 @@ The normal launcher builds only `student/`; no reference-firmware option exists.
 | `student/` | Inert starter students implement |
 | `hardware/` | Shared public devicetree, bindings and Renode wiring |
 | `models/` | Course-owned peripheral, physical and protocol models |
-| `scripts/scenario/`, `tests/scenarios/` | Bounded scenario parsing and assessment |
+| `scripts/scenario/`, `tests/scenarios/` | Bounded scenario parsing, the shared stepping core (`runner.py`), the car-queue driver (`driver.py`) and incremental assessment |
 | `scripts/parking_web.py`, `web/` | Domain adapter and local browser view |
 | `scripts/lab.py` | Supported build/prepare/launch entry point |
 | `docs/agent-context.md` | Design rationale and maintenance discoveries |
