@@ -138,7 +138,9 @@ legitimately cause a fixture assertion failure.
 
 The dashboard fits one laptop screen and follows a car's path: the street
 queue, the entry lane, the lot bays, the exit lane, then the exit terminal
-display and the verdict log. Every car appears as its licence plate. Selecting
+display and the verdict log. The exit scene is drawn right to left, since its
+traffic leaves the lot; both lanes use the same physics. Every car appears as
+its licence plate. Selecting
 a queued or parked car opens its behaviour editor; a stuck car's editor offers
 payment choices to retry the exit. Each lane scene renders source vehicle
 position, barrier millidegrees, red/green/buzzer, the independent beam, motor

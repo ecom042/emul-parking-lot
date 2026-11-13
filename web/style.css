@@ -131,6 +131,7 @@ select, input { background: var(--asphalt); border: 1px solid var(--kerb); borde
 .scene .arm .stripes { stroke: var(--stop); stroke-width: 9; }
 .scene .pillar { fill: #8a96a3; }
 .scene .motor { fill: var(--amber); font: 600 12px var(--ui); }
+.scene .motor.end { text-anchor: end; }
 .scene .housing { fill: #0b0f14; stroke: #3a4552; }
 .scene .lamp { fill: #3a4552; }
 .scene .lamp.red.on { fill: var(--stop); filter: drop-shadow(0 0 6px var(--stop)); }
