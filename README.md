@@ -5,7 +5,8 @@ restricted local browser view. Students implement a parking controller using
 GPIO, ADC, UART and SPI while the environment models vehicles and equipment.
 
 Start with [setup](docs/setup.md), then the
-[student specification](docs/student-specification.md).
+[student specification](docs/student-specification.md). The challenge brief
+and grading rules for students are in Portuguese: [desafio](docs/desafio.md).
 
 ## Repository boundary
 
@@ -73,6 +74,8 @@ python scripts/lab.py --module "$ZVB_MODULE" \
 | [Browser](docs/browser.md) | Local API, authentication, snapshots, reconnect and containment |
 | [Setup](docs/setup.md) | Supported toolchain and build/launch instructions |
 | [Student specification](docs/student-specification.md) | Requirements, deliverables and learning objectives |
+| [Desafio](docs/desafio.md) | Challenge brief, requirements and grading, in Portuguese |
+| [Grading tools](docs/grading-tools.md) | Firmware line coverage, mutation score, static check and grade |
 | [Release checklist](docs/release-checklist.md) | Packaging, pilot and rollout checks |
 | [Agent context](docs/agent-context.md) | Design rationale and maintenance discoveries |
 
@@ -89,6 +92,9 @@ revision in [the west manifest](manifest/west.yml). An attached checkout is
 optional for tooling development, not a required student dependency.
 
 ## Verification and limitations
+
+`AGENTS.md` (with `CLAUDE.md` pointing to it) gives a student's AI agent the
+challenge rules in Portuguese.
 
 Host infrastructure checks:
 

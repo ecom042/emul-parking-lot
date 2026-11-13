@@ -25,7 +25,8 @@ an inert starter, not a controller implementation or complete parking product.
 
 The constants below are **implemented teaching defaults**, not user-selected
 product policy or measured hardware specifications. Linked contracts provide
-the detailed rules. Teaching duration, submission dates, grading weights and an
+the detailed rules. Grading is defined in the Portuguese
+[challenge brief](desafio.md). Teaching duration, submission dates and an
 institutional AI-use policy have not been decided here; the course offering
 must announce those separately. No week-by-week schedule is implied.
 
@@ -300,10 +301,10 @@ Trace gaps/transport errors are harness failures, not passes or automatically
 student faults. Owner-local traces cannot resolve every same-timestamp
 cross-owner ordering; see [assessment limits](scenarios.md#continuous-safety-and-every-green-authorization).
 
-Proposed dimensions: functional correctness, safety/fault behavior, protocol
-robustness, evidence and explanation. **No weights or automatic grading policy
-are approved here.** Publish course rubric, collaboration/AI and resubmission
-rules before assessment.
+Grading gates, points, line-coverage and mutation-score requirements are
+defined in the Portuguese [challenge brief](desafio.md#avaliação) and measured
+by the [grading tools](grading-tools.md). Publish the collaboration/AI and
+resubmission rules before assessment.
 
 ### Proposed AI-use baseline, pending course approval
 
