@@ -18,17 +18,25 @@ Renode models or manufacturer implementations.
 
 ## Pin map
 
-| Interface | Pins / routing |
-|---|---|
-| Motor | PB1 active-high enable; PB2 high opens, low closes |
-| Limits | PC2 upper / PC3 lower, active high/pull down; EXTI IRQ 13 / 14 |
-| Passage/obstruction | PC4 active high, independently controlled |
-| Red / green / buzzer | PD1 / PD2 / PD3 active high |
-| Distance | ADC4 channel 18 / PB0, address `0x46021000`, IRQ 113 |
-| Console | USART1 PA9 TX / PA10 RX, IRQ 61 |
-| Camera | USART2 PD5 TX / PD6 RX, IRQ 62 |
-| Payment | LPUART1 PG7 TX / PG8 RX, IRQ 66 |
-| Display | SPI1 PA5 SCK / PA6 MISO / PA7 MOSI; PD14 active-low CS, PD15 D/C, PE0 active-low reset |
+The lot has two independent lanes. Both use the same equipment contract; only
+the exit lane owns the payment terminal and its display. Devicetree properties
+in `zephyr,user` carry an `entry-` or `exit-` prefix (for example
+`entry-enable-gpios`, `exit-red-gpios`).
+
+| Interface | Entry lane | Exit lane |
+|---|---|---|
+| Motor | PB12 enable, PB13 direction (high opens) | PB1 enable, PB2 direction (high opens) |
+| Limits (active high, pull down) | PC5 upper / PC6 lower; EXTI IRQ 16 / 17 | PC2 upper / PC3 lower; EXTI IRQ 13 / 14 |
+| Passage/obstruction beam | PC8 active high; EXTI IRQ 19 | PC4 active high; EXTI IRQ 15 |
+| Red / green / buzzer | PE2 / PE3 / PE4 active high | PD1 / PD2 / PD3 active high |
+| Distance | ADC4 channel 17 / PD13 | ADC4 channel 18 / PB0 |
+| Camera | USART3 PD8 TX / PD9 RX, IRQ 63 | USART2 PD5 TX / PD6 RX, IRQ 62 |
+| Payment | none | LPUART1 PG7 TX / PG8 RX, IRQ 66 |
+| Display | none | SPI1 PA5 SCK / PA6 MISO / PA7 MOSI; PD14 active-low CS, PD15 D/C, PE0 active-low reset |
+
+ADC4 (address `0x46021000`, IRQ 113) is shared by both lanes; the console stays
+on USART1 PA9 TX / PA10 RX, IRQ 61. ADC4 IN19 is not usable for distance
+because it shares PB1 with the exit motor enable.
 
 Firmware controls outputs. Equipment models provide sensor inputs and device
 replies. A model diagnostic or endpoint clamp must not disable the guest motor.
@@ -46,7 +54,7 @@ ADC1 is disabled in the adopted configuration and is not supported.
 | Regulator | CR `+0x08`, ADVREGEN bit 28; 20 us virtual startup sets ISR LDORDY bit 12 |
 | Calibration | ADCAL bit 31 clears on scheduled completion; ideal factor 0, EOCAL bit 11; consumes no input |
 | Enable/stop | ADEN/ADDIS requests, scheduled ADRDY; ADSTP cancels conversion |
-| Channel | CHSELR `+0x28`, exactly one bit selecting channel 0..23 |
+| Channel | CHSELR `+0x28`, exactly one bit selecting channel 0..23 (alternate IN17/IN18 between conversions) |
 | Acquisition | SMPR `+0x14`, two common sample-time fields and channel selectors |
 | Resolution | CFGR1 `+0x0c`, RES bits 3:2; 12/10/8/6-bit, ALIGN bit 5 |
 | Conversion | ADSTART bit 2 clears on completion; requires regulator, enable and supported clock/configuration |
@@ -72,9 +80,15 @@ internal-reference metadata of 3300 mV; `adc_raw_to_millivolts` calculates
 integer `raw * 3300 / 4096`. Thus 0 → 0 mV, 2048 → 1650 mV and 4095 → 3299 mV.
 The [physical model](physical-model.md) supplies its own distance-to-code curve.
 
-An optional continuously connected `SampleProvider` replaces FIFO injection.
-The connection survives reset like GPIO wiring, while its owning physical state
-resets. `FeedSample` rejects when the provider is connected.
+Each lane's physical model connects a continuous per-channel source with
+`ConnectSource(channel, source)`: the entry lane on channel 17, the exit lane
+on channel 18. A channel accepts one source, and a connected channel rejects
+`FeedSample`; other channels keep FIFO injection. Connections survive reset
+like GPIO wiring, while the owning physical state resets.
+
+The Zephyr ADC context lock is held for a whole read, even an asynchronous one.
+Firmware should own ADC4 from one place and alternate the two single-channel
+conversions, rather than issuing concurrent reads from two lane threads.
 
 A 1 GHz virtual timer schedules regulator startup, 100-cycle ideal calibration,
 two-cycle enable and conversion after sampling plus resolution +0.5 cycles,
@@ -99,6 +113,8 @@ port can raise a line. Repeated equal levels are not edges; unmasking an already
 pending line asserts its IRQ.
 
 Shared wiring routes port C into EXTI and lines 0..15 to NVIC IRQs 11..26.
+Both lanes' limit and beam inputs are on port C (lines 2..6 and 8), so each has
+its own EXTI line and IRQ; line 13 belongs to the board button.
 Firmware owns the response to a limit interrupt; the model does not clear motor
 enable. Direct receiver tests need a matching-port positive control:
 stimulating an unconnected GPIO port does not test EXTI port rejection.
@@ -108,7 +124,8 @@ registers and electrical bounce are outside this subset.
 
 ## UART and SPI controller limitations
 
-Generated `STM32F7_USART` instances provide independent console/camera/payment
+Generated `STM32F7_USART` instances provide independent console, entry camera,
+exit camera and payment
 byte streams. The supported behavior is fragmented bidirectional traffic and log
 isolation, not bit-level baud timing, DMA or general application IRQ transport.
 Generated UART frequencies can differ from the firmware's declared clock

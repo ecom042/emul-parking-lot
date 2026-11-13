@@ -14,8 +14,11 @@ state-machine architecture. Students design those components.
 
 ## Ownership and wire framing
 
-`models/ParkingProtocols.cs` connects directly to MCU USART2 (camera) and
-LPUART1 (payment). USART1 remains the console. Firmware bytes emitted through
+`models/ParkingProtocols.cs` is instantiated once per lane. The entry instance
+connects to USART3 (entry camera) and has no payment terminal; the exit
+instance connects to USART2 (exit camera) and LPUART1 (payment). Each lane's
+camera keeps its own capture cache, parser and reply queue, and payment
+actions are rejected on the entry lane. USART1 remains the console. Firmware bytes emitted through
 Zephyr UART become requests; equipment replies enter the same actual MCU UART
 receive path. Neither firmware logs nor simulator payment actions set the motor.
 No extra terminal transaction UUID is introduced: the request UUID already
@@ -237,23 +240,36 @@ reset PE0 active low.
 
 ## Controller behavior, tariff and passage
 
-Implement one lane and at most **one active session**.
-The first recognized vehicle enters; while that session is active,
-only its matching plate can attempt exit. A different plate requests assistance,
-not a new entry or someone else's payment. Multi-session capacity, durable
-storage and configurable simultaneous entry/exit lanes are later work.
+Implement a lot with an **entry lane** and an **exit lane** that work at the
+same time, and at most `CONFIG_PARKING_CAPACITY` active sessions (1..8,
+default 4). Each lane has its own barrier, limits, beam, distance channel,
+signals and camera ([pin map](hardware-models.md#pin-map)); only the exit lane
+has the payment terminal and display. A session is keyed by plate.
 
-1. ADC code <683 (about 1000 mm) at a closed lower limit triggers recognition.
-   Three capture attempts as above. An accepted first entry opens through
-   PB2/PB1 only. A known-session exit first displays and requests payment.
+- **Entry:** a recognized plate with no active session enters while a spot is
+  free. A full lot, or a plate that is already parked, requests assistance
+  instead of opening.
+- **Exit:** a recognized plate with an active session pays, then leaves; its
+  passage removes the session and frees the spot. A plate without a session
+  (for example, a camera misread) requests assistance, never another car's
+  payment or a new entry.
+- Each lane runs its own identification, motion, deadline and assistance
+  cycle. A fault, assistance or pending payment on one lane must not stall the
+  other lane's safety servicing. Both lanes share ADC4 and the session table;
+  durable storage is out of scope.
+
+1. ADC code <683 (about 1000 mm) at a closed lower limit triggers recognition
+   on that lane. Three capture attempts as above. An accepted entry opens
+   through that lane's direction/enable only. A known-session exit first
+   displays and requests payment.
 2. While identifying/waiting for payment, code >1024 (about 1500 mm) abandons
    that attempt and invalidates its request. This is coarse point-presence,
    not proof that nobody exchanged vehicles at the same physical location.
 3. Limit EXTI callbacks defer GPIO shutdown to Zephyr work context. The main
    loop additionally enforces 2500 ms opening/closing deadlines. No model
    silently clears a guest motor command.
-4. After full opening, require the independent passage/obstruction PC4 sensor
-   to be observed active, then inactive with distance code >1024. Only then
+4. After full opening, require that lane's independent passage/obstruction
+   sensor to be observed active, then inactive with distance code >1024. Only then
    create an entry session or remove a paid exit session. A paid/open barrier
    alone does not remove a session. Passage budget is 10000 ms.
 5. Turn green off, red on, close through GPIO, and wait for actual lower/motor
@@ -293,8 +309,9 @@ rendering amount/status and sending `CHARGE`; those SPI/serial operations do
 not recalculate the amount. Retries preserve that same charge.
 Integer arithmetic uses `max(1, ceil(elapsed_ms/unit_ms))`. Above 9999 units,
 request assistance rather than overflow/exceed the terminal's 1000000 limit.
-`CONFIG_PARKING_TARIFF_UNIT_MS` defaults to 60000; tests explicitly build 1000
-for finite checks. This is a teaching tariff, not final product policy.
+`CONFIG_PARKING_TARIFF_UNIT_MS` defaults to 60000; the headless launcher
+builds 1000 for finite checks and the interactive lab builds 5000, so stays
+of a few virtual seconds show different prices. This is a teaching tariff, not final product policy.
 No session is persisted across reset; reset is a lab restart, not paid storage.
 
 ### Reusing the point vehicle for the next approach
@@ -305,8 +322,8 @@ and guest enable false **before any mutation**. Otherwise throw: the reviewed
 generic timeline emits `failed`, retains the command ID, continues FIFO and
 leaves the scene untouched. On success, despawn the passed point and introduce
 the next point at +6000 mm; subsequent approach/passage still uses velocity,
-ADC and the independent beam. This gives the existing one-vehicle model a
-bounded lane lifecycle without an arbitrary position/plate/barrier setter or
+ADC and the independent beam. This gives each lane's one-vehicle model a
+bounded lifecycle without an arbitrary position/plate/barrier setter or
 a new scenario framework. Plate identity still comes only from camera UART.
 
 ## Boundaries

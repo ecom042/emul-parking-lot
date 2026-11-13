@@ -24,10 +24,13 @@ infrastructure; source review is still required.
   and pixels decoded from SPI.
 - **Scenarios** stimulate equipment and assess actual device behavior.
 - **The browser** renders current state and submits validated equipment actions.
-  It does not drive physics or turn firmware logs into successful behavior.
+  Its car queue lets you script each car (unreadable plate, refused payment,
+  driver quirks) and shows a pass/fail verdict per car. It does not drive
+  physics or turn firmware logs into successful behavior.
 
-The retained target is `nucleo_u5a5zj_q`, with one lane, one point vehicle and
-one active session. macOS arm64 is the validated runtime host. These are bounded
+The retained target is `nucleo_u5a5zj_q`, with an entry lane and an exit lane
+working at the same time, one point vehicle per lane, and a lot of
+`CONFIG_PARKING_CAPACITY` sessions (default 4). macOS arm64 is the validated runtime host. These are bounded
 teaching models, not general MCU emulation or a certified physical controller.
 
 ## Launch

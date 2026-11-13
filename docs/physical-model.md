@@ -2,9 +2,12 @@
 
 ## Scope
 
-`models/ParkingPhysical.cs` is one lane with one barrier, one vehicle, an
-independent obstruction input, and one continuous distance source for the
-existing ADC4 subset. Student firmware uses real Zephyr GPIO/EXTI and
+`models/ParkingPhysical.cs` models one lane: one barrier, one point vehicle,
+an independent obstruction input and one continuous distance source on ADC4.
+The machine instantiates it twice, `physicalEntry` (ADC4 channel 17) and
+`physicalExit` (channel 18), with independent timelines, run IDs, sequence
+numbers and state. Every contract below applies to each lane separately; pins
+are listed per lane in the [hardware map](hardware-models.md#pin-map). Student firmware uses real Zephyr GPIO/EXTI and
 asynchronous ADC drivers on **nucleo_u5a5zj_q**. The model provides an
 environment, not a parking-controller implementation or safety certification.
 
@@ -22,11 +25,11 @@ course/product decision selects other values.
 
 | Quantity | Contract |
 |---|---|
-| Motor enable | PB1, active high; false produces zero speed |
-| Direction | PB2 high opens, low closes; alone cannot move the barrier |
+| Motor enable | Entry PB12 / exit PB1, active high; false produces zero speed |
+| Direction | Entry PB13 / exit PB2, high opens, low closes; alone cannot move the barrier |
 | Barrier position | Integer millidegrees, 0 closed/down to 90000 fully open |
 | Free-running speed | 45000 millidegrees/s; 450 millidegrees per 10 ms tick; ideal constant velocity, no inertia |
-| Upper/lower outputs | PC2 / PC3 active high, pull down; asserted exactly at 90000 / 0; no bounce or hysteresis. Missing/contradictory feedback faults (below) are independent of physical position |
+| Upper/lower outputs | Entry PC5 / PC6, exit PC2 / PC3, active high, pull down; asserted exactly at 90000 / 0; no bounce or hysteresis. Missing/contradictory feedback faults (below) are independent of physical position |
 | Startup/reset | Down, enable/direction false, lower asserted, upper false; vehicle +6000 mm; obstruction/jam/noise off, seed 1 |
 | Sensor settling after reset | Held GPIO levels are re-driven at each 10 ms sample, without synthetic source edges; receivers reset independently, so allow the first sample before asserting guest inputs |
 | Reversal | After any drive, a sampled direction transition causes ten complete zero-speed ticks (100 ms); a further transition restarts this wait; disable stops immediately at the next tick |
@@ -35,10 +38,10 @@ course/product decision selects other values.
 | Endpoint with enable on | Clamp position; report `endpoint_enabled` every tick; leave firmware enable asserted |
 | Vehicle | Signed position mm relative to sensor/barrier plane; +6000 approach to 0 plane to -2000 passed; motion saturates at those bounds |
 | Vehicle velocity | Signed mm/s, -2000..2000 in 100 mm/s steps, initially 0. Negative approaches/passes; can remain stationary indefinitely |
-| Obstruction | PC4 active high; independent scheduled boolean, **not** inferred from distance, vehicle or barrier |
+| Obstruction | Entry PC8 / exit PC4 active high; independent scheduled boolean, **not** inferred from distance, vehicle or barrier |
 | Distance | `min(abs(vehicle_mm), 6000)` mm; this simple point vehicle is not collision/body geometry |
 | ADC calibration | 0 mm → 0, 3000 mm → 2047, 6000 mm → 4095; integer `distance_mm * 4095 / 6000`, clipped to 0..4095 |
-| ADC electrical interpretation | Ideal 12-bit full-scale code on ADC4 channel 18/PB0, Zephyr reference metadata 3300 mV; guest scaling remains `raw * 3300 / 4096` |
+| ADC electrical interpretation | Ideal 12-bit full-scale code on ADC4 channel 17/PD13 (entry) or 18/PB0 (exit), Zephyr reference metadata 3300 mV; guest scaling remains `raw * 3300 / 4096` |
 | Noise | Uniform integer code perturbation in `[-amplitude,+amplitude]`, amplitude 0..64; LCG `state = state*1664525 + 1013904223` modulo 2^32, then modulo `(2*amplitude+1)`; positive signed 32-bit seed |
 | Update rates | Physics, vehicle and sensors 100 Hz. One PRNG advance/tick even with amplitude zero. ADC holds the most recent sensor sample between ticks |
 
@@ -80,7 +83,7 @@ same timer/run. Reset/reload is performed while paused using the generated
 `reset.resc`: machine peripheral/CPU reset, then reload the same ELF's entry and
 vector setup. Physical reset clears its state, seed, reversal/deadline counters,
 pending actions, accepted IDs, trace and sequence. ADC reset clears registers,
-conversion timer/IRQ/FIFOs; the physical `SampleProvider` **connection** persists
+conversion timer/IRQ/FIFOs; each lane's per-channel source **connection** persists
 like GPIO wiring, while its sample state resets with its owning model.
 The physical provider and standalone `FeedSample` FIFO are mutually exclusive,
 so test queues cannot silently override physics.

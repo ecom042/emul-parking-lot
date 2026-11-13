@@ -51,7 +51,7 @@ an outer `bounded-command.py` watchdog; prefer `scenario-run.py`.
 ## Versioned schema and strict parsing
 
 `scripts/scenario/schema.py` exports JSON Schema Draft 2020-12 with identity
-`urn:emul-parking-lot:scenario:1`. Generate machine-readable JSON with
+`urn:emul-parking-lot:scenario:2`. Generate machine-readable JSON with
 `scenario-schema.py`. Scalar ranges and signal names come from the parser's
 shared tables, not a manually maintained second schema file.
 
@@ -63,45 +63,56 @@ unknown fields everywhere, nonstandard `NaN`/`Infinity`, wrong types, floats
 where integers are required (including `1.0`), booleans used as integers, and
 raw monitor/method actions.
 
-| Resource | v1 bound |
+| Resource | v2 bound |
 |---|---|
-| Encoded input | 65536 bytes, bounded read before decode |
+| Encoded input | 131072 bytes, bounded read before decode |
 | Object/array nesting | 12, scanned before recursive JSON decoding |
 | Runs/scenario | 1..8 |
-| Duration/run | 1..6000 ticks |
-| Sum of run durations | <=12000 ticks |
-| Typed actions/scenario | <=256 |
+| Duration/run | 1..30000 ticks |
+| Sum of run durations | <=60000 ticks |
+| Typed actions/scenario | <=512 |
 | Checkpoints/run | 1..128 |
-| Green authorization windows/run | 0..32 |
+| Green authorization windows/lane/run | 0..32 |
 | Camera confidence sequence | 1..16 values, each 0..100 |
 | Camera/payment latency | 1..3000 ticks |
 | Fragment size | 1..128 bytes |
-| Retained host events | <=250000 per owner/run; overflow is a harness failure |
+| Required capacity (optional) | 1..8; must equal the build's `CONFIG_PARKING_CAPACITY` |
+| Source evidence | Every event to a compressed per-run log; 512 MiB uncompressed quota |
 
-A tick is **10 ms of Renode virtual time**, not wall time. Fields:
+A tick is **10 ms of Renode virtual time**, not wall time. Every run describes
+both lanes; every action and checkpoint names its lane:
 
 ```json
 {
-  "version": 1,
-  "name": "stationary",
-  "seed": 1,
+  "version": 2, "name": "normal", "seed": 1,
   "deadlines": {"motor_ms": 2500},
   "runs": [{
-    "initial": {"position_mdeg": 0, "vehicle_mm": 800},
-    "duration_ticks": 900,
-    "actions": [],
-    "green": [
-      {"after_tick": 0, "before_tick": 600, "payment_required": false}
+    "duration_ticks": 2000,
+    "lanes": {
+      "entry": {"initial": {"position_mdeg": 0, "vehicle_mm": 800},
+        "green": [{"after_tick": 0, "before_tick": 600}]},
+      "exit": {"initial": {"position_mdeg": 0, "vehicle_mm": 6000},
+        "green": [{"after_tick": 1270, "before_tick": 1600}]}
+    },
+    "actions": [
+      {"at_tick": 600, "lane": "entry", "kind": "submit", "signal": "vehicle.speed", "value": -2000}
     ],
     "expect": [
-      {"at_tick": 900, "state": {
-        "position_mdeg": 90000, "enable": false,
-        "green": true, "captures": 1, "vehicle_mm": 800
-      }}
+      {"at_tick": 590, "lane": "entry", "state": {"position_mdeg": 90000, "green": true}}
     ]
   }]
 }
 ```
+
+Entry-lane greens are entries; exit-lane greens are paid exits, so a window no
+longer carries `payment_required`. An empty `green` array prohibits every
+opening on that lane; a lane with no vehicle stays at `vehicle_mm` 6000.
+
+**Version 1** single-lane files are still accepted when they never pay: the
+parser converts them onto the entry lane and keeps the exit lane closed. A v1
+file with a paid window, payment configuration, payment action or replay is
+rejected; rewrite it as v2 with the exit on the exit lane. The retained
+fixtures are all v2.
 
 `name` is `[a-z][a-z0-9-]{0,63}`. Seed is a positive signed 32-bit integer.
 Position is 0..90000 millidegrees; vehicle position is -2000..6000 mm.
@@ -109,14 +120,14 @@ The nominal motor budget is fixed at 2500 ms, not weakenable by the input.
 Initial position is a **paused Tick 0 setup** only, never an action that moves
 the barrier during assessment. Motor enable/direction remain firmware-owned.
 
-Optional per-run `camera`:
+Optional per-lane `camera` (both lanes):
 
 ```json
 {"plate":"ABC1D23","confidences":[62,79,93],
  "delay_ticks":10,"fragment_bytes":2,"missing":false}
 ```
 
-Optional `payment`:
+Optional `payment` (exit lane only):
 
 ```json
 {"delay_ticks":150,"fragment_bytes":2,"result":"PAID","missing":false}
@@ -135,7 +146,7 @@ ticks, 1..`duration_ticks`. Equal action ticks preserve array FIFO order for
 submissions to one owner; there is no new global atomic cross-owner ordering.
 
 ```json
-{"at_tick":600,"kind":"submit","signal":"vehicle.speed","value":-2000}
+{"at_tick":600,"lane":"entry","kind":"submit","signal":"vehicle.speed","value":-2000}
 ```
 
 Allowed signals and integer values:
@@ -149,7 +160,7 @@ Allowed signals and integer values:
 | `sensor.seed` | 1..2147483647 |
 | `fault.jam` | 0 or 1 |
 | `fault.limits` | 0 normal, 1 missing upper, 2 missing lower, 3 both high |
-| `payment.replay`, `payment.cancel` | 1, existing typed terminal actions |
+| `payment.replay`, `payment.cancel` | 1, existing typed terminal actions; exit lane only |
 
 The adapter pauses at `at_tick - 1`, binds the current owner's run ID, submits
 with a unique command ID and the requested future tick, and verifies acceptance.
@@ -158,7 +169,7 @@ not successful assessment of firmware. Commands cannot set motor GPIOs, ADC
 codes, arbitrary limits, or barrier position.
 
 `kind: "camera"` / `"payment"` actions have `config` objects with the same
-shape as initial configurations. They execute paused at `at_tick - 1`,
+shape as initial configurations (`payment` and `replay` are exit-lane only). They execute paused at `at_tick - 1`,
 immediately before that tick's integration; they do not rewrite retained
 requests. `kind: "replay"` takes `charge` (1-based ordinal of distinct actual
 observed charge UUIDs) and `delay_ticks`. It calls the bounded retained-charge
@@ -166,15 +177,15 @@ helper, not arbitrary UART injection. Only strictly parsed canonical charge
 frames can supply a UUID to that helper. Replaying an unsettled/nonexistent
 charge is a harness failure.
 
-Checkpoints sample actual paused model snapshots after `at_tick`. Supported
-state keys:
+Checkpoints sample one lane's actual paused model snapshots after `at_tick`
+(`"lane"` is required). Supported state keys:
 
 - Physical: `position_mdeg`, `vehicle_mm`, `enable`.
 - Position inequalities: `position_min_mdeg`, `position_max_mdeg`.
 - Protocol: `captures`, `payments`, `replies`, `pending`, `red`, `green`, `buzzer`.
   `pending` is the protocol owner's combined scheduled host/reply work count.
-- Derived source-transition totals in the current run: `green_count`,
-  `buzzer_count`.
+- Derived source-transition totals for that lane in the current run:
+  `green_count`, `buzzer_count`.
 
 Values are exact equality unless explicitly named minimum/maximum. A checkpoint
 is not a wait-until loop; a missed deadline fails at its specified virtual tick.
@@ -183,15 +194,27 @@ determines a behavioral pass.
 
 ## Continuous safety and every-green authorization
 
-Every finite step harvests source physical and protocol traces. Steps end at
-all scheduled boundaries and at least once per 100 ticks (one virtual second).
+One stepping core, `scripts/scenario/runner.py`, drives browser, headless and
+Robot runs through the same typed request boundary, so a fixture steps at the
+same ticks whichever transport or pacing is used. Every finite step harvests
+the source traces of all four owners (each lane's physical and protocol
+models). Steps end at all scheduled boundaries, car-queue driver decisions and
+at least once per 100 ticks (one virtual second).
 Per-owner sequence/run IDs deduplicate the 8192-event rings. Gaps, unexpected
 run changes, backwards timestamps, old-run events or capacity exhaustion fail
 as harness errors rather than permitting an incomplete-trace pass. Cumulative
 model `dropped` alone is not an error when all earlier events were already
 harvested without gaps.
 
-The motor check uses actual commanded-enable edges, retaining **every**
+Assessment is **incremental**, so a run can last as long as its evidence quota
+allows. Each lane keeps only what its oracles need: fold state for motor and
+obstruction safety, a few counters, and the camera/payment/motor events of
+the current authorization cycle (discarded when green turns off, since older
+frames can never authorize again). Memory keeps a recent window per owner for
+the view; the complete trace goes to the run's compressed event log. The
+whole-list `assess()` function remains for host tests.
+
+The checks below apply to **each lane independently**. The motor check uses actual commanded-enable edges, retaining **every**
 completed interval and the trailing still-enabled interval up to the current
 source snapshot timestamp. It checks before scenario expectations, so a jammed
 deadline mutant fails as `motor_deadline`, not merely a generic final-state
@@ -220,12 +243,20 @@ followed by a later good one, is checked using the cycle-scoped
   opening.
 - The current camera capture ID has a matching valid plate/confidence >=85
   before opening.
-- A `payment_required: true` exit additionally needs that cycle's recognized
-  plate, immutable current charge UUID/amount/currency and exact matching paid
+- An exit-lane green additionally needs that cycle's recognized plate,
+  immutable current charge UUID/amount/currency and exact matching paid
   response before opening.
 
-Entry/exit policy is explicit in the scenario windows rather than inferred from
-firmware logs or a model payment counter. Unexpected/absent transitions fail.
+The **lot oracle** then checks every green against sessions observed across
+both lanes: a completed entry passage (beam active, then clear, after that
+cycle's green) parks the recognized plate; a completed exit passage removes
+it. Events from both lanes in one harvest apply in source-time order. It fails
+`capacity_exceeded` for an entry green while `CONFIG_PARKING_CAPACITY` plates
+are parked, `duplicate_entry` for an entry green of a parked plate, and
+`exit_without_session` for an exit green of a plate that never entered.
+
+Entry/exit policy follows from the lane and the scenario windows rather than
+being inferred from firmware logs or a model payment counter. Unexpected/absent transitions fail.
 The model/source serialized callback contract still governs equal timestamps;
 per-owner sequence numbers do not invent a global cross-owner order.
 Specifically, a physical change serialized after green at exactly the same
@@ -235,6 +266,41 @@ separate from the 10 ms motor servicing tolerance. The required premature-green
 variant starts at position zero and is not hidden by this ambiguity. Exact
 cross-owner ordering would need a shared ordinal or contemporaneous state
 capture; current assessment does not claim it.
+
+## Car-queue driver
+
+The interactive lot (and `assess.py --lot SECONDS [--cars FILE]`) runs an
+unscheduled run with a scripted **driver** instead of fixture actions. The
+driver is an environment stimulus: it configures each lane's camera and the
+exit terminal while paused, and submits the same allowlisted vehicle and beam
+actions a person would. It never sets motor outputs, positions, ADC codes or
+firmware state. It decides only on its own 100 ms grid and at the ticks of
+commands it planned, so browser and headless runs behave identically.
+
+Each lane serves one car at a time and both lanes run concurrently. A car
+approaches to 800 mm, waits for the barrier (10 s entry, 15 s exit budget),
+drives through with the beam active then clear, parks for its configured
+virtual seconds, and later queues for the exit. A refused entry backs off and
+leaves; a refused exit backs off and the car keeps its spot as **stuck** until
+`car.retry`. Car profiles are enums:
+
+| Field | Choices |
+|---|---|
+| `entry_capture` | `normal`, `retry_recovers` (60 then 93), `failed` (40 forever), `no_reply` (camera silent) |
+| `exit_capture` | `normal`, `misread` (a different valid plate) |
+| `payment` | `paid`, `delayed` (150-tick reply), `cancelled`, `malformed`, `no_reply` |
+| `quirk` | `none`, `hesitate`, `leave_during_payment`, `linger_in_beam`, `block_closing` |
+| `park_s` | 1..120 virtual seconds |
+
+Every attempt records a **verdict**: the outcome the contract expects for the
+profile and the observed lot occupancy, compared with what the equipment
+showed. For example, `failed` or `no_reply` capture, a full lot, or a
+`misread` exit must refuse *with* assistance; `cancelled`, `malformed` and
+`no_reply` payments must not open; `leave_during_payment` must not open after
+the car drove away. A failed verdict is recorded and the run continues; lane
+safety and lot-oracle violations still stop the run as firmware failures.
+`linger_in_beam` and `block_closing` expect assistance and then leave that
+lane halted until reset.
 
 ## Reset and time semantics
 
@@ -271,8 +337,11 @@ The CLI writes `results.json` and prints its JSON summary to stdout. Exit:
 Each scenario evidence directory contains:
 
 - Frozen `scenario.json`, with its SHA-256 recorded in the summary.
-- `assessment.json`: status/reason, seed, run IDs, full deduplicated source
-  physical/protocol events, source-timestamped checkpoints and last snapshots.
+- `assessment.json`: status/reason, seed, per-owner source run IDs and event
+  counts, source-timestamped checkpoints and last lane snapshots.
+- `run-<index>.events.jsonl.gz`: every deduplicated source event of that run,
+  one JSON object per line with its `owner` (`entry.physical`,
+  `entry.protocol`, `exit.physical`, `exit.protocol`).
 - `runner.log`, `runner.log.json`: exact official-runner argv, cwd, wall watchdog,
   elapsed monotonic time, timeout/cancellation and process return code.
 - Official Robot XML/log/report and retained Renode output under `robot/`.
@@ -313,12 +382,17 @@ control port, and the partial aggregate is retained as a harness failure.
 | Partial-open startup | `partial-startup.json` |
 | Reset during capture/payment | `reset-{capture,payment}.json` |
 
-Fixture timings are explicit teaching defaults, not product deadlines beyond
-the documented physical/controller contract. They work with default model
+Fault and identification fixtures use the entry lane with the exit lane
+closed. The paying fixtures (`normal`, `payment-*`, `reset-payment`) enter on
+the entry lane and leave on the exit lane, keeping the original single-lane
+timing, so checkpoint counts are per lane (for example one capture and one
+green on each lane in `normal`). Fixture timings are explicit teaching
+defaults, not product deadlines beyond the documented physical/controller
+contract. They work with default model
 latencies and either tariff unit (no price is hardcoded). In particular,
-`payment-stale` first settles an actual paid charge, completes exit, enters a
-different plate and replays the retained old UUID while a distinct new missing
-charge is pending.
+`payment-stale` first settles an actual paid charge, completes the exit, enters
+a different plate on the entry lane, and on the exit lane replays the retained
+old UUID while that plate's distinct new missing charge is pending.
 
 Expected outcomes and recovery rules:
 

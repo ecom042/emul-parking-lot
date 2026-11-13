@@ -109,9 +109,12 @@ screenshots. The browser exchanges it for a session cookie and removes the
 fragment. Only HTTP binds `127.0.0.1`; the runtime uses private pipes.
 Debugger and legacy raw dashboard stay disabled.
 
-Choose Start, request Car arrival, then Stop car near identification. The
-starter deliberately keeps motor/green/buzzer off and red on; it does **not**
-recognize/pay/open or pass completed-controller scenarios. Implement those
+The dashboard opens on the car queue: choose Start and the queued cars drive
+to the entry barrier one by one, park for their configured seconds, then leave
+through the exit lane. Select a car to change how it behaves, or use Add car.
+The starter deliberately keeps both lanes' motor/green/buzzer off and red on;
+it does **not** recognize/pay/open, so every car is refused with a failed
+verdict until you implement the controller. Implement those
 behaviors using real Zephyr drivers. Canvas pixels come from actual SPI;
 an unimplemented display is blank, not a setup failure. Diagnostics contain
 bounded GPIO/UART/SPI observations. A complete current snapshot is authoritative
@@ -124,6 +127,10 @@ responses. Each launch uses a **new** output (`build/lab-02`, etc.); no evidence
 or previous build is deleted. Rebuild/relaunch after firmware edits: live code
 reload is not supported. Preserve `source.json`, build/prepare logs and runtime
 evidence, but never session capabilities/cookies.
+
+The interactive build uses a 5000 ms tariff unit so stays of a few virtual
+seconds show different prices; headless fixtures build the documented 1000 ms
+unit. Add `--capacity N` (1..8) to build a different lot size.
 
 For build/preparation only, add `--prepare-only`. For a browser-free **public**
 scenario on your implementation, use the same workflow:

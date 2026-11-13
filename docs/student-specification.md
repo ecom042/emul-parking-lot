@@ -1,4 +1,4 @@
-# Student specification — one-lane parking controller
+# Student specification: two-lane parking lot controller
 
 ## Status and scope
 
@@ -14,9 +14,12 @@ evidence is macOS arm64 development evidence, including cached dependencies and
 an existing SDK, **not a clean operating-system installation** or validation of
 Linux/Windows. Read the [setup guide](setup.md) before starting.
 
-Implement a Zephyr controller for `nucleo_u5a5zj_q`, one lane and one active
-parking session. Use actual GPIO/EXTI, ADC4, independent equipment UARTs and
-SPI transactions. Equipment models, not console messages or browser animations,
+Implement a Zephyr controller for `nucleo_u5a5zj_q` that runs a parking lot
+with an entry lane and an exit lane at the same time, and up to
+`CONFIG_PARKING_CAPACITY` parked vehicles (default 4). `student/Kconfig`
+defines it (1..8) together with `CONFIG_PARKING_TARIFF_UNIT_MS`; the launcher's
+`--capacity` option overrides the default. Use actual GPIO/EXTI, ADC4,
+independent equipment UARTs and SPI transactions. Equipment models, not console messages or browser animations,
 determine observed behavior. The supplied code is simulator infrastructure and
 an inert starter, not a controller implementation or complete parking product.
 
@@ -80,17 +83,22 @@ Assignments come from the [hardware pin map](hardware-models.md#pin-map),
 [physical model](physical-model.md#engineering-defaults-not-product-requirements)
 and [equipment signals](device-protocols.md#display-and-signals).
 
-| Device | Firmware interface |
-|---|---|
-| Motor | PB1 active-high enable; PB2 high opens, low closes |
-| Upper / lower limit | PC2 / PC3 active high, pull down; EXTI IRQ 13 / 14 |
-| Independent passage/obstruction beam | PC4 active high |
-| Red / green / buzzer | PD1 / PD2 / PD3 active high; buzzer transitions, not host sound |
-| Distance | ADC4 channel 18, PB0, IRQ 113; ADC1 unsupported |
-| Diagnostic console | USART1 PA9 TX / PA10 RX, IRQ 61 |
-| Camera | USART2 PD5 TX / PD6 RX, IRQ 62 |
-| Simulated terminal | LPUART1 PG7 TX / PG8 RX, IRQ 66 |
-| Display | SPI1 PA5 SCK / PA6 MISO / PA7 MOSI; PD14 active-low CS, PD15 D/C, PE0 active-low reset |
+| Device | Entry lane | Exit lane |
+|---|---|---|
+| Motor | PB12 enable; PB13 high opens, low closes | PB1 enable; PB2 high opens, low closes |
+| Upper / lower limit | PC5 / PC6, EXTI IRQ 16 / 17 | PC2 / PC3, EXTI IRQ 13 / 14 |
+| Independent passage/obstruction beam | PC8 | PC4 |
+| Red / green / buzzer | PE2 / PE3 / PE4 | PD1 / PD2 / PD3 |
+| Distance | ADC4 channel 17, PD13 | ADC4 channel 18, PB0 |
+| Camera | USART3 PD8 TX / PD9 RX, IRQ 63 | USART2 PD5 TX / PD6 RX, IRQ 62 |
+| Simulated terminal | none | LPUART1 PG7 TX / PG8 RX, IRQ 66 |
+| Display | none | SPI1 PA5 SCK / PA6 MISO / PA7 MOSI; PD14 active-low CS, PD15 D/C, PE0 active-low reset |
+
+Inputs are active high with pull down; outputs are active high. Buzzer outputs
+are transitions, not host sound. ADC4 (IRQ 113) is shared; ADC1 is unsupported.
+The diagnostic console is USART1 PA9 TX / PA10 RX, IRQ 61. In devicetree, the
+`zephyr,user` properties carry the lane as a prefix, for example
+`entry-enable-gpios` and `exit-red-gpios`.
 
 Use the supplied board configuration. Do not replace driver reads with fabricated
 results or host setters. Firmware owns authorization, outputs, retries, pricing
@@ -136,8 +144,11 @@ not prescribed symbols or source organization.
    capture ID. Allow three attempts, a new ID each time, each with a 1000 ms
    complete-response deadline. Low confidence/timeouts consume attempts;
    exhaustion requests assistance, not infinite retries.
-3. First accepted entry may open. With one active session, only its matching
-   plate may attempt exit; a different plate requests assistance.
+3. An accepted plate without a session may enter while a spot is free; a
+   full lot or an already parked plate requests assistance. On the exit lane,
+   only a plate with an active session may pay and leave; any other plate
+   requests assistance. Both lanes run concurrently, and one lane's fault or
+   waiting state must not stall the other's safety servicing.
    During identification/payment, fresh code >1024 (about 1500 mm) abandons
    the attempt.
 4. Exit needs an immutable integer charge and exact current PAID confirmation

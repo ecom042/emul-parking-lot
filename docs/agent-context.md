@@ -13,7 +13,9 @@ this is not a progress diary, test report or substitute for running checks.
 - Reuse `zephyr-virtual-board` for generic assembly, scheduling and transports.
   Keep parking behavior in this repository; use additive models, not a runtime
   fork or edits to downloaded dependencies.
-- Model one lane, one point vehicle and one active session. Pricing, retry counts
+- Model two concurrent lanes (entry; exit with payment and display), one point
+  vehicle per lane, and a multi-session lot sized by `CONFIG_PARKING_CAPACITY`.
+  Each lane is a separate pair of model instances so oracles stay per lane. Pricing, retry counts
   and timing constants are documented teaching defaults, not commercial policy.
 - Debugger integration is deferred. Do not enable wildcard GDB or the legacy
   raw-monitor dashboard as a setup workaround.

@@ -60,8 +60,8 @@ is only presentation speed: the same Renode timers own vehicle/barrier motion,
 noise, UART latency and firmware deadlines. There is no browser physics,
 firmware-log-driven display or new host-time equipment scheduler.
 
-Every run is finite: a fixture's existing duration, or 6000 ticks / 60 virtual
-seconds for manual mode. Reset or select creates a fresh host epoch and fresh
+Every run is finite: a fixture's existing duration, or 360000 ticks (one
+virtual hour, the equipment scheduling horizon) for the car-queue lot. Reset or select creates a fresh host epoch and fresh
 equipment run IDs, cancels pending model work and reloads the same ELF.
 Old source-run submissions are deliberately checked to reject after reset.
 An epoch scopes browser commands; process-local revisions do not reset with it.
@@ -72,8 +72,14 @@ An epoch scopes browser commands; process-local revisions do not reset with it.
 
 - Monotonic process-wide `revision`, host `run` epoch, scenario/segment,
   running/completed/failure status.
-- Actual physical and protocol snapshots, with independent source `run`,
-  `seq`, `tick`, `time_us`, pending and drop counters.
+- `lanes.entry` and `lanes.exit`, each with the actual physical and protocol
+  snapshots, independent source `run`, `seq`, `tick`, `time_us`, pending and
+  drop counters. Owners are named `entry.physical`, `entry.protocol`,
+  `exit.physical` and `exit.protocol`.
+- `lot`: build capacity, tariff unit and the sessions the lot oracle observed;
+  `counts`: per-lane green/buzzer transition totals.
+- `queue` (car-queue lot only): cars with profile, state, spot and remaining
+  park time; per-car verdicts; halted lanes. `null` in scripted scenarios.
 - Display metadata and the actual 240×320 native RGB565 SPI framebuffer.
 - At most 128 recent source events per owner, 128 command outcomes and 128
   checkpoint results. Complete bounded run evidence is retained separately.
@@ -91,11 +97,19 @@ an ASCII alphanumeric `id` (1..64 characters) and exactly the fields for its op:
 
 | `op` | Additional fields | Effect |
 |---|---|---|
-| `select` | `scenario` from the fixed picker | Coherent reset into a parsed fixture or manual mode |
+| `select` | `scenario` from the fixed picker | Coherent reset into a parsed fixture or the `lot` car queue |
 | `start` | none | Resume the engine until paused, complete or failed |
 | `pause` | none | Stop between finite virtual-time steps |
-| `reset` | none | Coherent reset of the selected scenario |
-| `submit` | `signal`, integer `value` | Scenario allowlist and range/step rules; schedule at next source tick |
+| `reset` | none | Coherent reset; the lot requeues every configured car |
+| `submit` | `lane`, `signal`, integer `value` | Allowlist and range/step rules (`payment.*` exit only); schedule at next source tick |
+| `car.add` | `profile` | Queue a car; omitted profile fields use defaults and a random plate/park time |
+| `car.update` | `car`, `profile` | Edit a queued car; a parked or stuck car may change only its exit behaviour |
+| `car.remove` | `car` | Remove a queued or departed car |
+| `car.retry` | `car`, `payment` | Send a stuck car to the exit again with a new terminal behaviour |
+
+`car.*` operations exist only in the lot. Profiles accept only the enum fields
+listed in the [scenario guide](scenarios.md#car-queue-driver), a plate in the
+course syntax and `park_s` 1..120.
 
 The command ID cache admits at most 4096 IDs/epoch, without eviction.
 Duplicate IDs reject; do not retry uncertain commands under a new ID.
@@ -106,14 +120,15 @@ later `executed`/`failed` events remain visible, including rejected next-car
 scene preconditions. Failures are shown in the main view and diagnostics.
 
 Equipment actions cannot set motor GPIOs, physical barrier position, ADC code,
-arbitrary UART bytes or firmware success. “Car arrival” requests forward
-vehicle speed; “Stop car” holds the point. “Next car” retains the established
+arbitrary UART bytes or firmware success. In the lot, the car-queue driver
+issues these same actions; manual actions in the diagnostics drawer can change
+a car's outcome. “Drive forward” requests forward vehicle speed; “Stop car”
+holds the point. “Next car” retains the established
 passed/stopped/barrier-down-and-disabled preconditions. The beam is independent
 and must be toggled to represent passage, not inferred from car distance.
 
-Manual mode holds automatic payment replies (`missing: true`). “Pay” schedules
-the existing terminal `payment.replay` action, which sends actual LPUART1 bytes
-for the retained charge. It never opens the barrier directly; matching UUID,
+“Repeat terminal reply” schedules the existing exit-lane `payment.replay`
+action, which sends actual LPUART1 bytes for the retained charge. It never opens the barrier directly; matching UUID,
 amount, currency, firmware state and limit feedback remain necessary.
 Payment is simulated, not PIX. Fixture mode preserves its original protocol
 configuration and expected observations; changing equipment interactively can
@@ -121,16 +136,24 @@ legitimately cause a fixture assertion failure.
 
 ## View and assessment
 
-The view renders source vehicle position, barrier millidegrees, red/green/
-buzzer, independent beam, ADC4 sample, GPIO diagnostics, UART byte events,
-SPI diagnostics/framebuffer and test results. Canvas pixels are decoded from
+The dashboard fits one laptop screen and follows a car's path: the street
+queue, the entry lane, the lot bays, the exit lane, then the exit terminal
+display and the verdict log. Every car appears as its licence plate. Selecting
+a queued or parked car opens its behaviour editor; a stuck car's editor offers
+payment choices to retry the exit. Each lane scene renders source vehicle
+position, barrier millidegrees, red/green/buzzer, the independent beam, motor
+direction and fault or halted badges; a tabbed drawer holds manual equipment
+actions, UART byte events, recent source events, full state and command/
+checkpoint results. Space starts or pauses, R resets, A adds a car and Esc
+closes the editor. Canvas pixels are decoded from
 the actual SPI model export, not regenerated labels or logs.
 
 Interactive and browser-free validation import the same strict scenario
 parser, continuous motor/obstruction/every-green authorization checks and
-checkpoint oracle. Manual mode uses the same continuous safety checks with
-bounded broad green windows and alternating entry/paid-exit policy; it does not
-claim conformance to a complete fixture. Test results are observations of
+checkpoint oracle. The lot uses the same continuous per-lane safety checks and
+the lot oracle, with every entry green treated as an entry and every exit
+green as a paid exit; per-car verdicts add the expected outcome for each
+car's profile. It does not claim conformance to a complete fixture. Test results are observations of
 device behavior, not firmware log or symbol declarations.
 
 Slow consumers have four pending frames maximum (at most 1 MiB each), plus
