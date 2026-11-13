@@ -48,7 +48,7 @@ STUDENT_SCRIPTS = {
     "prepare-smoke.py", "scenario-run.py", "scenario-schema.py",
     "scenario/__init__.py", "scenario/assessment.py", "scenario/observations.py",
     "scenario/obstruction.py", "scenario/outcome.py", "scenario/parser.py",
-    "scenario/robot_library.py", "scenario/schema.py",
+    "scenario/robot_library.py", "scenario/runner.py", "scenario/schema.py",
 }
 STUDENT_TESTS = {
     "scenario.robot", "test_bounded_command.py", "test_browser_history.cjs",

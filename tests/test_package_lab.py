@@ -19,6 +19,16 @@ packager = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(packager)
 
 
+class AllowlistTests(unittest.TestCase):
+    def test_every_scenario_module_ships_to_students(self):
+        root = SCRIPT.parents[1]
+        modules = {p.relative_to(root / "scripts").as_posix()
+                   for p in (root / "scripts/scenario").glob("*.py")}
+        self.assertEqual(modules - packager.STUDENT_SCRIPTS, set())
+        tests = {p.name for p in (root / "tests").glob("test_*")}
+        self.assertEqual(tests - packager.STUDENT_TESTS, set())
+
+
 class PackageTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
