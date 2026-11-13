@@ -1,0 +1,19 @@
+manifest:
+  version: "1.2"
+  projects:
+    - name: zephyr
+      url: https://github.com/zephyrproject-rtos/zephyr.git
+      # Zephyr v4.4.0, peeled release commit.
+      revision: 684c9e8f32e4373a21098559f748f06915f950c9
+      path: deps/zephyr
+      import:
+        name-allowlist:
+          - cmsis_6
+          - hal_stm32
+    - name: zephyr-virtual-board
+      url: https://github.com/rodrigopex/zephyr-virtual-board.git
+      revision: aed53b3cedad1e93d6a92837ce79d8cd7198d2af
+      path: deps/zephyr-virtual-board
+      west-commands: scripts/west-commands.yml
+  self:
+    path: manifest

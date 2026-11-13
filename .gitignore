@@ -1,0 +1,8 @@
+.west/
+deps/
+modules/
+build/
+.venv/
+__pycache__/
+# Protected local instructor source, not generated output.
+/instructor-local/

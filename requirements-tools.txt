@@ -1,0 +1,5 @@
+west==1.4.0
+PyYAML==6.0.3
+# Maps the renamed STM32_RNG model in Renode 1.17; see docs/agent-context.md.
+# The version is always 0.0.0: use --force-reinstall when changing this pin.
+dts2repl @ git+https://github.com/antmicro/dts2repl.git@e2207ce58c891dfdd5da5ea94ee85916598a2616
