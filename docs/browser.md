@@ -68,7 +68,7 @@ An epoch scopes browser commands; process-local revisions do not reset with it.
 
 ## Student-facing API
 
-`GET /api/snapshot` returns a complete version-1 state:
+`GET /api/snapshot` returns a complete version-2 state:
 
 - Monotonic process-wide `revision`, host `run` epoch, scenario/segment,
   running/completed/failure status.

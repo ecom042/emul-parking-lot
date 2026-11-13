@@ -274,8 +274,8 @@ unscheduled run with a scripted **driver** instead of fixture actions. The
 driver is an environment stimulus: it configures each lane's camera and the
 exit terminal while paused, and submits the same allowlisted vehicle and beam
 actions a person would. It never sets motor outputs, positions, ADC codes or
-firmware state. It decides only on its own 100 ms grid and at the ticks of
-commands it planned, so browser and headless runs behave identically.
+firmware state. It decides only on its own 100 ms grid and when a planned
+manoeuvre ends, so browser and headless runs behave identically.
 
 Each lane serves one car at a time and both lanes run concurrently. A car
 approaches to 800 mm, waits for the barrier (10 s entry, 15 s exit budget),

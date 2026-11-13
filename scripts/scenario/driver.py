@@ -119,7 +119,9 @@ class Driver:
         self.visits = {"entry": None, "exit": None}
         self.lane_free_at = {"entry": 0, "exit": 0}
         self.halted = {}
+        # The deque only feeds the view; totals keep every verdict of the run.
         self.verdicts = collections.deque(maxlen=256)
+        self.totals = {"pass": 0, "fail": 0}
         self.ctl = None
         for profile in cars if cars is not None else [{} for _ in range(5)]:
             self.add(profile)
@@ -194,7 +196,8 @@ class Driver:
     def view(self):
         now = self.ctl.tick if self.ctl else 0
         return {"cars": [c.view(now) for c in self.cars.values()],
-                "verdicts": list(self.verdicts), "halted": dict(self.halted),
+                "verdicts": list(self.verdicts), "totals": dict(self.totals),
+                "halted": dict(self.halted),
                 "inside": self.inside(), "capacity": self.capacity,
                 "lanes": {lane: None if v is None else {"car": v.car.id, "phase": v.phase}
                           for lane, v in self.visits.items()}}
@@ -202,6 +205,11 @@ class Driver:
     # ----- runner hooks --------------------------------------------------
     def attach(self, ctl):
         self.ctl = ctl
+
+    def lot_full(self, ctl):
+        """Occupancy as the lot oracle sees it: sessions open and close at the
+        beam transitions, not when the driver's manoeuvre finishes."""
+        return len(ctl.lot.sessions) >= self.capacity
 
     def inside(self):
         return sum(c.state in ("parked", "exit_queued", "exiting", "stuck")
@@ -244,6 +252,7 @@ class Driver:
     # ----- lane behaviour ------------------------------------------------
     def _verdict(self, visit, observed, expected, now, reason=""):
         status = "pass" if observed in expected else "fail"
+        self.totals[status] += 1
         car = visit.car
         self.verdicts.append({"car": car.id, "plate": visit.plate, "lane": visit.lane,
                               "tick": now, "expected": sorted(expected),
@@ -320,10 +329,10 @@ class Driver:
             visit.deadline = now + WAIT_TICKS[lane]
             visit.buzzer = monitor.counts["buzzer"]
             visit.charges = len(monitor.charges)
-            visit.full_seen = lane == "entry" and self.inside() >= self.capacity
+            visit.full_seen = lane == "entry" and self.lot_full(ctl)
             return
         if visit.phase == "wait":
-            visit.full_seen |= lane == "entry" and self.inside() >= self.capacity
+            visit.full_seen |= lane == "entry" and self.lot_full(ctl)
             expected, why = self._expected(visit)
             if why == "full" and not visit.full_seen:
                 expected = {"entered"}
@@ -331,7 +340,7 @@ class Driver:
             buzzed = monitor.counts["buzzer"] > visit.buzzer
             if opened:
                 observed = "entered" if lane == "entry" else "exited"
-                if lane == "entry" and why == "full" and self.inside() >= self.capacity:
+                if lane == "entry" and why == "full" and self.lot_full(ctl):
                     expected = {"refused"}
                 self._verdict(visit, observed, expected, now,
                               "opened for " + visit.plate)
