@@ -422,6 +422,10 @@ document.addEventListener("keydown", event => {
     $("add-car").click();
   }
 });
+// Wide screens have a column for diagnostics, so show them open there.
+if (typeof matchMedia === "function" && matchMedia("(min-width: 1500px)").matches) {
+  $("drawer").open = true;
+}
 connect().catch(error => {
   setConnection("lost", "Not connected. Open the link the launcher printed.");
   text("error", error.message);
