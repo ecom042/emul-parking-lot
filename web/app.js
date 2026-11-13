@@ -1,6 +1,7 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 const LANES = ["entry", "exit"];
+const MIRRORED = {entry: false, exit: true};
 let state = null, stream = null, pixels = null;
 let uart = "", cursor = {}, sourceRuns = {};
 let uartTruncated = false;
@@ -76,10 +77,14 @@ async function request(path, body) {
 
 function renderLane(lane, source, next) {
   const p = source.physical, q = source.protocol;
-  $(`${lane}-car`).setAttribute("transform", `translate(${60 + (6000 - p.vehicle_mm) * 0.1},75)`);
+  // The exit scene is mirrored: its traffic leaves the lot right to left.
+  const mirror = MIRRORED[lane], along = 60 + (6000 - p.vehicle_mm) * 0.1;
+  $(`${lane}-car`).setAttribute("transform", `translate(${mirror ? 900 - along : along},75)`);
   $(`${lane}-car`).classList.toggle("empty", p.vehicle_mm >= 6000);
-  // Plan view: closed spans the lane; opening swings the arm along the kerb.
-  $(`${lane}-barrier`).setAttribute("transform", `rotate(${-p.position_mdeg / 1000})`);
+  // Plan view: closed spans the lane; opening swings the arm along the kerb,
+  // toward the approaching car.
+  const angle = p.position_mdeg / 1000;
+  $(`${lane}-barrier`).setAttribute("transform", `rotate(${mirror ? angle : -angle})`);
   $(`${lane}-red`).classList.toggle("on", q.red);
   $(`${lane}-green`).classList.toggle("on", q.green);
   $(`${lane}-beam`).classList.toggle("active", p.obstruction);

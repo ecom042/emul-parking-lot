@@ -106,39 +106,42 @@
       </div>
       <svg viewBox="0 0 900 150" role="img" aria-labelledby="exit-title exit-desc" class="scene">
         <desc id="exit-desc">Exit lane with the payment terminal: car position, barrier angle, beam, signals and buzzer.</desc>
+        <!-- Mirrored: exit traffic leaves the lot, driving right to left. -->
         <rect class="road" x="0" y="34" width="900" height="82"/>
         <path class="edge" d="M0 34 H900 M0 116 H900"/>
-        <rect class="zone" x="560" y="34" width="100" height="82"/>
-        <path class="ruler" d="M60 132 V138 M210 132 V138 M360 132 V138 M510 132 V138 M660 128 V142 M760 132 V138 M860 132 V138"/>
-        <text class="tick" x="60" y="148">6 m</text><text class="tick" x="360" y="148">3 m</text>
-        <text class="tick" x="660" y="148">barrier</text><text class="tick" x="860" y="148">−2 m</text>
-        <path class="arrow" d="M120 75 H180 M168 66 L182 75 L168 84"/>
-        <path id="exit-beam" class="beam" d="M690 30 V120"/>
-        <rect class="post" x="684" y="22" width="12" height="10" rx="2"/>
-        <rect class="post" x="684" y="118" width="12" height="10" rx="2"/>
-        <rect class="terminal" x="600" y="6" width="26" height="22" rx="4"/>
-        <g id="exit-car" class="car" transform="translate(60,75)">
+        <rect class="zone" x="240" y="34" width="100" height="82"/>
+        <path class="ruler" d="M840 132 V138 M690 132 V138 M540 132 V138 M390 132 V138 M240 128 V142 M140 132 V138 M40 132 V138"/>
+        <text class="tick" x="840" y="148">6 m</text><text class="tick" x="540" y="148">3 m</text>
+        <text class="tick" x="240" y="148">barrier</text><text class="tick" x="40" y="148">−2 m</text>
+        <path class="arrow" d="M780 75 H720 M732 66 L718 75 L732 84"/>
+        <path id="exit-beam" class="beam" d="M210 30 V120"/>
+        <rect class="post" x="204" y="22" width="12" height="10" rx="2"/>
+        <rect class="post" x="204" y="118" width="12" height="10" rx="2"/>
+        <rect class="terminal" x="274" y="6" width="26" height="22" rx="4"/>
+        <g id="exit-car" class="car" transform="translate(840,75)">
           <rect class="body" x="-38" y="-18" width="76" height="36" rx="9"/>
-          <rect class="glass" x="10" y="-14" width="14" height="28" rx="4"/>
-          <rect class="plate-bg" x="-30" y="-8" width="34" height="16" rx="2"/>
-          <text id="exit-car-plate" class="plate-text" x="-13" y="4">CAR</text>
+          <rect class="glass" x="-24" y="-14" width="14" height="28" rx="4"/>
+          <rect class="plate-bg" x="-4" y="-8" width="34" height="16" rx="2"/>
+          <text id="exit-car-plate" class="plate-text" x="13" y="4">CAR</text>
         </g>
-        <g transform="translate(660,122)">
+        <g transform="translate(240,122)">
           <g id="exit-barrier" class="arm" transform="rotate(0)">
             <rect x="-4" y="-94" width="8" height="94" rx="3"/>
             <path class="stripes" d="M-4 -80 H4 M-4 -56 H4 M-4 -32 H4"/>
           </g>
           <rect class="pillar" x="-10" y="-8" width="20" height="18" rx="3"/>
-          <text id="exit-motor-arrow" class="motor" x="16" y="6"></text>
+          <text id="exit-motor-arrow" class="motor end" x="-16" y="6"></text>
         </g>
-        <g transform="translate(770,10)" class="signal">
+        <g transform="translate(72,10)" class="signal">
           <rect class="housing" x="0" y="0" width="58" height="26" rx="13"/>
           <circle id="exit-red" class="lamp red" cx="15" cy="13" r="8"/>
           <circle id="exit-green" class="lamp green" cx="43" cy="13" r="8"/>
         </g>
-        <g id="exit-buzzer" class="buzzer" transform="translate(850,23)">
-          <path d="M-8 -5 H-3 L4 -11 V11 L-3 5 H-8 Z"/>
-          <path class="wave" d="M8 -7 Q13 0 8 7 M12 -11 Q19 0 12 11"/>
+        <g transform="translate(50,23) scale(-1,1)">
+          <g id="exit-buzzer" class="buzzer">
+            <path d="M-8 -5 H-3 L4 -11 V11 L-3 5 H-8 Z"/>
+            <path class="wave" d="M8 -7 Q13 0 8 7 M12 -11 Q19 0 12 11"/>
+          </g>
         </g>
       </svg>
     </article>

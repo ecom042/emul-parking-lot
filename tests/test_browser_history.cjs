@@ -199,13 +199,15 @@ test("lane scene reflects equipment state, not firmware claims", () => {
   const view = renderer();
   const frame = snapshot(1);
   frame.lanes.exit.physical = {...frame.lanes.exit.physical, enable: true, direction: true,
-    obstruction: true, jam: true, position_mdeg: 45000};
+    obstruction: true, jam: true, position_mdeg: 45000, vehicle_mm: 800};
   frame.lanes.exit.protocol.buzzer = true;
   view.render(frame);
   assert.equal(view.text("exit-motor"), "opening");
   assert.equal(view.text("exit-beam-state"), "blocked");
   assert.equal(view.text("exit-badge"), "Barrier jammed");
-  assert.equal(view.element("exit-barrier").attributes.transform, "rotate(-45)");
+  // The exit scene is mirrored, so its arm swings the other way.
+  assert.equal(view.element("exit-barrier").attributes.transform, "rotate(45)");
+  assert.equal(view.element("exit-car").attributes.transform, "translate(320,75)");
   assert(view.element("exit-buzzer").classList.contains("on"));
   assert(view.element("entry-green").classList.contains("on"));
   assert(!view.element("entry-red").classList.contains("on"));
