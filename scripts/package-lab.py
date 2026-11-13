@@ -46,12 +46,13 @@ STUDENT_SCRIPTS = {
     "assess.py", "bounded-command.py", "check-student-launch.py", "lab.py",
     "package-lab.py", "parking-web.py", "parking_embedded.py", "parking_web.py",
     "prepare-smoke.py", "scenario-run.py", "scenario-schema.py",
-    "scenario/__init__.py", "scenario/assessment.py", "scenario/observations.py",
+    "scenario/__init__.py", "scenario/assessment.py", "scenario/driver.py",
+    "scenario/observations.py",
     "scenario/obstruction.py", "scenario/outcome.py", "scenario/parser.py",
     "scenario/robot_library.py", "scenario/runner.py", "scenario/schema.py",
 }
 STUDENT_TESTS = {
-    "scenario.robot", "test_bounded_command.py", "test_browser_history.cjs",
+    "scenario.robot", "test_bounded_command.py", "test_browser_history.cjs", "test_driver.py",
     "test_lab.py", "test_lab_launch_validation.py", "test_package_lab.py",
     "test_parking_observations.py", "test_parking_web.py", "test_scenario.py",
     "test_scenario_obstruction.py",

@@ -93,6 +93,22 @@ class DomainTests(unittest.TestCase):
                 self.engine.command({**self.command, **change})
         self.assertTrue(self.engine.requests.empty())
 
+    def test_car_queue_commands_are_typed_enums(self):
+        for change in [
+            {"op": "car.add"}, {"op": "car.add", "profile": {"payment": "free"}},
+            {"op": "car.add", "profile": {"plate": "ABC1D23\nquit"}},
+            {"op": "car.add", "profile": "normal"},
+            {"op": "car.update", "car": "1", "profile": {}},
+            {"op": "car.update", "car": True, "profile": {}},
+            {"op": "car.remove", "car": 0},
+            {"op": "car.remove", "car": 1, "profile": {}},
+            {"op": "car.retry", "car": 1, "payment": "bribe"},
+            {"op": "car.retry", "car": 1},
+        ]:
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                self.engine.command({**self.command, **change})
+        self.assertTrue(self.engine.requests.empty())
+
     def test_valid_commands_pass_owned_queue(self):
         def respond():
             payload, future = self.engine.requests.get(timeout=1)

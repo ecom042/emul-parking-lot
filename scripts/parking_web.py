@@ -9,12 +9,13 @@ import threading
 import time
 import uuid
 
-from scenario import parser, runner
+from scenario import driver, parser, runner
 from scenario.assessment import FirmwareFailure, HarnessFailure
 
-# The interactive lot: unscheduled, both lanes open, payment held until "Pay".
+# The interactive lot: unscheduled, both lanes open, driven by the car queue.
 LOT = "lot"
-LOT_PAYMENT = {"delay_ticks": 10, "fragment_bytes": 8, "result": "PAID", "missing": True}
+CAR_OPS = {"car.add": {"profile"}, "car.update": {"car", "profile"},
+           "car.remove": {"car"}, "car.retry": {"car", "payment"}}
 
 
 def built_config(boot):
@@ -59,6 +60,7 @@ class ParkingEngine:
         self.finished = False
         self.revision = 0
         self.run = None
+        self.driver = driver.Driver(capacity=capacity)
         self._new_epoch()
         self.state = self.runtime.request({"op": "init"})
         self._configure_run()
@@ -77,9 +79,7 @@ class ParkingEngine:
     def _spec(self):
         if self.scenario:
             return self.scenario["runs"][self.run_index]
-        spec = runner.open_run()
-        spec["lanes"]["exit"]["payment"] = dict(LOT_PAYMENT)
-        return spec
+        return runner.open_run()
 
     def _configure_run(self):
         self.failure = None
@@ -91,7 +91,8 @@ class ParkingEngine:
             motor_ms=data.get("deadlines", {}).get("motor_ms", 2500),
             step_ticks=self.step_ticks,
             evidence=self.evidence / f"{self.epoch}-{self.run_index}.events.jsonl.gz",
-            required_capacity=data.get("capacity"))
+            required_capacity=data.get("capacity"),
+            driver=None if self.scenario else self.driver)
         self.state = self.run.state
 
     def snapshot(self):
@@ -103,7 +104,8 @@ class ParkingEngine:
             raise RuntimeError("engine is closing")
         # Validate before admission; no path, code, monitor syntax or arbitrary
         # model method can pass this domain boundary.
-        parser.fields(payload, ["v", "run", "id", "op"], ["scenario", "lane", "signal", "value"])
+        parser.fields(payload, ["v", "run", "id", "op"],
+                      ["scenario", "lane", "signal", "value", "car", "profile", "payment"])
         parser.integer(payload["v"], 1, 1)
         parser.require(type(payload["run"]) is str and len(payload["run"]) == 32, "invalid run")
         parser.require(type(payload["id"]) is str and len(payload["id"]) <= 64
@@ -111,7 +113,7 @@ class ParkingEngine:
         op = payload["op"]
         parser.require(type(op) is str, "invalid operation")
         allowed = {"start": set(), "pause": set(), "reset": set(),
-                   "select": {"scenario"}, "submit": {"lane", "signal", "value"}}
+                   "select": {"scenario"}, "submit": {"lane", "signal", "value"}, **CAR_OPS}
         parser.require(op in allowed, "unknown operation")
         parser.require(set(payload) == {"v", "run", "id", "op"} | allowed[op],
                        "unexpected operation fields")
@@ -126,6 +128,12 @@ class ParkingEngine:
             low, high, step = parser.SIGNALS[signal]
             parser.integer(payload["value"], low, high)
             parser.require(payload["value"] % step == 0, "invalid signal step")
+        if "car" in payload:
+            parser.integer(payload["car"], 1, 1000000)
+        if "profile" in payload:
+            driver.validate_profile(payload["profile"])
+        if "payment" in payload:
+            parser.require(payload["payment"] in driver.PROFILE["payment"], "invalid payment")
         future = concurrent.futures.Future()
         try:
             self.requests.put_nowait((copy.deepcopy(payload), future))
@@ -148,6 +156,7 @@ class ParkingEngine:
             self.scenario = self.scenarios.get(selection)
         self.commands.clear()
         self._new_epoch()
+        self.driver = self.driver.restart()
         self.state = runner.reset(self.runtime.request, self.state)
         self.run_index = 0
         self._configure_run()
@@ -171,6 +180,17 @@ class ParkingEngine:
             self._reset()
         elif op == "select":
             self._reset(selection=command["scenario"])
+        elif op in CAR_OPS:
+            if self.scenario:
+                raise ValueError("the car queue is only available in the lot")
+            if op == "car.add":
+                return self.driver.add(command["profile"]).view(self.tick)
+            if op == "car.update":
+                return self.driver.update(command["car"], command["profile"]).view(self.tick)
+            if op == "car.remove":
+                self.driver.remove(command["car"])
+            else:
+                return self.driver.retry(command["car"], command["payment"]).view(self.tick)
         else:
             if self.finished or self.failure:
                 raise ValueError("reset required after completion or failure")
@@ -205,7 +225,8 @@ class ParkingEngine:
                   "sessions": sorted(run.lot.sessions), "cycles": {
                       lane: list(m.cycles) for lane, m in run.monitors.items()},
                   "commands": list(self.commands), "equipment": list(run.commands),
-                  "results": list(run.results)}
+                  "results": list(run.results),
+                  "queue": None if self.scenario else self.driver.view()}
         run.close()
         name = f"{self.epoch}-{self.run_index}-{status}.json"
         (self.evidence / name).write_text(json.dumps(record) + "\n")
@@ -223,7 +244,8 @@ class ParkingEngine:
                         "sessions": sorted(run.lot.sessions)},
                 "counts": {lane: dict(m.counts) for lane, m in run.monitors.items()},
                 "commands": list(self.commands), "equipment": list(run.commands),
-                "results": list(run.results), "events": run.recent_events()}
+                "results": list(run.results), "events": run.recent_events(),
+                "queue": None if self.scenario else self.driver.view()}
         with self.lock:
             self.view = view
         self.publish(view)
