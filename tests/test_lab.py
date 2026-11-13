@@ -30,6 +30,14 @@ class LabPackagingTests(unittest.TestCase):
         self.assertEqual(launch[-2:], ["--scenario", "normal"])
         self.assertNotIn("scenario-run.py", " ".join(launch))
 
+    def test_build_selects_tariff_unit_and_optional_capacity(self):
+        build, _, _ = lab.commands(Path("/module"), Path("/renode"), Path("/output"))
+        self.assertEqual(build[-2:], ["--", "-DCONFIG_PARKING_TARIFF_UNIT_MS=5000"])
+        build, _, _ = lab.commands(Path("/module"), Path("/renode"), Path("/output"),
+                                   "normal", capacity=2)
+        self.assertEqual(build[-3:], ["--", "-DCONFIG_PARKING_TARIFF_UNIT_MS=1000",
+                                      "-DCONFIG_PARKING_CAPACITY=2"])
+
     def test_explicit_workspace_and_bundle_ignore_inherited_overrides(self):
         with patch.dict(lab.os.environ, {"ZVB_CONFIG": "/wrong.yml",
                                        "WEST_CONFIG_LOCAL": "/other/workspace",

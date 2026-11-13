@@ -11,18 +11,28 @@ using Antmicro.Renode.Peripherals.UART;
 namespace Antmicro.Renode.Peripherals.Miscellaneous
 {
     // Course ASCII/LF v1 devices, connected to the actual MCU UARTs.
+    // One instance per lane: the entry lane has a camera and signals only;
+    // the exit lane additionally owns the payment terminal.
     public sealed class ParkingProtocols : IPeripheral, IGPIOReceiver
     {
-        public ParkingProtocols(IMachine machine, IUART camera, IUART payment)
+        public ParkingProtocols(IMachine machine, IUART camera, IUART payment = null,
+            string lane = "exit")
         {
+            if(lane != "entry" && lane != "exit")
+                throw new RecoverableException("Lane must be entry or exit");
             this.machine = machine;
             this.camera = camera;
             this.payment = payment;
+            Lane = lane;
             timeline = new EquipmentTimeline(machine, Step, Validate, Execute);
             camera.CharReceived += b => Receive(camInput, b, true);
-            payment.CharReceived += b => Receive(payInput, b, false);
+            if(payment != null)
+                payment.CharReceived += b => Receive(payInput, b, false);
             Reset();
         }
+
+        public string Lane { get; }
+        public bool HasPayment => payment != null;
 
         public void Reset()
         {
@@ -62,6 +72,7 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
 
         public void ConfigurePayment(int delayTicks, int fragmentBytes, string result, bool missing)
         {
+            if(payment == null) throw new RecoverableException("This lane has no payment terminal");
             if(!machine.IsPaused || delayTicks < 1 || delayTicks > 3000 ||
                 fragmentBytes < 1 || fragmentBytes > 128 ||
                 (result != "PAID" && result != "CANCELLED" && result != "MALFORMED"))
@@ -73,6 +84,7 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
         public void ReplayPayment(string requestUuid, int delayTicks)
         {
             Charge charge;
+            if(payment == null) throw new RecoverableException("This lane has no payment terminal");
             if(!machine.IsPaused || delayTicks < 1 || delayTicks > 3000 ||
                 !charges.TryGetValue(requestUuid, out charge) || !charge.Delivered)
                 throw new RecoverableException("Replay requires a retained completed request");
@@ -94,7 +106,8 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
         public int Replies { get; private set; }
         public string LastUuid => lastUuid;
         public string LastPayment => lastPayment;
-        public string Snapshot => "{\"v\":1,\"run\":" + Run + ",\"tick\":" + Tick +
+        public string Snapshot => "{\"v\":1,\"lane\":\"" + Lane + "\",\"payment\":" +
+            (payment != null ? "true" : "false") + ",\"run\":" + Run + ",\"tick\":" + Tick +
             ",\"time_us\":" + timeline.TimeMicroseconds + ",\"pending\":" + Pending +
             ",\"captures\":" + Captures + ",\"payments\":" + Payments +
             ",\"errors\":" + Errors + ",\"replies\":" + Replies +
@@ -257,8 +270,8 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
         }
 
         private bool Validate(string signal, int value) =>
-            (signal == "payment.replay" && value == 1) ||
-            (signal == "payment.cancel" && value == 1);
+            payment != null && value == 1 &&
+            (signal == "payment.replay" || signal == "payment.cancel");
 
         private void Execute(string signal, int value)
         {

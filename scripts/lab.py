@@ -23,10 +23,19 @@ def source_hashes(root, directories):
             "__pycache__" not in p.parts and p.suffix != ".pyc"}
 
 
-def commands(module, renode, output, headless=None):
+# Finite fixtures use the documented 1000 ms tariff unit; the interactive lot
+# uses 5000 ms so that stays of a few virtual seconds show different prices.
+TARIFF_UNIT_MS = {"headless": 1000, "interactive": 5000}
+
+
+def commands(module, renode, output, headless=None, capacity=None):
     firmware = output / "firmware"
+    unit = TARIFF_UNIT_MS["headless" if headless else "interactive"]
     build = [sys.executable, "-m", "west", "build", "-b", "nucleo_u5a5zj_q",
-             str(ROOT / "student"), "-d", str(firmware)]
+             str(ROOT / "student"), "-d", str(firmware), "--",
+             f"-DCONFIG_PARKING_TARIFF_UNIT_MS={unit}"]
+    if capacity is not None:
+        build.append(f"-DCONFIG_PARKING_CAPACITY={capacity}")
     prepare = [sys.executable, str(ROOT / "scripts/prepare-smoke.py"),
                "--build-dir", str(firmware), "--config",
                str(ROOT / "student/boards/zvb/nucleo_u5a5zj_q/zvb.yml")]
@@ -60,6 +69,8 @@ def main():
     ap.add_argument("--renode", type=Path, required=True)
     ap.add_argument("--output", type=Path, required=True, help="new directory under build/")
     ap.add_argument("--prepare-only", action="store_true")
+    ap.add_argument("--capacity", type=int, choices=range(1, 9), metavar="1..8",
+                    help="parking lot capacity (default: Kconfig default 4)")
     ap.add_argument("--headless", choices=["all"] + sorted(
         p.stem for p in (ROOT / "tests/scenarios").glob("*.json")))
     args = ap.parse_args()
@@ -93,7 +104,7 @@ def main():
     selected_environment = environment(module)
     os.environ.clear()
     os.environ.update(selected_environment)
-    build, prepare, launch = commands(module, renode, output, args.headless)
+    build, prepare, launch = commands(module, renode, output, args.headless, args.capacity)
     provenance = {
         "v": 1, "host": platform.platform(), "arch": platform.machine(),
         "python": sys.version, "module": str(module), "sdk": str(sdk.resolve()),

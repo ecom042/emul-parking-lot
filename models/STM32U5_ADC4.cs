@@ -78,10 +78,10 @@ namespace Antmicro.Renode.Peripherals.Analog
         // resolution. Lower resolutions discard low bits. No host-time actions.
         public void FeedSample(uint value, int channel)
         {
-            if(SampleProvider != null)
-                throw new RecoverableException("ADC4 has a connected physical sample provider");
             if(value > 4095 || channel < 0 || channel > 23)
                 throw new RecoverableException("Expected 12-bit sample and channel 0..23");
+            if(sources.ContainsKey(channel))
+                throw new RecoverableException("ADC4 channel has a connected physical sample source");
             if(!samples.ContainsKey(channel)) samples[channel] = new Queue<uint>();
             samples[channel].Enqueue(value);
         }
@@ -161,10 +161,20 @@ namespace Antmicro.Renode.Peripherals.Analog
         public GPIO IRQ { get; }
         public uint CompletedConversions { get; private set; }
         public uint CompletedCalibrations { get; private set; }
-        // Optional continuously connected source, sampled at conversion completion.
-        // Connection survives reset, just as GPIO wiring does; source state resets
-        // with its owning peripheral. The standalone FIFO contract is unchanged.
-        public Func<int, uint> SampleProvider { get; set; }
+        // Optional continuously connected per-channel source, sampled at
+        // conversion completion. Connection survives reset, just as GPIO wiring
+        // does; source state resets with its owning peripheral. A channel has at
+        // most one source, and a connected channel rejects FIFO injection.
+        public void ConnectSource(int channel, Func<uint> source)
+        {
+            if(channel < 0 || channel > 23 || source == null)
+                throw new RecoverableException("Expected channel 0..23 and a source");
+            if(sources.ContainsKey(channel))
+                throw new RecoverableException("ADC4 channel already has a connected source");
+            if(samples.TryGetValue(channel, out var pending) && pending.Count != 0)
+                throw new RecoverableException("ADC4 channel has injected FIFO samples");
+            sources[channel] = source;
+        }
         public int PendingSamples
         {
             get
@@ -288,8 +298,8 @@ namespace Antmicro.Renode.Peripherals.Analog
             case Operation.Enable: status |= Ready; break;
             case Operation.Conversion:
                 uint sample = 0;
-                if(SampleProvider != null)
-                    sample = SampleProvider(selectedChannel);
+                if(sources.TryGetValue(selectedChannel, out var source))
+                    sample = source();
                 else if(samples.TryGetValue(selectedChannel, out var queue) && queue.Count != 0)
                     sample = queue.Dequeue();
                 else
@@ -315,6 +325,7 @@ namespace Antmicro.Renode.Peripherals.Analog
         private readonly CourseU5ADCClock clock;
         private readonly LimitTimer timer;
         private readonly Dictionary<int, Queue<uint>> samples = new Dictionary<int, Queue<uint>>();
+        private readonly Dictionary<int, Func<uint>> sources = new Dictionary<int, Func<uint>>();
         private uint status, interruptEnable, control, configuration1, configuration2;
         private uint samplingTime, channels, data, common;
         private int selectedChannel;
