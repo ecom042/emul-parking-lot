@@ -124,7 +124,7 @@ Optional `payment`:
 
 Their omission selects the documented model defaults, restored on every reset.
 Payment results are exactly `PAID`, `CANCELLED`, `MALFORMED`. Plates use the
-documented [seven-character syntax](device-protocols.md#camera-c1).
+documented [seven-character syntax](device-protocols.md#camera-at-interface).
 These settings configure equipment replies;
 they do not instruct firmware to authorize anything.
 

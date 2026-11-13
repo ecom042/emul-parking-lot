@@ -21,20 +21,21 @@ receive path. Neither firmware logs nor simulator payment actions set the motor.
 No extra terminal transaction UUID is introduced: the request UUID already
 identifies the immutable simulated charge and its result.
 
-Both protocols use printable ASCII bytes 0x20..0x7e, with **LF (0x0a)** as the
-only frame delimiter. Maximum frame size is **128 bytes including LF**.
-There is no CR, escaping, JSON, image, binary payload, optional whitespace,
-leading/trailing whitespace or empty field. Exactly one space separates fields.
+Camera frames use printable ASCII bodies and **CRLF (0x0d 0x0a)** termination.
+Payment frames retain **LF (0x0a)** termination and reject CR.
+Maximum frame size is **128 bytes including the terminator**.
+There is no escaping, JSON, image, binary payload, optional whitespace,
+leading/trailing whitespace or empty field. Payment fields use exactly one space.
 All commands are case-sensitive. Encoding or length errors discard through LF;
-no prefix of a malformed request can execute. The model emits one `ERROR FRAME`
-after that LF. A partial request must finish within **100 ticks / 1000 ms**
-from its first byte, or the model emits `ERROR TIMEOUT` and discards the suffix
+no prefix of a malformed request can execute. Camera errors are `ERROR\r\n`;
+payment errors retain their named codes. A partial request must finish within
+**100 ticks / 1000 ms** from its first byte, or the model emits an error and discards the suffix
 through the next LF without executing it. The following complete frame can
 resynchronize. Idle UARTs do not time out.
 
 Each independent UART parser retains at most 127 bytes. Models retain at most
 64 capture IDs and 64 charge UUIDs per reset-scoped run, with **no eviction**:
-new IDs receive `ERROR CAPACITY` when full, while retained IDs remain
+new IDs receive camera `ERROR` or payment `P1 ERROR CAPACITY` when full, while retained IDs remain
 idempotent. There are at most 32 pending response frames across both UARTs;
 each is at most 128 bytes. If full, increment `Errors`, emit `queue_full`,
 and drop the new response without undoing an already accepted operation.
@@ -43,16 +44,28 @@ payment UUID, never invent a new charge because delivery is uncertain.
 The single-session assignment stays below those limits. Reset is the
 only reclamation mechanism for the ID caches.
 
-## Camera C1
+## Camera AT interface
+
+This is a small **course-defined AT extension**, not a vendor camera standard
+or a complete modem command set. Echo is disabled; commands other than the two
+listed below are rejected. `P1` payment is unchanged.
 
 ```text
-C1 CAP <capture_id>\n
-C1 RESULT <capture_id> <plate> <confidence>\n
-C1 ERROR FRAME\n
-C1 ERROR TIMEOUT\n
-C1 ERROR CAPACITY\n
+AT\r\n
+OK\r\n
+
+AT+CAPTURE=<capture_id>\r\n
+OK\r\n
++PLATE:<capture_id>,"<plate>",<confidence>\r\n
+
+ERROR\r\n
 ```
 
+- `AT` checks communication without taking a capture.
+- `OK` acknowledges an accepted command, **not recognition or authorization**.
+  A capture completes only with a valid, matching `+PLATE` result. The result
+  can arrive fragmented and later than the acknowledgment. Neither `OK` nor
+  `ERROR` restarts the capture deadline.
 - `capture_id`: canonical decimal integer 1..999999999, no leading zero.
 - `plate`: exactly `[A-Z]{3}[0-9][A-Z0-9][0-9]{2}`, covering the course's legacy
   and Mercosur-like seven-character labels. No hyphen, Unicode or spaces.
@@ -66,7 +79,12 @@ C1 ERROR CAPACITY\n
   `ConfigureCamera(plate, commaSeparatedConfidences, delayTicks, fragmentBytes, missing)`.
   Validate the entire configuration before mutation. Confidence sequences have
   1..16 values; the last repeats. Latency is 1..3000 ticks, fragments 1..128
-  bytes. Missing mode captures/cache-correlates but emits no reply.
+  bytes. Missing mode captures/cache-correlates and acknowledges with `OK`,
+  but emits no `+PLATE` result.
+- Each accepted capture retry queues `OK` followed by its retained or new
+  `+PLATE` result. Acknowledgments are eligible next tick; results use the
+  configured latency. Both obey FIFO delivery and configured fragmentation.
+  `Replies` counts complete frames, including acknowledgments.
 - There is no image processing or linkage from vehicle position to plate.
   The scenario/operator configures recognition labels; firmware learns the
   label **only** through the camera UART.
@@ -97,7 +115,7 @@ P1 ERROR UNKNOWN\n
   The parser does not infer authentication or cryptographic properties from it.
 - `amount`: **integer centavos**, canonical decimal 1..1000000, no sign,
   decimal separator, floating point, leading zero or currency conversion.
-  `BRL` is required and case-sensitive. Plate syntax is identical to C1.
+  `BRL` is required and case-sensitive. Plate syntax is identical to the camera.
 - A UUID permanently binds the plate, amount and BRL currency within the run.
   Same UUID + same immutable fields is an idempotent retry, **one charge**.
   While a reply is pending, a retry does not enqueue a second reply; otherwise

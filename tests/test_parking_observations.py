@@ -4,7 +4,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from scenario.observations import assert_green_cycle
+from scenario.observations import assert_green_cycle, frames
 
 
 def event(time, signal, value, device="barrier", category="physical"):
@@ -12,7 +12,8 @@ def event(time, signal, value, device="barrier", category="physical"):
 
 
 def wire(time, text, device, signal):
-    return [event(time, signal, ord(byte), device) for byte in text + "\n"]
+    ending = "\r\n" if device == "camera" else "\n"
+    return [event(time, signal, ord(byte), device) for byte in text + ending]
 
 
 def cycle():
@@ -22,8 +23,9 @@ def cycle():
         event(30, "position_mdeg", 90000),
         event(31, "enable", 0, "motor", "commanded"),
     ]
-    protocol = wire(1, "C1 CAP 1", "camera", "tx_byte")
-    protocol += wire(2, "C1 RESULT 1 ABC1D23 85", "camera", "rx_byte")
+    protocol = wire(1, "AT+CAPTURE=1", "camera", "tx_byte")
+    protocol += wire(2, "OK", "camera", "rx_byte")
+    protocol += wire(2, '+PLATE:1,"ABC1D23",85', "camera", "rx_byte")
     protocol += wire(3, "P1 CHARGE current ABC1D23 200 BRL", "payment", "tx_byte")
     protocol += wire(4, "P1 RESULT current PAID 200 BRL", "payment", "rx_byte")
     protocol.append(event(32, "green", 1, "signals"))
@@ -31,6 +33,33 @@ def cycle():
 
 
 class GreenCycleTests(unittest.TestCase):
+    def test_camera_requires_crlf_and_payment_does_not_normalize_cr(self):
+        bare = [event(1, "rx_byte", ord(c), "camera")
+                for c in '+PLATE:1,"ABC1D23",93\n']
+        self.assertEqual(frames(bare, "camera", "rx_byte", 0, 2), [])
+        payment = wire(1, "P1 RESULT id PAID 200 BRL\r", "payment", "rx_byte")
+        self.assertEqual(frames(payment, "payment", "rx_byte", 0, 2),
+                         ["P1 RESULT id PAID 200 BRL\r"])
+
+    def test_acknowledgment_is_not_recognition(self):
+        physical, protocol = cycle()
+        protocol = [e for e in protocol
+                    if e["device"] != "camera" or e["signal"] != "rx_byte"]
+        protocol += wire(2, "OK", "camera", "rx_byte")
+        with self.assertRaisesRegex(AssertionError, "matching accepted camera"):
+            assert_green_cycle(physical, protocol)
+
+    def test_invalid_or_uncorrelated_camera_results_cannot_authorize(self):
+        for reply in ('+PLATE:2,"ABC1D23",85', '+PLATE:1,"ABC1D23",84',
+                      'C1 RESULT 1 ABC1D23 93', '+PLATE:1,"ABC1D23",101'):
+            with self.subTest(reply=reply):
+                physical, protocol = cycle()
+                protocol = [e for e in protocol
+                            if e["device"] != "camera" or e["signal"] != "rx_byte"]
+                protocol += wire(2, reply, "camera", "rx_byte")
+                with self.assertRaisesRegex(AssertionError, "matching accepted camera"):
+                    assert_green_cycle(physical, protocol)
+
     def test_current_authorized_full_open_passes(self):
         assert_green_cycle(*cycle(), payment_required=True)
 

@@ -23,7 +23,7 @@
     ],
     "expect": [
       {"at_tick": 1990, "state": {"position_mdeg": 0, "enable": false, "green": false, "green_count": 2}},
-      {"at_tick": 2200, "state": {"position_mdeg": 0, "enable": false, "green": false, "green_count": 2, "payments": 1, "replies": 4}}
+      {"at_tick": 2200, "state": {"position_mdeg": 0, "enable": false, "green": false, "green_count": 2, "payments": 1, "replies": 6}}
     ]
   }]
 }

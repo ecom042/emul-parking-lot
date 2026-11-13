@@ -11,7 +11,12 @@ def frames(trace, device, signal, after, before):
         data.append(event)
         if event["value"] == 10:
             if after < data[0]["time_us"] and event["time_us"] <= before:
-                result.append("".join(chr(e["value"]) for e in data).rstrip("\n"))
+                text = "".join(chr(e["value"]) for e in data)
+                if device == "camera":
+                    if text.endswith("\r\n"):
+                        result.append(text[:-2])
+                else:
+                    result.append(text[:-1])
             data = []
     return result
 
@@ -45,19 +50,21 @@ def assert_green_cycle(physical, protocol, payment_required=False):
                   and e["signal"] == "direction" and e["time_us"] <= opened]
     assert directions and directions[-1]["value"] == 1, "Current cycle is not opening"
     requests = frames(protocol, "camera", "tx_byte", after, opened)
-    captures = [f.split()[2] for f in requests if re.fullmatch(r"C1 CAP [1-9][0-9]*", f)]
+    captures = [f.split("=")[1] for f in requests
+                if re.fullmatch(r"AT\+CAPTURE=[1-9][0-9]{0,8}", f)]
     assert captures, "No camera request in this cycle"
     replies = frames(protocol, "camera", "rx_byte", after, opened)
-    recognized = [f.split() for f in replies if re.fullmatch(
-        r"C1 RESULT [1-9][0-9]* [A-Z]{3}[0-9][A-Z0-9][0-9]{2} (?:[0-9]|[1-9][0-9]|100)", f)]
-    recognized = [f for f in recognized if f[2] == captures[-1] and int(f[4]) >= 85]
+    recognized = [match.groups() for f in replies if (match := re.fullmatch(
+        r'\+PLATE:([1-9][0-9]{0,8}),"([A-Z]{3}[0-9][A-Z0-9][0-9]{2})",'
+        r'([0-9]|[1-9][0-9]|100)', f))]
+    recognized = [f for f in recognized if f[0] == captures[-1] and int(f[2]) >= 85]
     assert recognized, "No matching accepted camera result before this opening"
     if payment_required:
         charges = frames(protocol, "payment", "tx_byte", after, opened)
         charges = [f.split() for f in charges if f.startswith("P1 CHARGE ")]
         assert charges, "No charge in this exit cycle"
         charge = charges[-1]
-        assert len(charge) == 6 and charge[3] == recognized[-1][3] and charge[5] == "BRL"
+        assert len(charge) == 6 and charge[3] == recognized[-1][1] and charge[5] == "BRL"
         paid = f"P1 RESULT {charge[2]} PAID {charge[4]} BRL"
         results = frames(protocol, "payment", "rx_byte", after, opened)
         assert paid in results, "No current matching paid UUID/amount/currency before opening"

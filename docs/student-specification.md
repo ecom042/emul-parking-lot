@@ -175,23 +175,31 @@ zero; absolute machine source timestamps may continue.
 ## UART protocol v1
 
 Follow the full [equipment protocol](device-protocols.md#ownership-and-wire-framing).
-Both channels use printable ASCII 0x20..0x7e, case-sensitive, exactly one space
-between fields and LF delimiter; no CR, escaping, empty fields or extra
-whitespace. Maximum frame: **128 bytes including LF**. Discard malformed or
+Both channels use case-sensitive printable ASCII bodies. Camera uses CRLF;
+payment uses LF and exactly one space between fields, with no CR.
+No escaping, empty fields or extra whitespace are accepted.
+Maximum frame: **128 bytes including its terminator**. Discard malformed or
 overlong input through LF; never execute a valid-looking prefix.
 Equipment partial requests have a 100-tick/1000 ms assembly deadline, then
 discard the suffix through LF. Keep independent bounded UART parsers.
 
 ```text
-C1 CAP <capture_id>\n
-C1 RESULT <capture_id> <plate> <confidence>\n
+AT\r\n
+OK\r\n
+AT+CAPTURE=<capture_id>\r\n
+OK\r\n
++PLATE:<capture_id>,"<plate>",<confidence>\r\n
 P1 CHARGE <request_uuid> <plate> <amount> BRL\n
 P1 CANCEL <request_uuid>\n
 P1 RESULT <request_uuid> PAID <amount> BRL\n
 P1 RESULT <request_uuid> CANCELLED <amount> BRL\n
 ```
 
-Here `\n` means one LF byte, not two transmitted characters.
+Here `\r\n` means CR followed by LF, and `\n` means LF.
+The camera is a course-defined AT extension, not a vendor standard.
+`OK` acknowledges acceptance, not a recognized plate. Only a matching valid
+`+PLATE` result can authorize recognition. Echo is disabled; acknowledgments
+and errors do not restart deadlines. Missing camera results can still have `OK`.
 
 - Capture ID: canonical decimal 1..999999999, no leading zero. Plate:
   `[A-Z]{3}[0-9][A-Z0-9][0-9]{2}`. Confidence: canonical 0..100.
@@ -210,9 +218,9 @@ Here `\n` means one LF byte, not two transmitted characters.
 - Settlement commits on the first response byte. Before it, cancellation
   removes pending frames/freezes CANCELLED; after it, cancellation cannot
   truncate transmission or undo PAID. Correlation is not authentication.
-- Equipment errors are `C1 ERROR <code>` with FRAME/TIMEOUT/CAPACITY and
-  `P1 ERROR <code>` with FRAME/TIMEOUT/CAPACITY/CONFLICT/UNKNOWN.
-  Each has LF and one named code. No correlation ID means they are diagnostics,
+- Camera errors are `ERROR\r\n`; payment errors remain
+  `P1 ERROR <code>\n` with FRAME/TIMEOUT/CAPACITY/CONFLICT/UNKNOWN.
+  No correlation ID means they are diagnostics,
   not proof that an uncertain charge did not execute.
 - Equipment retains 64 captures and 64 UUIDs per reset, no eviction;
   at most 32 response frames across both UARTs. Capacity/queue failure cannot

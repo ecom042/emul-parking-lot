@@ -136,14 +136,20 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
                 {
                     if(!(cam ? camTimeout : payTimeout)) Error(cam, "FRAME");
                 }
-                else Handle(input.ToString(), cam);
+                else if(cam)
+                {
+                    if(input.Length == 0 || input[input.Length - 1] != '\r')
+                        Error(true, "FRAME");
+                    else Handle(input.ToString(0, input.Length - 1), true);
+                }
+                else Handle(input.ToString(), false);
                 input.Clear();
                 if(cam) { camDiscard = camTimeout = false; }
                 else { payDiscard = payTimeout = false; }
                 return;
             }
             if(discard) return;
-            if(value < 32 || value > 126 || input.Length == 127)
+            if((value < 32 && !(cam && value == 13)) || value > 126 || input.Length == 127)
             {
                 input.Clear();
                 if(cam) camDiscard = true; else payDiscard = true;
@@ -161,24 +167,32 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
         private void Handle(string frame, bool cam)
         {
             Requests++;
-            var f = frame.Split(' ');
             if(cam)
             {
-                if(f.Length != 3 || f[0] != "C1" || f[1] != "CAP" || !CaptureId(f[2]))
+                if(frame == "AT")
+                {
+                    Queue(true, "OK\r\n", 1, fragment);
+                    return;
+                }
+                const string prefix = "AT+CAPTURE=";
+                if(!frame.StartsWith(prefix) || !CaptureId(frame.Substring(prefix.Length)))
                 { Error(true, "FRAME"); return; }
+                var id = frame.Substring(prefix.Length);
                 string response;
-                if(!captures.TryGetValue(f[2], out response))
+                if(!captures.TryGetValue(id, out response))
                 {
                     if(captures.Count == 64) { Error(true, "CAPACITY"); return; }
                     var c = confidence[Math.Min(captureIndex++, confidence.Length - 1)];
-                    response = "C1 RESULT " + f[2] + " " + plate + " " + c + "\n";
-                    captures.Add(f[2], response);
+                    response = "+PLATE:" + id + ",\"" + plate + "\"," + c + "\r\n";
+                    captures.Add(id, response);
                     Captures++;
                     timeline.Emit("physical", "camera", "confidence", c);
                 }
+                Queue(true, "OK\r\n", 1, fragment);
                 if(!cameraMissing) Queue(true, response, delay, fragment);
                 return;
             }
+            var f = frame.Split(' ');
             if(f.Length < 3 || f[0] != "P1" || !Uuid(f[2]))
             { Error(false, "FRAME"); return; }
             Charge charge;
@@ -227,7 +241,7 @@ namespace Antmicro.Renode.Peripherals.Miscellaneous
         {
             Errors++;
             timeline.Emit("diagnostic", cam ? "camera" : "payment", "protocol_error", Errors);
-            Queue(cam, (cam ? "C1" : "P1") + " ERROR " + code + "\n", 1, 128);
+            Queue(cam, cam ? "ERROR\r\n" : "P1 ERROR " + code + "\n", 1, 128);
         }
 
         private void Queue(bool cam, string text, int latency, int size, string key = "")

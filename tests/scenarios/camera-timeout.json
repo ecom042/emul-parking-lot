@@ -5,6 +5,6 @@
     "initial": {"position_mdeg": 0, "vehicle_mm": 800}, "duration_ticks": 800,
     "camera": {"plate": "ABC1D23", "confidences": [93], "delay_ticks": 10, "fragment_bytes": 2, "missing": true},
     "actions": [], "green": [],
-    "expect": [{"at_tick": 800, "state": {"captures": 3, "replies": 0, "position_mdeg": 0, "enable": false, "green": false, "buzzer_count": 1}}]
+    "expect": [{"at_tick": 800, "state": {"captures": 3, "replies": 3, "position_mdeg": 0, "enable": false, "green": false, "buzzer_count": 1}}]
   }]
 }
