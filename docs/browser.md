@@ -150,6 +150,12 @@ checkpoint results. Space starts or pauses, R resets, A adds a car and Esc
 closes the editor. Canvas pixels are decoded from
 the actual SPI model export, not regenerated labels or logs.
 
+The view is in Portuguese by default; the PT/EN switch in the top bar changes
+it and is remembered in the browser's local storage. `web/i18n.js` holds the
+translations, keyed by the English text, and the fixed verdict and halt phrases
+the lot driver sends. Plates, raw equipment values, UART bytes, scenario names
+and free-form firmware or simulator messages are shown as sent.
+
 Interactive and browser-free validation import the same strict scenario
 parser, continuous motor/obstruction/every-green authorization checks and
 checkpoint oracle. The lot uses the same continuous per-lane safety checks and

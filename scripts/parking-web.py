@@ -37,7 +37,7 @@ def main():
         engine = ParkingEngine(runtime, root / "tests/scenarios", args.evidence,
                                **built_config(boot))
         assets = {"/": root / "web/index.html", "/app.js": root / "web/app.js",
-                  "/style.css": root / "web/style.css"}
+                  "/i18n.js": root / "web/i18n.js", "/style.css": root / "web/style.css"}
         server = LocalWebServer(engine, assets, port=args.port)
         engine.publish = server.publish
         server.start()

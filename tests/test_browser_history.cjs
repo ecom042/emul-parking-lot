@@ -5,7 +5,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
-const source = fs.readFileSync(path.join(__dirname, "../web/app.js"), "utf8");
+const web = name => fs.readFileSync(path.join(__dirname, "../web", name), "utf8");
+const i18n = web("i18n.js"), source = web("app.js");
 const warning = "UART history incomplete.";
 
 // Minimal DOM: records text, classes, attributes and rebuilt children.
@@ -23,7 +24,10 @@ function node() {
   };
 }
 
-function renderer() {
+// Existing checks read English text; `null` leaves the saved choice empty so
+// the page falls back to its Portuguese default.
+function renderer(lang = "en") {
+  const saved = new Map(lang ? [["parking-lang", lang]] : []);
   const elements = new Map();
   const element = id => {
     if (!elements.has(id)) elements.set(id, node());
@@ -34,11 +38,18 @@ function renderer() {
       createElement: () => node(), addEventListener() {}},
     URLSearchParams, location: {hash: "", pathname: "/"},
     history: {replaceState() {}},
+    localStorage: {getItem: key => saved.get(key) ?? null, setItem: (key, value) => saved.set(key, value)},
     // Leave bootstrap pending: tests supply snapshots directly, without I/O.
     fetch: () => new Promise(() => {})
   });
+  vm.runInContext(i18n, context, {timeout: 1000});
   vm.runInContext(source, context, {timeout: 1000});
   return {
+    setLang(next) {
+      context.next = next;
+      vm.runInContext("setLang(next)", context, {timeout: 1000});
+    },
+    saved,
     render(snapshot) {
       // HTTP/SSE delivers a fresh object for every publication.
       context.snapshot = JSON.parse(JSON.stringify(snapshot));
@@ -270,4 +281,53 @@ test("failures older than the recent window stay listed", () => {
   const items = view.element("verdicts").children;
   assert.equal(items.length, 3);
   assert.equal(items[2].className, "verdict fail");
+});
+
+test("Portuguese is the default and covers server verdict and halt phrases", () => {
+  const view = renderer(null);
+  view.render(snapshot(1, {}, {running: true, queue: {capacity: 3, inside: 1,
+    halted: {exit: "barrier did not close; reset required"},
+    lanes: {entry: null, exit: null}, cars: [], totals: {pass: 1, fail: 1},
+    verdicts: [{car: 1, plate: "ABC1D23", lane: "entry", tick: 10, expected: ["entered"],
+      observed: "entered", status: "pass", reason: "opened for ABC1D23"},
+    {car: 2, plate: "XYZ9A87", lane: "exit", tick: 20, expected: ["exited"],
+      observed: "refused", status: "fail", reason: "no opening before deadline"}]}}));
+  assert.equal(view.text("runstate"), "Rodando");
+  assert.equal(view.text("connection"), "Conectado");
+  assert.equal(view.text("lot-count"), "0 de 3 vagas ocupadas");
+  assert.equal(view.text("verdict-score"), "1 de 2 aprovados");
+  assert.equal(view.text("exit-badge"), "Reinício necessário: a cancela não fechou; reinício necessário");
+  assert.equal(view.text("entry-motor"), "desligado");
+  const [fail, pass] = view.element("verdicts").children.map(item => item.children.map(c => c.textContent));
+  assert.deepEqual(pass, ["✓", "ABC1D23 na entrada: abriu para a entrada", "Abriu para ABC1D23."]);
+  assert.deepEqual(fail, ["✗", "XYZ9A87 na saída: recusou",
+    "Esperado: abriu para a saída. Não abriu antes do prazo."]);
+});
+
+test("switching language redraws the current snapshot and is remembered", () => {
+  const view = renderer(null);
+  view.render(snapshot(1, {}, {running: false}));
+  assert.equal(view.text("runstate"), "Pausado");
+  view.setLang("en");
+  assert.equal(view.text("runstate"), "Paused");
+  assert.equal(view.text("connection"), "Connected");
+  assert.equal(view.saved.get("parking-lang"), "en");
+  view.setLang("pt");
+  assert.equal(view.text("runstate"), "Pausado");
+  // Unknown server text is shown as sent, in both languages.
+  view.render(snapshot(2, {}, {failure: {kind: "firmware_failure", message: "motor_deadline"}}));
+  assert.match(view.text("error"), /O firmware violou uma regra do laboratório: motor_deadline/);
+});
+
+test("every static text, title and aria-label in the page has a Portuguese entry", () => {
+  const html = web("index.html");
+  const context = vm.createContext({});
+  vm.runInContext(i18n, context);
+  const pt = vm.runInContext("PT", context);
+  const keys = new Set();
+  for (const match of html.matchAll(/<(\w+)[^>]*\sdata-i18n[^>]*>([^<]*)</g)) keys.add(match[2].trim());
+  for (const match of html.matchAll(/\s(?:title|aria-label)="([^"]+)"/g)) keys.add(match[1]);
+  const missing = [...keys].filter(key => !Object.hasOwn(pt, key));
+  assert.deepEqual(missing, []);
+  assert(keys.size > 80, `only ${keys.size} keys found`);
 });

@@ -1,59 +1,64 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Parking lab</title>
+<title data-i18n>Parking lab</title>
 <link rel="stylesheet" href="/style.css">
+<script src="/i18n.js" defer></script>
 <script src="/app.js" defer></script>
 <body>
 <header class="bar">
-  <h1>Parking lab <span class="target">nucleo_u5a5zj_q</span></h1>
+  <h1><span data-i18n>Parking lab</span> <span class="target">nucleo_u5a5zj_q</span></h1>
   <div class="group">
-    <label class="field">Run <select id="scenario"></select></label>
-    <button id="select" class="secondary" title="Load the selected run and reset the machine">Load</button>
+    <label class="field"><span data-i18n>Run</span> <select id="scenario"></select></label>
+    <button id="select" class="secondary" title="Load the selected run and reset the machine" data-i18n>Load</button>
   </div>
   <div class="group" role="group" aria-label="Run controls">
-    <button id="start" class="primary" title="Start or resume (Space)">Start</button>
-    <button id="pause" class="secondary" title="Pause (Space)">Pause</button>
-    <button id="reset" class="secondary" title="Reset the machine and requeue every car (R)">Reset</button>
+    <button id="start" class="primary" title="Start or resume (Space)" data-i18n>Start</button>
+    <button id="pause" class="secondary" title="Pause (Space)" data-i18n>Pause</button>
+    <button id="reset" class="secondary" title="Reset the machine and requeue every car (R)" data-i18n>Reset</button>
   </div>
-  <p id="runstate" class="chip" role="status">Not started</p>
-  <p class="clock"><span id="clock">0.00</span> s <span class="muted">virtual</span></p>
+  <p id="runstate" class="chip" role="status" data-i18n>Not started</p>
+  <p class="clock"><span id="clock">0.00</span> s <span class="muted" data-i18n>virtual</span></p>
   <p id="connection" class="link" role="status">Connecting…</p>
+  <div class="lang" role="group" aria-label="Language">
+    <button type="button" data-lang="pt" lang="pt-BR" aria-pressed="true">PT</button>
+    <button type="button" data-lang="en" lang="en" aria-pressed="false">EN</button>
+  </div>
 </header>
 <p id="error" role="alert"></p>
 
 <main class="board">
   <section class="street" aria-labelledby="street-title">
     <div class="head">
-      <h2 id="street-title">Street</h2>
-      <button id="add-car" class="secondary small" title="Add a car to the end of the queue (A)">Add car</button>
+      <h2 id="street-title" data-i18n>Street</h2>
+      <button id="add-car" class="secondary small" title="Add a car to the end of the queue (A)" data-i18n>Add car</button>
     </div>
-    <p id="street-note" class="muted">Cars wait here for the entry barrier. Select a car to change how it behaves.</p>
+    <p id="street-note" class="muted" data-i18n>Cars wait here for the entry barrier. Select a car to change how it behaves.</p>
     <ol id="queue" class="plates"></ol>
   </section>
 
   <section class="lanes" aria-label="Lanes and lot">
     <article class="lane" id="entry-panel" aria-labelledby="entry-title">
       <div class="head">
-        <h2 id="entry-title">Entry</h2>
+        <h2 id="entry-title" data-i18n>Entry</h2>
         <p id="entry-badge" class="badge"></p>
         <dl class="readout">
-          <div><dt>Barrier</dt><dd id="entry-angle">0.0°</dd></div>
-          <div><dt>Motor</dt><dd id="entry-motor">off</dd></div>
-          <div><dt>Vehicle</dt><dd id="entry-vehicle">6000 mm</dd></div>
+          <div><dt data-i18n>Barrier</dt><dd id="entry-angle">0.0°</dd></div>
+          <div><dt data-i18n>Motor</dt><dd id="entry-motor" data-i18n>off</dd></div>
+          <div><dt data-i18n>Vehicle</dt><dd id="entry-vehicle">6000 mm</dd></div>
           <div><dt>ADC4 IN17</dt><dd id="entry-adc">4095</dd></div>
-          <div><dt>Beam</dt><dd id="entry-beam-state">clear</dd></div>
+          <div><dt data-i18n>Beam</dt><dd id="entry-beam-state" data-i18n>clear</dd></div>
         </dl>
       </div>
       <svg viewBox="0 0 900 150" role="img" aria-labelledby="entry-title entry-desc" class="scene">
-        <desc id="entry-desc">Entry lane: car position, barrier angle, beam, signals and buzzer from equipment snapshots.</desc>
+        <desc id="entry-desc" data-i18n>Entry lane: car position, barrier angle, beam, signals and buzzer from equipment snapshots.</desc>
         <rect class="road" x="0" y="34" width="900" height="82"/>
         <path class="edge" d="M0 34 H900 M0 116 H900"/>
         <rect class="zone" x="560" y="34" width="100" height="82"/>
         <path class="ruler" d="M60 132 V138 M210 132 V138 M360 132 V138 M510 132 V138 M660 128 V142 M760 132 V138 M860 132 V138"/>
         <text class="tick" x="60" y="148">6 m</text><text class="tick" x="360" y="148">3 m</text>
-        <text class="tick" x="660" y="148">barrier</text><text class="tick" x="860" y="148">−2 m</text>
+        <text class="tick" x="660" y="148" data-i18n>barrier</text><text class="tick" x="860" y="148">−2 m</text>
         <path class="arrow" d="M120 75 H180 M168 66 L182 75 L168 84"/>
         <path id="entry-beam" class="beam" d="M690 30 V120"/>
         <rect class="post" x="684" y="22" width="12" height="10" rx="2"/>
@@ -86,33 +91,33 @@
 
     <section class="lot" aria-labelledby="lot-title">
       <div class="head">
-        <h2 id="lot-title">Lot</h2>
-        <p id="lot-count" class="muted">0 of 4 spots taken</p>
+        <h2 id="lot-title" data-i18n>Lot</h2>
+        <p id="lot-count" class="muted" data-i18n>0 of 4 spots taken</p>
       </div>
       <ol id="bays" class="bays"></ol>
     </section>
 
     <article class="lane" id="exit-panel" aria-labelledby="exit-title">
       <div class="head">
-        <h2 id="exit-title">Exit</h2>
+        <h2 id="exit-title" data-i18n>Exit</h2>
         <p id="exit-badge" class="badge"></p>
         <dl class="readout">
-          <div><dt>Barrier</dt><dd id="exit-angle">0.0°</dd></div>
-          <div><dt>Motor</dt><dd id="exit-motor">off</dd></div>
-          <div><dt>Vehicle</dt><dd id="exit-vehicle">6000 mm</dd></div>
+          <div><dt data-i18n>Barrier</dt><dd id="exit-angle">0.0°</dd></div>
+          <div><dt data-i18n>Motor</dt><dd id="exit-motor" data-i18n>off</dd></div>
+          <div><dt data-i18n>Vehicle</dt><dd id="exit-vehicle">6000 mm</dd></div>
           <div><dt>ADC4 IN18</dt><dd id="exit-adc">4095</dd></div>
-          <div><dt>Beam</dt><dd id="exit-beam-state">clear</dd></div>
+          <div><dt data-i18n>Beam</dt><dd id="exit-beam-state" data-i18n>clear</dd></div>
         </dl>
       </div>
       <svg viewBox="0 0 900 150" role="img" aria-labelledby="exit-title exit-desc" class="scene">
-        <desc id="exit-desc">Exit lane with the payment terminal: car position, barrier angle, beam, signals and buzzer.</desc>
+        <desc id="exit-desc" data-i18n>Exit lane with the payment terminal: car position, barrier angle, beam, signals and buzzer.</desc>
         <!-- Mirrored: exit traffic leaves the lot, driving right to left. -->
         <rect class="road" x="0" y="34" width="900" height="82"/>
         <path class="edge" d="M0 34 H900 M0 116 H900"/>
         <rect class="zone" x="240" y="34" width="100" height="82"/>
         <path class="ruler" d="M840 132 V138 M690 132 V138 M540 132 V138 M390 132 V138 M240 128 V142 M140 132 V138 M40 132 V138"/>
         <text class="tick" x="840" y="148">6 m</text><text class="tick" x="540" y="148">3 m</text>
-        <text class="tick" x="240" y="148">barrier</text><text class="tick" x="40" y="148">−2 m</text>
+        <text class="tick" x="240" y="148" data-i18n>barrier</text><text class="tick" x="40" y="148">−2 m</text>
         <path class="arrow" d="M780 75 H720 M732 66 L718 75 L732 84"/>
         <path id="exit-beam" class="beam" d="M210 30 V120"/>
         <rect class="post" x="204" y="22" width="12" height="10" rx="2"/>
@@ -150,11 +155,11 @@
   <aside class="side">
     <figure class="lcd">
       <canvas id="display" width="240" height="320" role="img" aria-label="Exit terminal display: actual ST7789V pixels written over SPI"></canvas>
-      <figcaption>Exit terminal display, from real SPI writes. Simulated payment, not PIX.</figcaption>
+      <figcaption data-i18n>Exit terminal display, from real SPI writes. Simulated payment, not PIX.</figcaption>
     </figure>
     <section class="verdicts" aria-labelledby="verdicts-title">
       <div class="head">
-        <h2 id="verdicts-title">Verdicts</h2>
+        <h2 id="verdicts-title" data-i18n>Verdicts</h2>
         <p id="verdict-score" class="muted"></p>
       </div>
       <ol id="verdicts"></ol>
@@ -162,31 +167,31 @@
   </aside>
 
 <details class="drawer" id="drawer">
-  <summary>Diagnostics and manual equipment</summary>
+  <summary data-i18n>Diagnostics and manual equipment</summary>
   <div class="tabs" role="tablist" aria-label="Diagnostics">
-    <button role="tab" class="tab" id="tab-manual" aria-controls="panel-manual" aria-selected="true">Manual equipment</button>
+    <button role="tab" class="tab" id="tab-manual" aria-controls="panel-manual" aria-selected="true" data-i18n>Manual equipment</button>
     <button role="tab" class="tab" id="tab-uart" aria-controls="panel-uart" aria-selected="false">UART</button>
-    <button role="tab" class="tab" id="tab-events" aria-controls="panel-events" aria-selected="false">Events</button>
-    <button role="tab" class="tab" id="tab-diagnostics" aria-controls="panel-diagnostics" aria-selected="false">State</button>
-    <button role="tab" class="tab" id="tab-results" aria-controls="panel-results" aria-selected="false">Commands and checkpoints</button>
+    <button role="tab" class="tab" id="tab-events" aria-controls="panel-events" aria-selected="false" data-i18n>Events</button>
+    <button role="tab" class="tab" id="tab-diagnostics" aria-controls="panel-diagnostics" aria-selected="false" data-i18n>State</button>
+    <button role="tab" class="tab" id="tab-results" aria-controls="panel-results" aria-selected="false" data-i18n>Commands and checkpoints</button>
   </div>
   <section id="panel-manual" class="panel" role="tabpanel" aria-labelledby="tab-manual">
-    <p class="muted">These actions instruct equipment directly, never the motor. They can change a car's outcome or a scenario's verdict.</p>
+    <p class="muted" data-i18n>These actions instruct equipment directly, never the motor. They can change a car's outcome or a scenario's verdict.</p>
     <div class="manual">
-      <label class="field">Lane <select id="lane"><option value="entry">Entry</option><option value="exit">Exit</option></select></label>
-      <button class="secondary small" data-signal="vehicle.speed" data-value="-2000">Drive forward</button>
-      <button class="secondary small" data-signal="vehicle.speed" data-value="0">Stop car</button>
-      <button class="secondary small" data-signal="vehicle.next" data-value="1">Next car</button>
-      <button class="secondary small" data-signal="payment.replay" data-value="1" data-lane="exit">Repeat terminal reply</button>
-      <button class="secondary small" data-signal="payment.cancel" data-value="1" data-lane="exit">Cancel payment</button>
-      <label class="switch"><input type="checkbox" id="obstruction"> Beam blocked</label>
-      <label class="switch"><input type="checkbox" id="jam"> Barrier jammed</label>
-      <label class="field">Limit switches <select id="limits"><option value="0">Normal</option><option value="1">Upper missing</option><option value="2">Lower missing</option><option value="3">Both on</option></select></label>
-      <label class="field">ADC noise <select id="noise"><option value="0">Off</option><option value="16">±16 codes</option><option value="64">±64 codes</option></select></label>
+      <label class="field"><span data-i18n>Lane</span> <select id="lane"><option value="entry" data-i18n>Entry</option><option value="exit" data-i18n>Exit</option></select></label>
+      <button class="secondary small" data-signal="vehicle.speed" data-value="-2000" data-i18n>Drive forward</button>
+      <button class="secondary small" data-signal="vehicle.speed" data-value="0" data-i18n>Stop car</button>
+      <button class="secondary small" data-signal="vehicle.next" data-value="1" data-i18n>Next car</button>
+      <button class="secondary small" data-signal="payment.replay" data-value="1" data-lane="exit" data-i18n>Repeat terminal reply</button>
+      <button class="secondary small" data-signal="payment.cancel" data-value="1" data-lane="exit" data-i18n>Cancel payment</button>
+      <label class="switch"><input type="checkbox" id="obstruction"> <span data-i18n>Beam blocked</span></label>
+      <label class="switch"><input type="checkbox" id="jam"> <span data-i18n>Barrier jammed</span></label>
+      <label class="field"><span data-i18n>Limit switches</span> <select id="limits"><option value="0" data-i18n>Normal</option><option value="1" data-i18n>Upper missing</option><option value="2" data-i18n>Lower missing</option><option value="3" data-i18n>Both on</option></select></label>
+      <label class="field"><span data-i18n>ADC noise</span> <select id="noise"><option value="0" data-i18n>Off</option><option value="16" data-i18n>±16 codes</option><option value="64" data-i18n>±64 codes</option></select></label>
     </div>
   </section>
   <section id="panel-uart" class="panel" role="tabpanel" aria-labelledby="tab-uart" hidden>
-    <p class="muted">Bytes on the camera and payment UARTs, as the equipment saw them. Firmware console logs are not shown here.</p>
+    <p class="muted" data-i18n>Bytes on the camera and payment UARTs, as the equipment saw them. Firmware console logs are not shown here.</p>
     <pre id="uart"></pre>
   </section>
   <section id="panel-events" class="panel" role="tabpanel" aria-labelledby="tab-events" hidden><pre id="events"></pre></section>
@@ -198,49 +203,49 @@
 <div id="editor" class="editor" role="dialog" aria-labelledby="editor-title" hidden>
   <div class="head">
     <p id="editor-plate" class="plate"><span>BRASIL</span><b>ABC1D23</b></p>
-    <h2 id="editor-title">Car behaviour</h2>
+    <h2 id="editor-title" data-i18n>Car behaviour</h2>
     <button id="editor-close" class="ghost" aria-label="Close">×</button>
   </div>
   <p id="editor-state" class="muted"></p>
   <div id="editor-retry" class="retry" hidden>
-    <p>The exit was refused, so this car keeps its spot. Try the exit again:</p>
+    <p data-i18n>The exit was refused, so this car keeps its spot. Try the exit again:</p>
     <div class="choices">
-      <button class="primary small" data-retry="paid">Pay normally</button>
-      <button class="secondary small" data-retry="delayed">Pay slowly</button>
-      <button class="secondary small" data-retry="cancelled">Cancel again</button>
-      <button class="secondary small" data-retry="malformed">Broken reply</button>
-      <button class="secondary small" data-retry="no_reply">Terminal silent</button>
+      <button class="primary small" data-retry="paid" data-i18n>Pay normally</button>
+      <button class="secondary small" data-retry="delayed" data-i18n>Pay slowly</button>
+      <button class="secondary small" data-retry="cancelled" data-i18n>Cancel again</button>
+      <button class="secondary small" data-retry="malformed" data-i18n>Broken reply</button>
+      <button class="secondary small" data-retry="no_reply" data-i18n>Terminal silent</button>
     </div>
   </div>
   <form id="editor-form" class="form">
-    <label class="field">Plate <input id="edit-plate" maxlength="7" pattern="[A-Z]{3}[0-9][A-Z0-9][0-9]{2}" autocomplete="off"></label>
-    <label class="field">Entry camera <select id="edit-entry_capture">
-      <option value="normal">Plate is read first time</option>
-      <option value="retry_recovers">Low confidence, then read</option>
-      <option value="failed">Plate is never readable</option>
-      <option value="no_reply">Camera does not answer</option></select></label>
-    <label class="field">Exit camera <select id="edit-exit_capture">
-      <option value="normal">Plate is read</option>
-      <option value="misread">A different plate is read</option></select></label>
-    <label class="field">Terminal <select id="edit-payment">
-      <option value="paid">Pays</option>
-      <option value="delayed">Pays slowly (1.5 s reply)</option>
-      <option value="cancelled">Payment is cancelled</option>
-      <option value="malformed">Terminal sends a broken reply</option>
-      <option value="no_reply">Terminal does not answer</option></select></label>
-    <label class="field">Driver <select id="edit-quirk">
-      <option value="none">Drives normally</option>
-      <option value="hesitate">Hesitates on the approach</option>
-      <option value="leave_during_payment">Drives away while paying</option>
-      <option value="linger_in_beam">Stops under the entry beam</option>
-      <option value="block_closing">Steps into the closing entry barrier</option></select></label>
-    <label class="field">Parks for <span class="inline"><input id="edit-park_s" type="number" min="1" max="120" step="1"> s</span></label>
+    <label class="field"><span data-i18n>Plate</span> <input id="edit-plate" maxlength="7" pattern="[A-Z]{3}[0-9][A-Z0-9][0-9]{2}" autocomplete="off"></label>
+    <label class="field"><span data-i18n>Entry camera</span> <select id="edit-entry_capture">
+      <option value="normal" data-i18n>Plate is read first time</option>
+      <option value="retry_recovers" data-i18n>Low confidence, then read</option>
+      <option value="failed" data-i18n>Plate is never readable</option>
+      <option value="no_reply" data-i18n>Camera does not answer</option></select></label>
+    <label class="field"><span data-i18n>Exit camera</span> <select id="edit-exit_capture">
+      <option value="normal" data-i18n>Plate is read</option>
+      <option value="misread" data-i18n>A different plate is read</option></select></label>
+    <label class="field"><span data-i18n>Terminal</span> <select id="edit-payment">
+      <option value="paid" data-i18n>Pays</option>
+      <option value="delayed" data-i18n>Pays slowly (1.5 s reply)</option>
+      <option value="cancelled" data-i18n>Payment is cancelled</option>
+      <option value="malformed" data-i18n>Terminal sends a broken reply</option>
+      <option value="no_reply" data-i18n>Terminal does not answer</option></select></label>
+    <label class="field"><span data-i18n>Driver</span> <select id="edit-quirk">
+      <option value="none" data-i18n>Drives normally</option>
+      <option value="hesitate" data-i18n>Hesitates on the approach</option>
+      <option value="leave_during_payment" data-i18n>Drives away while paying</option>
+      <option value="linger_in_beam" data-i18n>Stops under the entry beam</option>
+      <option value="block_closing" data-i18n>Steps into the closing entry barrier</option></select></label>
+    <label class="field"><span data-i18n>Parks for</span> <span class="inline"><input id="edit-park_s" type="number" min="1" max="120" step="1"> s</span></label>
     <div class="actions">
-      <button id="editor-save" class="primary small" type="submit">Save</button>
-      <button id="editor-remove" class="danger small" type="button">Remove car</button>
+      <button id="editor-save" class="primary small" type="submit" data-i18n>Save</button>
+      <button id="editor-remove" class="danger small" type="button" data-i18n>Remove car</button>
     </div>
   </form>
 </div>
-<p class="keys muted">Keyboard: Space starts or pauses, R resets, A adds a car, Esc closes the editor.</p>
+<p class="keys muted" data-i18n>Keyboard: Space starts or pauses, R resets, A adds a car, Esc closes the editor.</p>
 </body>
 </html>

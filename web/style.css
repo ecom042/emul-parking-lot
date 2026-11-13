@@ -74,6 +74,11 @@ select, input { background: var(--asphalt); border: 1px solid var(--kerb); borde
 .link::before { content: ""; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--amber); }
 .link.live::before { background: var(--go); }
 .link.lost::before { background: var(--stop); }
+.lang { display: inline-flex; border: 1px solid var(--kerb); border-radius: var(--radius); overflow: hidden; }
+.lang button { border: 0; border-radius: 0; padding: 0.2rem 0.55rem; font-size: 0.8rem; background: none;
+  color: var(--dust); }
+.lang button:hover { color: var(--chalk); }
+.lang button[aria-pressed="true"] { background: var(--kerb); color: var(--chalk); }
 #error { margin: 0; padding: 0.5rem 1rem; background: #3a1714; color: #ffb4ab; border-bottom: 1px solid var(--stop); }
 #error:empty { display: none; }
 

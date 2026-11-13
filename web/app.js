@@ -6,12 +6,14 @@ let state = null, stream = null, pixels = null;
 let uart = "", cursor = {}, sourceRuns = {};
 let uartTruncated = false;
 let editing = null;
+let connectionShown = {kind: "", message: "Connecting…"};
 const drawn = {};
 const text = (id, value) => { $(id).textContent = value; };
 // Manual equipment actions target the selected lane.
 const currentLane = () => $("lane").value || "entry";
 
-// Human wording for each profile choice, reused by the queue summaries.
+// Human wording (English keys, see i18n.js) for each profile choice, reused by
+// the queue summaries.
 const CHOICES = {
   entry_capture: {normal: "", retry_recovers: "Low confidence, then read",
     failed: "Plate never readable", no_reply: "Entry camera silent"},
@@ -55,7 +57,8 @@ function draw(id, key, build) {
 }
 
 function setConnection(kind, message) {
-  text("connection", message);
+  connectionShown = {kind, message};
+  text("connection", t(message));
   $("connection").classList.toggle("live", kind === "live");
   $("connection").classList.toggle("lost", kind === "lost");
 }
@@ -69,9 +72,9 @@ async function request(path, body) {
   const bodyText = await response.text();
   let result = {};
   try { result = bodyText ? JSON.parse(bodyText) : {}; } catch (_) {
-    if (response.ok) throw new Error("Invalid response from local bridge");
+    if (response.ok) throw new Error(t("Invalid response from local bridge"));
   }
-  if (!response.ok) throw new Error(result.error || `Request failed: HTTP ${response.status}`);
+  if (!response.ok) throw new Error(result.error || t("Request failed: HTTP {status}", {status: response.status}));
   return result;
 }
 
@@ -90,26 +93,27 @@ function renderLane(lane, source, next) {
   $(`${lane}-beam`).classList.toggle("active", p.obstruction);
   $(`${lane}-buzzer`).classList.toggle("on", q.buzzer);
   text(`${lane}-angle`, `${(p.position_mdeg / 1000).toFixed(1)}°`);
-  text(`${lane}-motor`, p.enable ? (p.direction ? "opening" : "closing") : "off");
+  const motor = p.enable ? (p.direction ? "opening" : "closing") : "off";
+  text(`${lane}-motor`, t(motor));
   $(`${lane}-motor`).classList.toggle("hot", p.enable);
-  text(`${lane}-motor-arrow`, p.enable ? (p.direction ? "opening" : "closing") : "");
+  text(`${lane}-motor-arrow`, p.enable ? t(motor) : "");
   text(`${lane}-vehicle`, `${p.vehicle_mm} mm`);
   text(`${lane}-adc`, String(p.adc_code));
-  text(`${lane}-beam-state`, p.obstruction ? "blocked" : "clear");
+  text(`${lane}-beam-state`, t(p.obstruction ? "blocked" : "clear"));
   $(`${lane}-beam-state`).classList.toggle("hot", p.obstruction);
   const halted = next.queue && next.queue.halted[lane];
-  text(`${lane}-badge`, halted ? `Reset required: ${halted}` : p.jam ? "Barrier jammed" :
-    p.limit_fault ? "Limit switch fault injected" : "");
+  text(`${lane}-badge`, halted ? t("Reset required: {why}", {why: tServer(halted)}) :
+    p.jam ? t("Barrier jammed") : p.limit_fault ? t("Limit switch fault injected") : "");
   const visit = next.queue && next.queue.lanes[lane];
   const car = visit && next.queue.cars.find(c => c.id === visit.car);
   text(`${lane}-car-plate`, car ? car.plate : "");
 }
 
 function summary(car) {
-  const notes = Object.keys(CHOICES).map(key => CHOICES[key][car.profile[key]]).filter(Boolean);
+  const notes = Object.keys(CHOICES).map(key => CHOICES[key][car.profile[key]]).filter(Boolean).map(note => t(note));
   const node = el("span", "what");
   if (notes.length) node.append(el("strong", null, notes.join(", ")), document.createElement("br"));
-  node.append(`Parks ${car.park_s} s`);
+  node.append(t("Parks {s} s", {s: car.park_s}));
   return node;
 }
 
@@ -126,44 +130,45 @@ function chip(car) {
 function renderQueue(next) {
   const queue = next.queue;
   if (!queue) {
-    text("street-note", "This scenario scripts its own vehicles. Load Car queue to drive cars yourself.");
-    text("lot-count", "Scripted scenario");
+    text("street-note", t("This scenario scripts its own vehicles. Load Car queue to drive cars yourself."));
+    text("lot-count", t("Scripted scenario"));
     draw("queue", "scripted", () => []);
     draw("bays", "scripted", () => []);
     const results = next.results || [];
-    text("verdict-score", `${results.length} checkpoints passed`);
+    text("verdict-score", t("{n} checkpoints passed", {n: results.length}));
     draw("verdicts", JSON.stringify(results), () => results.slice().reverse().map(r => {
       const item = el("li", "verdict pass");
       item.append(el("span", "mark", "✓"),
-        el("span", null, `Checkpoint at ${(r.tick / 100).toFixed(2)} s on the ${r.lane} lane`));
+        el("span", null, t("Checkpoint at {s} s on the {lane} lane",
+          {s: (r.tick / 100).toFixed(2), lane: t(r.lane)})));
       return item;
     }));
     return;
   }
   const waiting = queue.cars.filter(c => c.state === "queued");
-  text("street-note", waiting.length ? "Cars wait here for the entry barrier. Select a car to change how it behaves."
-    : "The street is empty. Add a car to send it to the entry.");
+  text("street-note", t(waiting.length ? "Cars wait here for the entry barrier. Select a car to change how it behaves."
+    : "The street is empty. Add a car to send it to the entry."));
   draw("queue", JSON.stringify(waiting), () => waiting.map(chip));
   const parked = queue.cars.filter(c => c.spot !== null && c.spot !== undefined);
   // Occupancy as the lot checker counts it: sessions open and close at the
   // beam, slightly before a car's drawn manoeuvre ends.
   const taken = next.lot ? next.lot.sessions.length : queue.inside;
-  text("lot-count", `${taken} of ${queue.capacity} spots taken`);
+  text("lot-count", t("{n} of {total} spots taken", {n: taken, total: queue.capacity}));
   const bays = Array.from({length: queue.capacity}, (_, spot) => parked.find(c => c.spot === spot));
   draw("bays", JSON.stringify(bays.map(c => c && [c.id, c.plate, c.state, Math.ceil(c.remaining_s || 0)])),
     () => bays.map((car, spot) => {
       const item = el("li", car && car.state === "stuck" ? "bay stuck" : "bay");
-      item.append(el("span", "num", `Spot ${spot + 1}`));
+      item.append(el("span", "num", t("Spot {n}", {n: spot + 1})));
       if (car) {
         const button = el("button");
         button.type = "button";
         button.dataset.car = String(car.id);
-        const when = car.state === "parked" ? `Leaves in ${Math.ceil(car.remaining_s)} s` :
-          car.state === "stuck" ? "Exit refused. Select to retry." : WHERE[car.state];
+        const when = car.state === "parked" ? t("Leaves in {s} s", {s: Math.ceil(car.remaining_s)}) :
+          t(car.state === "stuck" ? "Exit refused. Select to retry." : WHERE[car.state]);
         button.append(plate(car.plate), el("span", "when", when));
         item.append(button);
       } else {
-        item.append(el("span", "free", "Free"));
+        item.append(el("span", "free", t("Free")));
       }
       return item;
     }));
@@ -172,7 +177,8 @@ function renderQueue(next) {
   const totals = queue.totals || {pass: verdicts.filter(v => v.status === "pass").length,
     fail: verdicts.filter(v => v.status === "fail").length};
   const served = totals.pass + totals.fail;
-  text("verdict-score", served ? `${totals.pass} of ${served} passed` : "No cars served yet");
+  text("verdict-score", served ? t("{pass} of {served} passed", {pass: totals.pass, served})
+    : t("No cars served yet"));
   // Failures older than the recent window stay listed after it.
   const key = v => `${v.car}/${v.lane}/${v.tick}`;
   const recent = new Set(verdicts.map(key));
@@ -180,11 +186,13 @@ function renderQueue(next) {
   const shown = [...verdicts.slice().reverse(), ...earlier.slice().reverse()];
   draw("verdicts", JSON.stringify(shown), () => shown.map(v => {
     const item = el("li", `verdict ${v.status}`);
-    const expected = v.expected.map(e => OUTCOME[e] || e).join(" or ");
+    const outcome = code => OUTCOME[code] ? t(OUTCOME[code]) : code;
+    const reason = sentence(tServer(v.reason));
     item.append(el("span", "mark", v.status === "pass" ? "✓" : "✗"),
-      el("span", null, `${v.plate} at the ${v.lane}: ${OUTCOME[v.observed] || v.observed}`),
-      el("span", "why", v.status === "pass" ? sentence(v.reason)
-        : `Expected: ${expected}. ${sentence(v.reason)}`));
+      el("span", null, t("{plate} at the {lane}: {outcome}",
+        {plate: v.plate, lane: t(v.lane), outcome: outcome(v.observed)})),
+      el("span", "why", v.status === "pass" ? reason
+        : t("Expected: {expected}. {reason}", {expected: v.expected.map(outcome).join(t(" or ")), reason})));
     return item;
   }));
   if (editing !== null) refreshEditor();
@@ -210,24 +218,24 @@ function render(next) {
     for (const name of next.scenarios) {
       const option = document.createElement("option");
       option.value = name;
-      option.textContent = name === "lot" ? "Car queue" : `Scenario: ${name}`;
+      option.textContent = name === "lot" ? t("Car queue") : t("Scenario: {name}", {name});
       $("scenario").append(option);
     }
   }
   const phase = next.failure ? "failed" : next.finished ? "completed" : next.running ? "running" : "paused";
-  text("runstate", {failed: "Failed", completed: "Completed", running: "Running", paused: "Paused"}[phase]);
+  text("runstate", t({failed: "Failed", completed: "Completed", running: "Running", paused: "Paused"}[phase]));
   for (const name of ["failed", "completed", "running", "paused"]) {
     $("runstate").classList.toggle(name, name === phase);
   }
   const tick = lanes.entry.physical.tick;
   text("clock", (tick / 100).toFixed(2));
   if (next.failure) {
-    text("error", next.failure.kind === "firmware_failure"
-      ? `The firmware broke a lab rule: ${next.failure.message}. Reset to run again.`
-      : `The simulator stopped: ${next.failure.message}. Reset, or restart the launcher.`);
+    text("error", t(next.failure.kind === "firmware_failure"
+      ? "The firmware broke a lab rule: {message}. Reset to run again."
+      : "The simulator stopped: {message}. Reset, or restart the launcher.", {message: next.failure.message}));
   } else {
     const failed = (next.equipment || []).findLast(c => c.status === "failed");
-    if (failed) text("error", `An equipment action could not run at tick ${failed.event.tick}: the scene was not ready for it (for example, Next car needs the previous car past a closed barrier).`);
+    if (failed) text("error", t("An equipment action could not run at tick {tick}: the scene was not ready for it (for example, Next car needs the previous car past a closed barrier).", {tick: failed.event.tick}));
   }
   for (const lane of LANES) renderLane(lane, lanes[lane], next);
   renderQueue(next);
@@ -267,7 +275,7 @@ function render(next) {
       if (event.seq > cursor[owner] + 1) {
         uartTruncated = true;
         lines.push({at: event.time_us, owner, seq: event.seq - 0.5,
-          text: "\n[Source window gap; state resynchronized. UART history incomplete.]\n"});
+          text: `\n[${t("Source window gap; state resynchronized. UART history incomplete.")}]\n`});
       }
       cursor[owner] = event.seq;
       if (owner.endsWith(".protocol") && ["rx_byte", "tx_byte"].includes(event.signal)) {
@@ -282,7 +290,7 @@ function render(next) {
   if (uart.length > 32768) uartTruncated = true;
   uart = uart.slice(-32768);
   text("uart", (uartTruncated
-    ? "[Recent UART suffix only; current state snapshot remains authoritative.]\n"
+    ? `[${t("Recent UART suffix only; current state snapshot remains authoritative.")}]\n`
     : "") + uart);
   text("diagnostics", JSON.stringify({lanes, lot: next.lot, counts: next.counts,
     display: next.display}, null, 2));
@@ -322,10 +330,10 @@ function refreshEditor() {
   const queued = car.state === "queued";
   const inside = ["parked", "stuck"].includes(car.state);
   $("editor-plate").replaceChildren(el("span", null, "BRASIL"), el("b", null, car.plate));
-  text("editor-state", queued ? "Waiting in the street. Every setting can change."
-    : car.state === "stuck" ? "Its exit was refused. Only its exit can change."
-    : inside ? "Parked. Only its exit can change."
-    : `This car is ${WHERE[car.state]}. Its settings are fixed now.`);
+  text("editor-state", queued ? t("Waiting in the street. Every setting can change.")
+    : car.state === "stuck" ? t("Its exit was refused. Only its exit can change.")
+    : inside ? t("Parked. Only its exit can change.")
+    : t("This car is {where}. Its settings are fixed now.", {where: t(WHERE[car.state])}));
   $("editor-retry").hidden = car.state !== "stuck";
   for (const id of ["edit-plate", "edit-entry_capture"]) $(id).disabled = !queued;
   for (const id of ["edit-exit_capture", "edit-payment", "edit-quirk", "edit-park_s"]) {
@@ -384,7 +392,7 @@ async function connect() {
   if (token) {
     const response = await fetch("/api/session", {method: "POST",
       credentials: "same-origin", headers: {"X-ZVB-Token": token}});
-    if (!response.ok) throw new Error("Session authentication failed");
+    if (!response.ok) throw new Error(t("Session authentication failed"));
   }
   render(await request("/api/snapshot"));
   stream = new EventSource("/api/events");
@@ -403,7 +411,22 @@ function selectTab(tab) {
   });
 }
 
-$("lane").onchange = () => { const shown = state; state = null; if (shown) render(shown); };
+// Redraw the current snapshot, even though its revision is not newer.
+function redraw() {
+  const shown = state;
+  state = null;
+  if (shown) render(shown);
+}
+
+$("lane").onchange = redraw;
+onLanguage(() => {
+  for (const id of Object.keys(drawn)) delete drawn[id];
+  const chosen = $("scenario").value;
+  $("scenario").replaceChildren();
+  setConnection(connectionShown.kind, connectionShown.message);
+  redraw();
+  if (chosen) $("scenario").value = chosen;
+});
 for (const op of ["start", "pause", "reset"]) $(op).onclick = () => command(op, {}, $(op));
 $("select").onclick = () => command("select", {scenario: $("scenario").value}, $("select"));
 $("add-car").onclick = () => command("car.add", {profile: {}}, $("add-car"));
