@@ -1,6 +1,7 @@
 """Car-queue driver decisions against a controllable equipment stub (no Renode)."""
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
@@ -26,6 +27,8 @@ class Ctl:
         self.submits = []
         self.configs = []
         self.visited = set()
+        # The lot oracle's observed sessions (plate -> entry passage time).
+        self.lot = SimpleNamespace(sessions={})
 
     def lane_state(self, lane):
         return self.lanes[lane]
@@ -153,11 +156,49 @@ class LaneTests(unittest.TestCase):
         driver.add({})
         parked = next(iter(driver.cars.values()))
         parked.state, parked.ready_tick = "parked", 10**9
+        ctl.lot.sessions[parked.plate] = 0
         ctl.run_until(driver, 400)
         ctl.monitors["entry"].counts["buzzer"] = 1
         ctl.run_until(driver, 410)
         self.assertEqual(driver.verdicts[-1]["expected"], ["entered", "refused"])
         self.assertEqual(driver.verdicts[-1]["status"], "pass")
+
+    def test_spot_freed_by_exit_beam_allows_waiting_entry(self):
+        # The lot oracle frees the spot when the exit beam clears, before the
+        # driver finishes that car's manoeuvre. An entry opening then is right.
+        driver, ctl = setup({}, capacity=1)
+        driver.add({})
+        leaving = next(iter(driver.cars.values()))
+        leaving.state, leaving.spot = "exiting", 0
+        ctl.lot.sessions[leaving.plate] = 0
+        ctl.run_until(driver, 300)
+        del ctl.lot.sessions[leaving.plate]
+        opened(ctl, "entry")
+        ctl.run_until(driver, 310)
+        self.assertEqual(leaving.state, "exiting")
+        self.assertEqual(driver.verdicts[-1]["observed"], "entered")
+        self.assertEqual(driver.verdicts[-1]["status"], "pass")
+
+    def test_entry_counted_as_parked_by_the_oracle_fills_the_lot(self):
+        # Conversely an entry's session opens at its beam clear: the next car
+        # must already expect refusal even though the driver still says entering.
+        driver, ctl = setup({}, capacity=1)
+        ctl.lot.sessions["ZZZ9Z99"] = 0
+        ctl.run_until(driver, 300)
+        opened(ctl, "entry")
+        ctl.run_until(driver, 310)
+        self.assertEqual(driver.verdicts[-1]["expected"], ["refused"])
+        self.assertEqual(driver.verdicts[-1]["status"], "fail")
+
+    def test_totals_keep_failures_beyond_the_recent_window(self):
+        driver, ctl = setup({})
+        visit = d.Visit(next(iter(driver.cars.values())), "entry", 0)
+        driver._verdict(visit, "refused", {"entered"}, 0)
+        for tick in range(300):
+            driver._verdict(visit, "entered", {"entered"}, tick)
+        self.assertEqual(len(driver.verdicts), 256)
+        self.assertTrue(all(v["status"] == "pass" for v in driver.verdicts))
+        self.assertEqual(driver.view()["totals"], {"pass": 300, "fail": 1})
 
     def test_refused_exit_is_stuck_until_retry(self):
         driver, ctl = setup({"exit_capture": "misread"})

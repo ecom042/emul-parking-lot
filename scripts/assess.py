@@ -93,14 +93,16 @@ def lot(args, engine, command, boot):
     verdicts = [v for v in queue["verdicts"] if v["status"] != "info"]
     record = {"name": "lot", "seconds": args.lot, "failure": state["failure"],
               "tick": state["lanes"]["entry"]["physical"]["tick"],
-              "cars": queue["cars"], "verdicts": verdicts, "halted": queue["halted"],
+              "cars": queue["cars"], "verdicts": verdicts, "totals": queue["totals"],
+              "halted": queue["halted"],
               "boot_sha256": hashlib.sha256(boot.read_bytes()).hexdigest()}
     (args.output / "results.json").write_text(json.dumps(record, indent=2) + "\n")
-    passed = sum(v["status"] == "pass" for v in verdicts)
+    # The view keeps only recent verdicts; the totals cover the whole run.
+    passed, total = queue["totals"]["pass"], sum(queue["totals"].values())
     print(json.dumps({"name": "lot", "failure": state["failure"], "tick": record["tick"],
-                      "verdicts": f"{passed}/{len(verdicts)} pass",
+                      "verdicts": f"{passed}/{total} pass",
                       "halted": queue["halted"]}), flush=True)
-    return 0 if not state["failure"] and verdicts and passed == len(verdicts) else 1
+    return 0 if not state["failure"] and total and passed == total else 1
 
 
 if __name__ == "__main__":

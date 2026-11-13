@@ -165,8 +165,11 @@ function renderQueue(next) {
       return item;
     }));
   const verdicts = queue.verdicts.filter(v => v.status !== "info");
-  const passed = verdicts.filter(v => v.status === "pass").length;
-  text("verdict-score", verdicts.length ? `${passed} of ${verdicts.length} passed` : "No cars served yet");
+  // Scores come from whole-run totals; the list shows only recent verdicts.
+  const totals = queue.totals || {pass: verdicts.filter(v => v.status === "pass").length,
+    fail: verdicts.filter(v => v.status === "fail").length};
+  const served = totals.pass + totals.fail;
+  text("verdict-score", served ? `${totals.pass} of ${served} passed` : "No cars served yet");
   draw("verdicts", JSON.stringify(verdicts), () => verdicts.slice().reverse().map(v => {
     const item = el("li", `verdict ${v.status}`);
     const expected = v.expected.map(e => OUTCOME[e] || e).join(" or ");
@@ -315,6 +318,10 @@ function refreshEditor() {
   }
   $("editor-save").disabled = !(queued || inside);
   $("editor-remove").disabled = !["queued", "gone", "refused"].includes(car.state);
+  // Once a car has entered, only exit-side driver behaviour still applies.
+  for (const option of $("edit-quirk").options) {
+    option.disabled = !queued && !EXIT_QUIRKS.includes(option.value);
+  }
 }
 
 function openEditor(id, anchor) {

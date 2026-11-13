@@ -239,3 +239,12 @@ test("car queue fills the street, bays and verdict log", () => {
   assert.equal(view.text("verdict-score"), "1 of 2 passed");
   assert.equal(view.element("add-car").disabled, false);
 });
+
+test("verdict score counts the whole run, not just the recent list", () => {
+  const view = renderer();
+  view.render(snapshot(1, {}, {queue: {capacity: 4, inside: 0, halted: {},
+    lanes: {entry: null, exit: null}, cars: [], totals: {pass: 300, fail: 1},
+    verdicts: [{car: 1, plate: "ABC1D23", lane: "entry", tick: 10, expected: ["entered"],
+      observed: "entered", status: "pass", reason: "opened for ABC1D23"}]}}));
+  assert.equal(view.text("verdict-score"), "300 of 301 passed");
+});
