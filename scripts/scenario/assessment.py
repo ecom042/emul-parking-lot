@@ -208,6 +208,13 @@ def assess(physical, protocol, snapshot, windows, motor_ms=2500, final=False):
     monitor.finish(final)
 
 
+def when(physical):
+    """Run-relative time; source time_us keeps counting across resets."""
+    if "tick" in physical:
+        return f'{physical["tick"] / 100:.2f} s (tick {physical["tick"]})'
+    return f'{physical["time_us"]} us'
+
+
 def checkpoint(expected, physical, protocol, trace=None, counts=None):
     """Compare actual state; counts come from a monitor or a complete trace."""
     actual = {**physical, **protocol}
@@ -219,13 +226,13 @@ def checkpoint(expected, physical, protocol, trace=None, counts=None):
             position = physical["position_mdeg"]
             valid = position >= value if key == "position_min_mdeg" else position <= value
             if not valid:
-                raise FirmwareFailure(f'checkpoint at {physical["time_us"]} us: '
-                                      f'{key} {value}, observed position {position}')
+                raise FirmwareFailure(f"checkpoint at {when(physical)}: "
+                                      f"{key} {value}, observed position {position}")
             continue
         if actual.get(key) != value:
             raise FirmwareFailure(
-                f'checkpoint at {physical["time_us"]} us: {key} expected {value!r}, '
-                f'observed {actual.get(key)!r}')
+                f"checkpoint at {when(physical)}: {key} expected {value!r}, "
+                f"observed {actual.get(key)!r}")
 
 
 class EvidenceLog:
