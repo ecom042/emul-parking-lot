@@ -31,6 +31,7 @@ def charge_uuids(requests):
 
 
 def assert_green_cycle(physical, protocol, payment_required=False):
+    """Check the authorization of the last green; return what it established."""
     green = [e for e in protocol if e["signal"] == "green" and e["value"] == 1][-1]
     at = green["time_us"]
     previous = [e["time_us"] for e in protocol
@@ -59,6 +60,7 @@ def assert_green_cycle(physical, protocol, payment_required=False):
         r'([0-9]|[1-9][0-9]|100)', f))]
     recognized = [f for f in recognized if f[0] == captures[-1] and int(f[2]) >= 85]
     assert recognized, "No matching accepted camera result before this opening"
+    cycle = {"plate": recognized[-1][1], "green_us": at, "opened_us": opened, "charge": None}
     if payment_required:
         charges = frames(protocol, "payment", "tx_byte", after, opened)
         charges = [f.split() for f in charges if f.startswith("P1 CHARGE ")]
@@ -68,3 +70,5 @@ def assert_green_cycle(physical, protocol, payment_required=False):
         paid = f"P1 RESULT {charge[2]} PAID {charge[4]} BRL"
         results = frames(protocol, "payment", "rx_byte", after, opened)
         assert paid in results, "No current matching paid UUID/amount/currency before opening"
+        cycle["charge"] = {"uuid": charge[2], "amount": int(charge[4])}
+    return cycle

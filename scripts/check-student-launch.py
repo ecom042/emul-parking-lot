@@ -94,12 +94,13 @@ def main():
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
             state = json.loads(request("GET", "/api/snapshot")[2])
-            if state["physical"]["tick"] >= 25:
+            if state["lanes"]["entry"]["physical"]["tick"] >= 25:
                 break
             time.sleep(0.2)
-        assert state["physical"]["tick"] >= 25 and not state["failure"]
-        assert not state["physical"]["enable"] and not state["protocol"]["green"]
-        assert state["protocol"]["red"]
+        assert state["lanes"]["entry"]["physical"]["tick"] >= 25 and not state["failure"]
+        for lane in state["lanes"].values():
+            assert not lane["physical"]["enable"] and not lane["protocol"]["green"]
+            assert lane["protocol"]["red"]
         rows = subprocess.check_output(
             ["ps", "-axo", "pid=,ppid=,command="], text=True).splitlines()
         children = [row.split(None, 2) for row in rows

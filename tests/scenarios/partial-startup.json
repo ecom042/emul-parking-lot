@@ -1,9 +1,19 @@
 {
-  "version": 1, "name": "partial-startup", "seed": 1,
+  "version": 2, "name": "partial-startup", "seed": 1,
   "deadlines": {"motor_ms": 2500},
-  "runs": [{
-    "initial": {"position_mdeg": 45000, "vehicle_mm": 800}, "duration_ticks": 600,
-    "actions": [], "green": [],
-    "expect": [{"at_tick": 600, "state": {"position_mdeg": 45000, "enable": false, "green": false, "red": true, "buzzer_count": 1}}]
-  }]
+  "runs": [
+    {
+      "duration_ticks": 600,
+      "lanes": {
+        "entry": {"initial": {"position_mdeg": 45000, "vehicle_mm": 800},
+          "green": []},
+        "exit": {"initial": {"position_mdeg": 0, "vehicle_mm": 6000},
+          "green": []}
+      },
+      "actions": [],
+      "expect": [
+        {"at_tick": 600, "state": {"position_mdeg": 45000, "enable": false, "green": false, "red": true, "buzzer_count": 1}, "lane": "entry"}
+      ]
+    }
+  ]
 }

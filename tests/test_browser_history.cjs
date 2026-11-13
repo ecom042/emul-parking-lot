@@ -39,15 +39,28 @@ function event(seq, signal = "tx_byte", value = 65) {
     category: "uart", device: "terminal", signal, value};
 }
 
+// Two lanes of owners; the tests exercise the entry lane's pair.
+const OWNER = {physical: "entry.physical", protocol: "entry.protocol"};
+const owned = events => Object.fromEntries(
+  Object.entries(events).map(([kind, list]) => [OWNER[kind], list]));
+
 function snapshot(revision, events = {}, overrides = {}) {
   return {
-    revision, run: "epoch-1", run_index: 0, scenario: "manual",
-    scenarios: [], commands: [], results: [], pixels: null,
-    physical: {run: "physical-1", tick: revision, vehicle_mm: 1234,
-      position_mdeg: 90000, adc_code: 987, obstruction: false, enable: false,
-      direction: true, jam: false, limit_fault: 0},
-    protocol: {run: "protocol-1", red: false, green: true, buzzer: false},
-    events: {physical: [], protocol: [], ...events},
+    revision, run: "epoch-1", run_index: 0, scenario: "lot",
+    scenarios: [], commands: [], equipment: [], results: [], pixels: null,
+    lot: {capacity: 4, sessions: []},
+    lanes: {
+      entry: {
+        physical: {run: "physical-1", tick: revision, vehicle_mm: 1234,
+          position_mdeg: 90000, adc_code: 987, obstruction: false, enable: false,
+          direction: true, jam: false, limit_fault: 0},
+        protocol: {run: "protocol-1", red: false, green: true, buzzer: false}},
+      exit: {
+        physical: {run: "physical-x", tick: revision, vehicle_mm: 6000,
+          position_mdeg: 0, adc_code: 4095, obstruction: false, enable: false,
+          direction: false, jam: false, limit_fault: 0},
+        protocol: {run: "protocol-x", red: true, green: false, buzzer: false}}},
+    events: owned({physical: [], protocol: [], ...events}),
     ...overrides
   };
 }
@@ -60,7 +73,7 @@ for (const owner of ["physical", "protocol"]) {
     assert.equal(view.text("connection"), "Connected · current source snapshot");
     assert.match(view.text("sensor"), /Vehicle 1234 mm · ADC4 987/);
     assert.match(view.text("equipment"), /Barrier 90\.0°/);
-    assert.equal(JSON.parse(view.text("diagnostics")).physical.tick, 1);
+    assert.equal(JSON.parse(view.text("diagnostics")).lanes.entry.physical.tick, 1);
   });
 }
 
@@ -98,12 +111,12 @@ test("reset with fresh source runs clears prior history and restarts sequence tr
   view.render(snapshot(1, {protocol: [event(20)]}));
   assert(view.text("uart").includes(warning));
   const reset = snapshot(2, {}, {run: "epoch-2"});
-  reset.physical.run = "physical-2";
-  reset.protocol.run = "protocol-2";
+  reset.lanes.entry.physical.run = "physical-2";
+  reset.lanes.entry.protocol.run = "protocol-2";
   view.render(reset);
   assert.equal(view.text("uart"), "");
   reset.revision = 3;
-  reset.events.protocol = [{...event(1), run: "protocol-2"}];
+  reset.events["entry.protocol"] = [{...event(1), run: "protocol-2"}];
   view.render(reset);
   assert.equal(view.text("uart"), "[10µs terminal tx_byte] A\n");
   view.render(snapshot(1, {protocol: [event(30)]}));
@@ -120,7 +133,7 @@ test("source-run changes, not host epochs, scope independent sequence cursors", 
   // nor reset the unchanged protocol cursor (which would duplicate byte 2).
   const next = snapshot(3, {physical: [{...event(1), run: "physical-2"}],
     protocol: [event(2), event(4)]});
-  next.physical.run = "physical-2";
+  next.lanes.entry.physical.run = "physical-2";
   view.render(next);
   assert.equal(view.text("uart").split(warning).length - 1, 1);
   assert(!view.text("uart").includes("[20µs"));
@@ -132,8 +145,8 @@ test("a newly observed source run can itself start with a truncated prefix", () 
   view.render(snapshot(1, {protocol: [event(1)]}));
   const next = snapshot(2, {physical: [{...event(9), run: "physical-2"}],
     protocol: [{...event(7), run: "protocol-2"}]});
-  next.physical.run = "physical-2";
-  next.protocol.run = "protocol-2";
+  next.lanes.entry.physical.run = "physical-2";
+  next.lanes.entry.protocol.run = "protocol-2";
   view.render(next);
   assert.equal(view.text("uart").split(warning).length - 1, 2);
   assert(!view.text("uart").includes("[10µs"));

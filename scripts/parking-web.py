@@ -21,7 +21,7 @@ def main():
     sys.path.insert(0, str(args.module.resolve() / "src"))
     from zvb.stdio import StdioRuntime
     from zvb.local_web import LocalWebServer
-    from parking_web import ParkingEngine
+    from parking_web import ParkingEngine, built_config
     boot = args.machine_script.resolve()
     reset = boot.with_name("reset.resc")
     if not boot.is_file() or not reset.is_file():
@@ -34,7 +34,8 @@ def main():
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: done.set())
     try:
-        engine = ParkingEngine(runtime, root / "tests/scenarios", args.evidence)
+        engine = ParkingEngine(runtime, root / "tests/scenarios", args.evidence,
+                               **built_config(boot))
         assets = {"/": root / "web/index.html", "/app.js": root / "web/app.js",
                   "/style.css": root / "web/style.css"}
         server = LocalWebServer(engine, assets, port=args.port)

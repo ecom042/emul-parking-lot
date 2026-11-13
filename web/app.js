@@ -1,9 +1,11 @@
 "use strict";
 const $ = (id) => document.getElementById(id);
 let state = null, stream = null, pixels = null;
-let uart = "", cursor = {physical: 0, protocol: 0}, sourceRuns = {};
+let uart = "", cursor = {}, sourceRuns = {};
 let uartTruncated = false;
 const text = (id, value) => { $(id).textContent = value; };
+// Equipment actions and the scene follow the selected lane.
+const currentLane = () => $("lane").value || "entry";
 
 async function request(path, body) {
   const response = await fetch(path, {
@@ -26,8 +28,9 @@ function render(next) {
   if (state && next.revision <= state.revision) return;
   state = next;
   text("connection", "Connected · current source snapshot");
-  const p = next.physical, q = next.protocol;
-  if (!p || !q) return;
+  const lanes = next.lanes;
+  if (!lanes) return;
+  const p = lanes[currentLane()].physical, q = lanes[currentLane()].protocol;
   if ($("scenario").options.length === 0) {
     for (const name of next.scenarios) {
       const option = document.createElement("option");
@@ -38,7 +41,7 @@ function render(next) {
   text("runstate", `${next.scenario} · run ${next.run.slice(0, 8)} · segment ${next.run_index + 1} · virtual tick ${p.tick} (${(p.tick / 100).toFixed(2)} s) · ${next.running ? "running" : next.finished ? "completed" : "paused"}`);
   if (next.failure) text("error", `${next.failure.kind}: ${next.failure.message}`);
   else {
-    const failed = next.commands.findLast(c => c.status === "failed");
+    const failed = (next.equipment || []).findLast(c => c.status === "failed");
     if (failed) text("error", `Equipment command ${failed.event.value} failed at source tick ${failed.event.tick}; inspect diagnostics. Scene preconditions were not met.`);
   }
   $("car").setAttribute("transform", `translate(${100 + (6000 - p.vehicle_mm) * 0.09},145)`);
@@ -48,7 +51,7 @@ function render(next) {
   $("green").classList.toggle("on", q.green);
   $("beam").classList.toggle("active", p.obstruction);
   text("sensor", `Vehicle ${p.vehicle_mm} mm · ADC4 ${p.adc_code}/4095 · beam ${p.obstruction ? "ACTIVE" : "clear"}`);
-  text("equipment", `Barrier ${(p.position_mdeg / 1000).toFixed(1)}° · motor ${p.enable ? "ENABLED" : "off"} / ${p.direction ? "opening" : "closing"} · red ${q.red} · green ${q.green} · buzzer ${q.buzzer}`);
+  text("equipment", `Barrier ${(p.position_mdeg / 1000).toFixed(1)}° · motor ${p.enable ? "ENABLED" : "off"} / ${p.direction ? "opening" : "closing"} · red ${q.red} · green ${q.green} · buzzer ${q.buzzer} · lot ${next.lot ? next.lot.sessions.length + "/" + next.lot.capacity : "?"}`);
   $("obstruction").checked = p.obstruction;
   $("jam").checked = p.jam;
   $("limits").value = String(p.limit_fault);
@@ -64,15 +67,17 @@ function render(next) {
     }
     ctx.putImageData(image, 0, 0);
   }
-  for (const owner of ["physical", "protocol"]) {
-    if (sourceRuns[owner] !== next[owner].run) {
-      sourceRuns[owner] = next[owner].run;
+  const owners = Object.keys(next.events).sort();
+  for (const owner of owners) {
+    const [lane, kind] = owner.split(".");
+    if (sourceRuns[owner] !== lanes[lane][kind].run) {
+      sourceRuns[owner] = lanes[lane][kind].run;
       cursor[owner] = 0;
       uart = "";
       uartTruncated = false;
     }
   }
-  for (const owner of ["physical", "protocol"]) {
+  for (const owner of owners) {
     for (const event of next.events[owner]) {
       if (event.seq <= cursor[owner]) continue;
       // A complete current-state snapshot need not include the UART prefix.
@@ -82,7 +87,7 @@ function render(next) {
         uart += "\n[Source window gap; state resynchronized. UART history incomplete.]\n";
       }
       cursor[owner] = event.seq;
-      if (owner === "protocol" && ["rx_byte", "tx_byte"].includes(event.signal))
+      if (owner.endsWith(".protocol") && ["rx_byte", "tx_byte"].includes(event.signal))
         uart += `[${event.time_us}µs ${event.device} ${event.signal}] ${event.value === 10 ? "\\n\n" : String.fromCharCode(event.value)}\n`;
     }
   }
@@ -91,10 +96,11 @@ function render(next) {
   text("uart", (uartTruncated
     ? "[Recent UART suffix only; current state snapshot remains authoritative.]\n"
     : "") + uart);
-  text("diagnostics", JSON.stringify({physical: p, protocol: q, display: next.display}, null, 2));
+  text("diagnostics", JSON.stringify({lanes, lot: next.lot, display: next.display}, null, 2));
   text("events", Object.entries(next.events).map(([owner, events]) =>
     `${owner}\n` + events.slice(-40).map(e => `run=${e.run} seq=${e.seq} ${e.time_us}µs tick=${e.tick} ${e.category}/${e.device}/${e.signal}=${e.value}`).join("\n")).join("\n\n"));
-  text("results", JSON.stringify({commands: next.commands, checkpoints: next.results}, null, 2));
+  text("results", JSON.stringify({commands: next.commands, equipment: next.equipment,
+    checkpoints: next.results}, null, 2));
 }
 
 async function command(op, fields = {}) {
@@ -125,13 +131,15 @@ async function connect() {
   stream.addEventListener("message", e => render(JSON.parse(e.data)));
   stream.onerror = () => text("connection", "Disconnected · displayed state is stale · reconnecting for a full snapshot");
 }
+$("lane").onchange = () => { const shown = state; state = null; if (shown) render(shown); };
 for (const op of ["start", "pause", "reset"]) $(op).onclick = () => command(op);
 $("select").onclick = () => command("select", {scenario: $("scenario").value});
 document.querySelectorAll("[data-signal]").forEach(button => {
-  button.onclick = () => command("submit", {signal: button.dataset.signal, value: Number(button.dataset.value)});
+  button.onclick = () => command("submit", {lane: currentLane(), signal: button.dataset.signal,
+    value: Number(button.dataset.value)});
 });
 for (const [id, signal] of [["obstruction", "sensor.obstruction"], ["jam", "fault.jam"]])
-  $(id).onchange = () => command("submit", {signal, value: Number($(id).checked)});
+  $(id).onchange = () => command("submit", {lane: currentLane(), signal, value: Number($(id).checked)});
 for (const [id, signal] of [["limits", "fault.limits"], ["noise", "sensor.noise"]])
-  $(id).onchange = () => command("submit", {signal, value: Number($(id).value)});
+  $(id).onchange = () => command("submit", {lane: currentLane(), signal, value: Number($(id).value)});
 connect().catch(error => { text("connection", "Not authenticated or backend unavailable"); text("error", error.message); });

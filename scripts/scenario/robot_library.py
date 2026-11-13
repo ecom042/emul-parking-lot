@@ -4,11 +4,87 @@ import json
 from pathlib import Path
 
 from scenario.parser import load
-from scenario.assessment import FirmwareFailure, HarnessFailure, Stream, assess, checkpoint
-from scenario.observations import charge_uuids, frames
+from scenario.assessment import FirmwareFailure
+from scenario.observations import charge_uuids
+from scenario import runner
 
-PHYSICAL = "sysbus.gpiob.physical"
-PROTOCOL = "sysbus.gpiod.protocols"
+__all__ = ["ScenarioLibrary", "RobotTransport", "charge_uuids"]
+
+# Fixed owner table, mirroring parking_embedded.PATHS.
+PATHS = {
+    "entry.physical": "sysbus.gpiob.physicalEntry",
+    "entry.protocol": "sysbus.gpioe.protocolsEntry",
+    "exit.physical": "sysbus.gpiob.physicalExit",
+    "exit.protocol": "sysbus.gpiod.protocolsExit",
+}
+
+
+class RobotTransport:
+    """Implement the runner's typed request boundary with monitor commands."""
+
+    def __init__(self, command, machine_script):
+        self.command = command
+        self.machine_script = Path(machine_script)
+        self.sequences = {owner: 0 for owner in PATHS}
+
+    def include(self, path):
+        self.command("include @" + str(Path(path).resolve()).replace(" ", "\\ "))
+
+    def state(self):
+        lanes = {lane: {} for lane in runner.LANES}
+        events = {}
+        for owner, path in PATHS.items():
+            lane, kind = owner.split(".")
+            lanes[lane][kind] = json.loads(self.command(f"{path} Snapshot"))
+            trace = json.loads(self.command(f"{path} TraceAfter {self.sequences[owner]}"))
+            events[owner] = trace
+            if trace:
+                self.sequences[owner] = trace[-1]["seq"]
+        return {"lanes": lanes, "events": events}
+
+    def request(self, payload):
+        op = payload["op"]
+        protocol = lambda lane: PATHS[f"{lane}.protocol"]
+        if op == "init":
+            self.include(self.machine_script)
+        elif op == "reset":
+            self.include(self.machine_script.with_name("reset.resc"))
+            self.sequences = {owner: 0 for owner in PATHS}
+        elif op == "initial":
+            self.command(f'{PATHS[payload["lane"] + ".physical"]} ConfigureInitial '
+                         f'{payload["position_mdeg"]} {payload["vehicle_mm"]} {payload["seed"]}')
+        elif op == "configure":
+            config, lane = payload["config"], payload["lane"]
+            missing = str(config["missing"]).lower()
+            if payload["kind"] == "camera":
+                confidence = ",".join(map(str, config["confidences"]))
+                self.command(f'{protocol(lane)} ConfigureCamera "{config["plate"]}" '
+                             f'"{confidence}" {config["delay_ticks"]} '
+                             f'{config["fragment_bytes"]} {missing}')
+            else:
+                self.command(f'{protocol(lane)} ConfigurePayment {config["delay_ticks"]} '
+                             f'{config["fragment_bytes"]} "{config["result"]}" {missing}')
+        elif op == "step":
+            self.command(f'emulation RunFor "{payload["ticks"] / 100:.2f}"')
+        elif op == "submit":
+            c = payload["command"]
+            return json.loads(self.command(
+                f'{PATHS[payload["owner"]]} Submit {c["v"]} {c["run"]} {c["id"]} '
+                f'{c["at_tick"]} "{c["signal"]}" {c["value"]}'))
+        elif op == "replay":
+            self.command(f'{protocol("exit")} ReplayPayment "{payload["uuid"]}" '
+                         f'{payload["delay_ticks"]}')
+        elif op != "snapshot":
+            raise ValueError("unknown operation")
+        return self.state()
+
+
+def built_capacity(machine_script):
+    config = Path(machine_script).parent / "zephyr/.config"
+    for line in config.read_text().splitlines():
+        if line.startswith("CONFIG_PARKING_CAPACITY="):
+            return int(line.split("=", 1)[1])
+    raise RuntimeError("trusted build has no CONFIG_PARKING_CAPACITY")
 
 
 class ScenarioLibrary:
@@ -16,140 +92,51 @@ class ScenarioLibrary:
 
     def execute_scenario(self, path, machine_script, result_path):
         """Always leave structured evidence, including on transport/setup failures."""
-        result = {"version": 1, "status": "harness_failure", "scenario": str(path), "runs": []}
+        output = Path(result_path)
+        result = {"version": 2, "status": "harness_failure", "scenario": str(path), "runs": []}
+        run = None
         try:
             data = load(path)
             from robot.libraries.BuiltIn import BuiltIn
-            self.robot = BuiltIn()
+            robot = BuiltIn()
             result["name"] = data["name"]
             result["seed"] = data["seed"]
-            self.robot.run_keyword("Reset Emulation")
-            self.include(machine_script)
-            previous = None
-            for index, run in enumerate(data["runs"]):
+            robot.run_keyword("Reset Emulation")
+            transport = RobotTransport(
+                lambda command: robot.run_keyword("Execute Command", command), machine_script)
+            capacity = built_capacity(machine_script)
+            state = transport.request({"op": "init"})
+            for index, spec in enumerate(data["runs"]):
                 if index:
-                    self.include(str(Path(machine_script).with_name("reset.resc")))
-                record = {"index": index, "physical": [], "protocol": [], "checkpoints": []}
+                    state = runner.reset(transport.request, state)
+                record = {"index": index, "events_file": f"run-{index}.events.jsonl.gz",
+                          "checkpoints": []}
                 result["runs"].append(record)
-                previous = self.execute_run(data, run, record, previous)
+                output.parent.mkdir(parents=True, exist_ok=True)
+                run = runner.RunController(
+                    transport.request, spec, state, seed=data["seed"], capacity=capacity,
+                    motor_ms=data["deadlines"]["motor_ms"], step_ticks=100,
+                    evidence=output.parent / record["events_file"],
+                    required_capacity=data.get("capacity"))
+                record["source_runs"] = {o: s.run for o, s in run.streams.items()}
+                try:
+                    while not run.advance():
+                        pass
+                finally:
+                    record["checkpoints"] = list(run.results)
+                    record["end"] = run.state["lanes"]
+                    record["event_counts"] = {o: s.count for o, s in run.streams.items()}
+                    run.close()
+                state = run.state
             result["status"] = "pass"
         except FirmwareFailure as error:
             result.update(status="firmware_failure", reason=str(error))
         except Exception as error:
             result.update(status="harness_failure", reason=f"{type(error).__name__}: {error}")
         finally:
-            output = Path(result_path)
+            if run:
+                run.close()
             output.parent.mkdir(parents=True, exist_ok=True)
             output.write_text(json.dumps(result, indent=2) + "\n")
         if result["status"] != "pass":
             raise AssertionError(f'{result["status"]}: {result.get("reason")}')
-
-    def command(self, command):
-        return self.robot.run_keyword("Execute Command", command)
-
-    def include(self, path):
-        self.command("include @" + str(Path(path).resolve()).replace(" ", "\\ "))
-
-    def snapshot(self, device):
-        return json.loads(self.command(f"{device} Snapshot"))
-
-    def configure(self, kind, config):
-        missing = str(config["missing"]).lower()
-        if kind == "camera":
-            confidence = ",".join(map(str, config["confidences"]))
-            self.command(f'{PROTOCOL} ConfigureCamera "{config["plate"]}" "{confidence}" '
-                         f'{config["delay_ticks"]} {config["fragment_bytes"]} {missing}')
-        else:
-            self.command(f'{PROTOCOL} ConfigurePayment {config["delay_ticks"]} '
-                         f'{config["fragment_bytes"]} "{config["result"]}" {missing}')
-
-    def execute_run(self, data, run, record, previous):
-        physical, protocol = self.snapshot(PHYSICAL), self.snapshot(PROTOCOL)
-        if physical["tick"] != 0 or protocol["tick"] != 0:
-            raise HarnessFailure("initial configuration requires paused Tick 0")
-        if physical["pending"] or protocol["pending"]:
-            raise HarnessFailure("reset left pending equipment work")
-        if previous:
-            for device, state in ((PHYSICAL, physical), (PROTOCOL, protocol)):
-                if state["run"] == previous[device]["run"]:
-                    raise HarnessFailure("reset did not change run identity")
-                signal = "sensor.noise" if device == PHYSICAL else "payment.replay"
-                value = 0 if device == PHYSICAL else 1
-                ack = json.loads(self.command(
-                    f'{device} Submit 1 {previous[device]["run"]} 2147483647 1 '
-                    f'"{signal}" {value}'))
-                if ack.get("accepted") is not False or ack.get("error") != "stale_run":
-                    raise HarnessFailure("old-run command was not rejected")
-                if state["time_us"] < previous[device]["time_us"]:
-                    raise HarnessFailure("machine source time moved backwards on reset")
-        initial = run["initial"]
-        self.command(f'{PHYSICAL} ConfigureInitial {initial["position_mdeg"]} '
-                     f'{initial["vehicle_mm"]} {data["seed"]}')
-        for kind in ("camera", "payment"):
-            if kind in run:
-                self.configure(kind, run[kind])
-        streams = {
-            PHYSICAL: Stream(physical["run"], physical["time_us"]),
-            PROTOCOL: Stream(protocol["run"], protocol["time_us"]),
-        }
-        record.update(physical_run=physical["run"], protocol_run=protocol["run"],
-                      start_time_us=physical["time_us"])
-        # Keep live lists in the result even if a later command fails.
-        record["physical"] = streams[PHYSICAL].events
-        record["protocol"] = streams[PROTOCOL].events
-        actions = run["actions"]
-        expectations = run["expect"]
-        # Submit actions one tick before their execution. Configuration helpers
-        # execute paused at that same boundary, before the tick callback.
-        boundaries = {0, run["duration_ticks"]}
-        boundaries.update(a["at_tick"] - 1 for a in actions)
-        boundaries.update(e["at_tick"] for e in expectations)
-        boundaries.update(range(100, run["duration_ticks"], 100))
-        now = 0
-        command_id = 0
-        for target in sorted(boundaries):
-            if target > now:
-                self.command(f'emulation RunFor "{(target - now) / 100:.2f}"')
-                now = target
-            states = {device: self.snapshot(device) for device in streams}
-            for device, stream in streams.items():
-                if states[device]["run"] != stream.run or states[device]["tick"] != now:
-                    raise HarnessFailure("run/tick changed unexpectedly during finite step")
-                stream.collect(json.loads(self.command(f"{device} Trace")))
-            p, q = streams[PHYSICAL].events, streams[PROTOCOL].events
-            record["end"] = states
-            for event in p + q:
-                if event["signal"] == "failed":
-                    raise HarnessFailure(f"scheduled equipment command failed: {event}")
-            assess(p, q, states[PHYSICAL], run["green"],
-                   data["deadlines"]["motor_ms"], final=now == run["duration_ticks"])
-            for expectation in expectations:
-                if expectation["at_tick"] == now:
-                    checkpoint(expectation["state"], states[PHYSICAL], states[PROTOCOL], q)
-                    record["checkpoints"].append(
-                        {"tick": now, "time_us": states[PHYSICAL]["time_us"],
-                         "expected": expectation["state"], "status": "pass"})
-            for action in actions:
-                if action["at_tick"] != now + 1:
-                    continue
-                kind = action["kind"]
-                if kind == "submit":
-                    device = PROTOCOL if action["signal"].startswith("payment.") else PHYSICAL
-                    command_id += 1
-                    ack = json.loads(self.command(
-                        f'{device} Submit 1 {streams[device].run} {command_id} '
-                        f'{action["at_tick"]} "{action["signal"]}" {action["value"]}'))
-                    if not ack.get("accepted"):
-                        raise HarnessFailure(f"typed action rejected: {ack}")
-                elif kind in ("camera", "payment"):
-                    self.configure(kind, action["config"])
-                else:
-                    # Select a *retained actual charge*, never invent a firmware UUID.
-                    charges = [e for e in q if e["signal"] == "charge_centavos"]
-                    requests = frames(q, "payment", "tx_byte", -1, states[PROTOCOL]["time_us"])
-                    uuids = charge_uuids(requests)
-                    if action["charge"] > len(uuids) or not charges:
-                        raise HarnessFailure("replay references a charge not yet observed")
-                    uuid = uuids[action["charge"] - 1]
-                    self.command(f'{PROTOCOL} ReplayPayment "{uuid}" {action["delay_ticks"]}')
-        return states

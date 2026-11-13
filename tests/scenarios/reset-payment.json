@@ -1,26 +1,41 @@
 {
-  "version": 1, "name": "reset-payment", "seed": 1,
+  "version": 2, "name": "reset-payment", "seed": 1,
   "deadlines": {"motor_ms": 2500},
   "runs": [
     {
-      "initial": {"position_mdeg": 0, "vehicle_mm": 800}, "duration_ticks": 1350,
-      "payment": {"delay_ticks": 500, "fragment_bytes": 2, "result": "PAID", "missing": false},
+      "duration_ticks": 1350,
+      "lanes": {
+        "entry": {"initial": {"position_mdeg": 0, "vehicle_mm": 800},
+          "green": [{"after_tick": 0, "before_tick": 600}]},
+        "exit": {"initial": {"position_mdeg": 0, "vehicle_mm": 6000},
+          "payment": {"delay_ticks": 500, "fragment_bytes": 2, "result": "PAID", "missing": false},
+          "green": []}
+      },
       "actions": [
-        {"at_tick": 600, "kind": "submit", "signal": "vehicle.speed", "value": -2000},
-        {"at_tick": 630, "kind": "submit", "signal": "sensor.obstruction", "value": 1},
-        {"at_tick": 730, "kind": "submit", "signal": "sensor.obstruction", "value": 0},
-        {"at_tick": 751, "kind": "submit", "signal": "vehicle.speed", "value": 0},
-        {"at_tick": 1001, "kind": "submit", "signal": "vehicle.next", "value": 1},
-        {"at_tick": 1011, "kind": "submit", "signal": "vehicle.speed", "value": -2000},
-        {"at_tick": 1271, "kind": "submit", "signal": "vehicle.speed", "value": 0}
+        {"at_tick": 600, "lane": "entry", "kind": "submit", "signal": "vehicle.speed", "value": -2000},
+        {"at_tick": 630, "lane": "entry", "kind": "submit", "signal": "sensor.obstruction", "value": 1},
+        {"at_tick": 730, "lane": "entry", "kind": "submit", "signal": "sensor.obstruction", "value": 0},
+        {"at_tick": 751, "lane": "entry", "kind": "submit", "signal": "vehicle.speed", "value": 0},
+        {"at_tick": 1011, "lane": "exit", "kind": "submit", "signal": "vehicle.speed", "value": -2000},
+        {"at_tick": 1271, "lane": "exit", "kind": "submit", "signal": "vehicle.speed", "value": 0}
       ],
-      "green": [{"after_tick": 0, "before_tick": 600, "payment_required": false}],
-      "expect": [{"at_tick": 1350, "state": {"position_mdeg": 0, "enable": false, "green": false, "pending": 1, "payments": 1}}]
+      "expect": [
+        {"at_tick": 1350, "lane": "exit", "state": {"position_mdeg": 0, "enable": false, "green": false, "pending": 1, "payments": 1}}
+      ]
     },
     {
-      "initial": {"position_mdeg": 0, "vehicle_mm": 6000}, "duration_ticks": 2200,
-      "actions": [], "green": [],
-      "expect": [{"at_tick": 2200, "state": {"captures": 0, "payments": 0, "pending": 0, "replies": 0, "position_mdeg": 0, "enable": false, "green": false}}]
+      "duration_ticks": 2200,
+      "lanes": {
+        "entry": {"initial": {"position_mdeg": 0, "vehicle_mm": 6000},
+          "green": []},
+        "exit": {"initial": {"position_mdeg": 0, "vehicle_mm": 6000},
+          "green": []}
+      },
+      "actions": [],
+      "expect": [
+        {"at_tick": 2200, "lane": "entry", "state": {"captures": 0, "pending": 0, "replies": 0, "position_mdeg": 0, "enable": false, "green": false}},
+        {"at_tick": 2200, "lane": "exit", "state": {"captures": 0, "payments": 0, "pending": 0, "replies": 0, "position_mdeg": 0, "enable": false, "green": false}}
+      ]
     }
   ]
 }

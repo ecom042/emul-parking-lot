@@ -62,13 +62,16 @@ class ParserTests(unittest.TestCase):
                 validator.validate(load(path))
         invalid = fixture()
         invalid["runs"][0]["actions"] = [
-            {"at_tick": 1, "kind": "submit", "signal": "vehicle.speed", "value": 1}]
+            {"at_tick": 1, "lane": "entry", "kind": "submit", "signal": "vehicle.speed",
+             "value": 1}]
         self.assertFalse(validator.is_valid(invalid))
 
     def test_unknown_fields_rejected_at_every_object(self):
         original = fixture()
         original["runs"][0]["actions"] = [
-            {"at_tick": 1, "kind": "submit", "signal": "sensor.noise", "value": 0}]
+            {"at_tick": 1, "lane": "entry", "kind": "submit", "signal": "sensor.noise",
+             "value": 0}]
+        parse(original)
         def objects(value):
             if isinstance(value, dict):
                 yield value
@@ -102,32 +105,87 @@ class ParserTests(unittest.TestCase):
         for signal, (low, high, step) in SIGNALS.items():
             for value in (low - 1, high + 1, True, 0.0, "0"):
                 data = fixture()
+                lane = "exit" if signal.startswith("payment.") else "entry"
                 data["runs"][0]["actions"] = [
-                    {"at_tick": 1, "kind": "submit", "signal": signal, "value": value}]
+                    {"at_tick": 1, "lane": lane, "kind": "submit", "signal": signal,
+                     "value": value}]
                 with self.subTest(signal=signal, value=value), self.assertRaises(ScenarioError):
                     parse(data)
 
     def test_timing_bounds_and_counts(self):
+        noise = {"at_tick": 1, "lane": "entry", "kind": "submit", "signal": "sensor.noise",
+                 "value": 0}
+        entry = lambda d: d["runs"][0]["lanes"]["entry"]
         for mutate in (
-            lambda d: d.update(version=2),
+            lambda d: d.update(version=3),
+            lambda d: d.update(version=True),
+            lambda d: d.update(capacity=9),
             lambda d: d["deadlines"].update(motor_ms=9999),
             lambda d: d.update(runs=d["runs"] * 9),
-            lambda d: d["runs"][0].update(duration_ticks=6001),
-            lambda d: d["runs"][0].update(actions=[
-                {"at_tick": 1, "kind": "submit", "signal": "sensor.noise", "value": 0}] * 257),
+            lambda d: d["runs"][0].update(duration_ticks=30001),
+            lambda d: d["runs"][0].update(actions=[noise] * 513),
             lambda d: d["runs"][0].update(expect=d["runs"][0]["expect"] * 129),
             lambda d: d["runs"][0]["expect"][0].update(at_tick=901),
-            lambda d: d["runs"][0]["green"][0].update(after_tick=600, before_tick=500),
+            lambda d: d["runs"][0]["expect"][0].update(lane="side"),
+            lambda d: d["runs"][0]["expect"][0].pop("lane"),
+            lambda d: entry(d).update(green=[{"after_tick": 600, "before_tick": 500}]),
+            lambda d: entry(d).update(green=[{"after_tick": 1, "before_tick": 5,
+                                              "payment_required": True}]),
+            lambda d: entry(d).update(payment={"delay_ticks": 10, "fragment_bytes": 8,
+                                               "result": "PAID", "missing": False}),
+            lambda d: d["runs"][0]["lanes"].pop("exit"),
+            lambda d: d["runs"][0].update(actions=[{**noise, "at_tick": 2}, noise]),
+            lambda d: d["runs"][0].update(actions=[{**noise, "lane": "side"}]),
+            lambda d: d["runs"][0].update(actions=[{k: v for k, v in noise.items()
+                                                    if k != "lane"}]),
+            lambda d: d["runs"][0].update(actions=[{**noise, "signal": "payment.replay",
+                                                    "value": 1}]),
+            lambda d: d["runs"][0].update(actions=[{"at_tick": 1, "lane": "entry",
+                                                    "kind": "replay", "charge": 1,
+                                                    "delay_ticks": 1}]),
+            lambda d: d["runs"][0].update(actions=[{"at_tick": 1, "lane": "entry",
+                                                    "kind": "payment", "config": {
+                                                        "delay_ticks": 10, "fragment_bytes": 8,
+                                                        "result": "PAID", "missing": False}}]),
             lambda d: d["runs"][0].update(actions=[
-                {"at_tick": 2, "kind": "submit", "signal": "sensor.noise", "value": 0},
-                {"at_tick": 1, "kind": "submit", "signal": "sensor.noise", "value": 0}]),
-            lambda d: d["runs"][0].update(actions=[
-                {"at_tick": 1, "kind": "monitor", "command": "quit"}]),
+                {"at_tick": 1, "lane": "entry", "kind": "monitor", "command": "quit"}]),
         ):
             data = fixture()
             mutate(data)
             with self.assertRaises(ScenarioError):
                 parse(data)
+
+    def test_v1_upgrade_only_for_non_paying_single_lane_fixtures(self):
+        v1 = {"version": 1, "name": "legacy", "seed": 1, "deadlines": {"motor_ms": 2500},
+              "runs": [{"initial": {"position_mdeg": 0, "vehicle_mm": 800},
+                        "duration_ticks": 600,
+                        "actions": [{"at_tick": 1, "kind": "submit",
+                                     "signal": "vehicle.speed", "value": 0}],
+                        "green": [{"after_tick": 0, "before_tick": 600,
+                                   "payment_required": False}],
+                        "expect": [{"at_tick": 600, "state": {"enable": False}}]}]}
+        data = parse(v1)
+        run = data["runs"][0]
+        self.assertEqual(data["version"], 2)
+        self.assertEqual(run["lanes"]["entry"]["green"], [{"after_tick": 0, "before_tick": 600}])
+        self.assertEqual(run["lanes"]["exit"]["green"], [])
+        self.assertEqual({a["lane"] for a in run["actions"]} | {e["lane"] for e in run["expect"]},
+                         {"entry"})
+        for mutate in (
+            lambda r: r["green"][0].update(payment_required=True),
+            lambda r: r.update(payment={"delay_ticks": 10, "fragment_bytes": 8,
+                                        "result": "PAID", "missing": False}),
+            lambda r: r["actions"].append({"at_tick": 2, "kind": "submit",
+                                           "signal": "payment.replay", "value": 1}),
+            lambda r: r["actions"].append({"at_tick": 2, "kind": "replay", "charge": 1,
+                                           "delay_ticks": 1}),
+            lambda r: r["actions"][0].update(lane="exit"),
+            lambda r: r["expect"][0].update(lane="exit"),
+        ):
+            legacy = copy.deepcopy(v1)
+            mutate(legacy["runs"][0])
+            with self.subTest(run=legacy["runs"][0]), self.assertRaises(ScenarioError):
+                parse(legacy)
 
     def test_nested_config_limits(self):
         config = dict(plate="ABC1D23", confidences=[93], delay_ticks=10,
@@ -136,7 +194,7 @@ class ParserTests(unittest.TestCase):
                            ("confidences", [93] * 17), ("confidences", [101]),
                            ("delay_ticks", 0), ("fragment_bytes", 129), ("missing", 1)):
             data = fixture()
-            data["runs"][0]["camera"] = {**config, key: value}
+            data["runs"][0]["lanes"]["entry"]["camera"] = {**config, key: value}
             with self.subTest(key=key), self.assertRaises(ScenarioError):
                 parse(data)
 
