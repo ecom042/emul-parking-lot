@@ -113,6 +113,7 @@ Use full module/runtime/output arguments as in setup.
 
 Linux/Windows/Intel macOS remain unsupported pending actual tests. Retain the
 `nucleo_u5a5zj_q`/ADC4 subset, fixed-clock/RCC/UART/SPI limitations, nondurable
-one-session assignment, 60-second manual run, simulated money and same-timestamp
+sessions (reset is a lab restart), car-queue runs of at most one virtual hour,
+simulated money and same-timestamp
 cross-owner observation limitation. Do not expand scope to resolve these as
 part of packaging.

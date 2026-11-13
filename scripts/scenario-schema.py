@@ -1,4 +1,4 @@
-"""Emit the version-1 JSON Schema without optional host dependencies."""
+"""Emit the version-2 JSON Schema without optional host dependencies."""
 
 import json
 from scenario.schema import schema
