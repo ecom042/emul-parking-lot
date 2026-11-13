@@ -1,0 +1,25 @@
+/ {
+        zephyr,user {
+                enable-gpios = <&gpiob 1 GPIO_ACTIVE_HIGH>;
+                direction-gpios = <&gpiob 2 GPIO_ACTIVE_HIGH>;
+                upper-gpios = <&gpioc 2 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+                lower-gpios = <&gpioc 3 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+                obstruction-gpios = <&gpioc 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+                red-gpios = <&gpiod 1 GPIO_ACTIVE_HIGH>;
+                green-gpios = <&gpiod 2 GPIO_ACTIVE_HIGH>;
+                buzzer-gpios = <&gpiod 3 GPIO_ACTIVE_HIGH>;
+                dc-gpios = <&gpiod 15 GPIO_ACTIVE_HIGH>;
+                reset-gpios = <&gpioe 0 GPIO_ACTIVE_LOW>;
+        };
+};
+&adc1 { status = "disabled"; };
+&usart2 { status = "okay"; };
+&lpuart1 { status = "okay"; };
+&spi1 {
+        status = "okay";
+        display_reference: display@0 {
+                compatible = "course,st7789v-reference";
+                reg = <0>;
+                spi-max-frequency = <1000000>;
+        };
+};

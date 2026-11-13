@@ -1,0 +1,3 @@
+description: Course native RGB565 ST7789V SPI subset
+compatible: "course,st7789v-reference"
+include: spi-device.yaml

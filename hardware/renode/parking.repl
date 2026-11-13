@@ -1,0 +1,44 @@
+sysbus:
+    preinit:
+        include @../../models/STM32U5_ADC4.cs
+        include @../../models/STM32U5_EXTI.cs
+        include @../../models/ST7789V.cs
+        include @../../models/ParkingPhysical.cs
+        include @../../models/ParkingProtocols.cs
+        sysbus Unregister "sysbus.adc4"
+
+adcClock: Analog.CourseU5ADCClock @ {
+    sysbus new Bus.BusRangeRegistration { address: 0x46020c6c; size: 4; offset: 0x6c };
+    sysbus new Bus.BusRangeRegistration { address: 0x46020c94; size: 4; offset: 0x94 };
+    sysbus new Bus.BusRangeRegistration { address: 0x46020ce8; size: 4; offset: 0xe8 }
+}
+    hclkFrequency: 160000000
+u5adc4: Analog.CourseSTM32U5ADC4 @ sysbus 0x46021000
+    clock: adcClock
+    IRQ -> nvic0@113
+exti: IRQControllers.CourseSTM32U5EXTI @ sysbus 0x46022000
+    [0-15] -> nvic0@[11-26]
+gpioc:
+    [0-15] -> exti#2@[0-15]
+
+physical: Miscellaneous.ParkingPhysical @ gpiob 1
+    adc: u5adc4
+    0 -> gpioc@2
+    1 -> gpioc@3
+    2 -> gpioc@4
+gpiob:
+    1 -> physical@0
+    2 -> physical@1
+
+protocols: Miscellaneous.ParkingProtocols @ gpiod 1
+    camera: usart2
+    payment: lpuart1
+gpiod:
+    1 -> protocols@0
+    2 -> protocols@1
+    3 -> protocols@2
+    14 -> display@0
+    15 -> display@1
+gpioe:
+    0 -> display@2
+display: Video.CourseST7789V @ spi1
