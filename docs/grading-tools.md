@@ -41,6 +41,13 @@ then deleted.
   without a reason, an unterminated block, or exceeding the cap disables every
   exclusion. Use them for paths the models cannot reach, such as an ADC driver
   error, and expect to justify each one.
+- `--exclude-branches-by-pattern REGEX` (alias `--exclude-lines-by-pattern`,
+  repeatable) drops every source line whose whole text matches REGEX, as
+  gcovr does; here it applies to lines, since there is no branch data. For
+  example `'\s*(LOG_[A-Z_]+\(|[A-Z0-9_]+_DEFINE\(|ZEPHLET_[A-Z_]+\().*'`
+  removes logging calls and `*_DEFINE(` macros. These lines are reported as
+  `excluded_by_pattern` and do not count toward the 3% marker cap.
+  `grade.py` passes the option through.
 - `--scenarios-dir DIR` adds trusted fixtures. The instructor uses it for the
   hidden set; a student's public-only figure is a lower bound of the graded
   one.

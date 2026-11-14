@@ -37,6 +37,10 @@ def parse_args(argv=None):
                     help="measure only these scenarios (default: all)")
     ap.add_argument("--cmake-arg", action="append", default=[],
                     help="extra CMake argument for the coverage build")
+    ap.add_argument("--exclude-branches-by-pattern", "--exclude-lines-by-pattern",
+                    dest="exclude_pattern", action="append", default=[], metavar="REGEX",
+                    help="drop source lines whose whole text matches REGEX (repeatable; "
+                         "gcovr-compatible name, applied to lines: there are no branches)")
     ap.add_argument("--jobs", type=int, default=4, help="parallel Renode processes (default 4)")
     ap.add_argument("--min", type=float, help="exit 1 below this line coverage percent")
     return ap.parse_args(argv)
@@ -88,10 +92,13 @@ def measure(args, output):
             print(f"{name}: {error}")
     excluded, problems = linecov.exclusions(args.app)
     counted = {name: lines for name, lines in hits.items() if statuses[name] == "pass"}
-    summary, line_map = linecov.summarize(ranges, counted, excluded, problems)
+    by_pattern = linecov.pattern_exclusions(args.app, args.exclude_pattern)
+    summary, line_map = linecov.summarize(ranges, counted, excluded, problems,
+                                          by_pattern=by_pattern)
     summary.update(v=1, app=str(args.app.resolve()), elapsed_s=round(time.monotonic() - began, 1),
                    sources=workspace.source_hashes(args.app),
                    cmake_args=COVERAGE_CMAKE + args.cmake_arg,
+                   exclude_patterns=args.exclude_pattern,
                    scenarios_dirs=[str(d.resolve()) for d in args.scenarios_dir],
                    scenarios=statuses, scenario_elapsed_s=elapsed,
                    scenario_lines={name: len(lines) for name, lines in sorted(hits.items())})
@@ -111,6 +118,8 @@ def report(summary):
     if failed:
         print("scenarios/suites that did not pass (their lines are not counted):",
               ", ".join(failed))
+    if summary.get("excluded_by_pattern"):
+        print(f"{summary['excluded_by_pattern']} executable line(s) excluded by pattern")
     for note in summary["notes"]:
         print("note:", note)
 

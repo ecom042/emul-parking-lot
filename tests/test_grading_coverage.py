@@ -45,6 +45,26 @@ class HitsAndSummary(unittest.TestCase):
         self.assertIn("cap", summary["notes"][0])
 
 
+class Patterns(unittest.TestCase):
+    PATTERN = r"\s*(LOG_[A-Z_]+\(|[A-Z0-9_]+_DEFINE\(|ZEPHLET_[A-Z_]+\().*"
+
+    def test_logging_and_define_macros_are_dropped_outside_the_cap(self):
+        with tempfile.TemporaryDirectory() as app:
+            (Path(app) / "src").mkdir()
+            (Path(app) / "src/x.c").write_text(
+                "K_THREAD_DEFINE(t, 512, f, NULL, NULL, NULL, 5, 0, 0);\n"
+                "\tLOG_INF(\"open %d\", lane);\n"
+                "\tZEPHLET_CALL(x);\n"
+                "\tmy_LOG_INF(1);\n"
+                "\trc = gpio_pin_set_dt(&spec, 1);\n")
+            dropped = linecov.pattern_exclusions(app, [self.PATTERN])
+        self.assertEqual(dropped, {("src/x.c", 1), ("src/x.c", 2), ("src/x.c", 3)})
+        ranges = {("src/x.c", n): [(n * 4, n * 4 + 2)] for n in range(1, 6)}
+        summary, _ = linecov.summarize(ranges, {"s": {("src/x.c", 5)}}, set(), by_pattern=dropped)
+        self.assertEqual((summary["executable"], summary["hit"], summary["excluded_by_pattern"],
+                          summary["excluded"]), (2, 1, 3, 0))
+
+
 class Markers(unittest.TestCase):
     def scan(self, text):
         with tempfile.TemporaryDirectory() as app:

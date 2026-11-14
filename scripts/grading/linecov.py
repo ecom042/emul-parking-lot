@@ -152,9 +152,32 @@ def exclusions(app):
     return excluded, problems
 
 
-def summarize(ranges, scenario_hits, excluded, problems=(), cap=EXCLUSION_CAP):
-    """Merge per-scenario hits into totals, per-file figures and a line map."""
-    executable = set(ranges)
+def pattern_exclusions(app, patterns):
+    """{(relative source, line)} whose whole text matches one of `patterns`
+    (as gcovr's --exclude-*-by-pattern: e.g. logging or *_DEFINE macros)."""
+    compiled = [re.compile(p) for p in patterns]
+    excluded = set()
+    if not compiled:
+        return excluded
+    source_root = Path(app) / "src"
+    for path in sorted(source_root.rglob("*")):
+        if path.suffix not in SOURCE_SUFFIXES or not path.is_file():
+            continue
+        name = path.relative_to(source_root.parent).as_posix()
+        for number, text in enumerate(path.read_text(errors="replace").splitlines(), 1):
+            if any(c.fullmatch(text) for c in compiled):
+                excluded.add((name, number))
+    return excluded
+
+
+def summarize(ranges, scenario_hits, excluded, problems=(), cap=EXCLUSION_CAP,
+              by_pattern=frozenset()):
+    """Merge per-scenario hits into totals, per-file figures and a line map.
+
+    `excluded` are reasoned markers, capped; `by_pattern` are lines removed by
+    an announced pattern, outside the cap."""
+    executable = set(ranges) - set(by_pattern)
+    patterned = len(set(ranges) & set(by_pattern))
     applied = excluded & executable
     notes = list(problems)
     if executable and len(applied) > cap * len(executable):
@@ -182,7 +205,8 @@ def summarize(ranges, scenario_hits, excluded, problems=(), cap=EXCLUSION_CAP):
             line_map.setdefault(name, {}).setdefault(str(line), []).append(scenario)
     return {"executable": len(counted), "hit": len(covered),
             "percent": round(100 * len(covered) / len(counted), 2) if counted else 0.0,
-            "excluded": len(applied), "notes": notes, "files": files}, line_map
+            "excluded": len(applied), "excluded_by_pattern": patterned,
+            "notes": notes, "files": files}, line_map
 
 
 def write_lcov(path, app, summary, line_map):
