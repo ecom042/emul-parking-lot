@@ -8,6 +8,9 @@ import sys
 import time
 
 
+RUNTIME_TIMEOUT_S = 60
+
+
 def main():
     root = Path(__file__).resolve().parents[1]
     ap = argparse.ArgumentParser(description=__doc__)
@@ -19,6 +22,9 @@ def main():
                     help="run this fixture; repeat for several, in order (default: all)")
     ap.add_argument("--scenarios-dir", type=Path, action="append", default=[],
                     help="also load fixtures from this trusted directory (instructor hidden set)")
+    ap.add_argument("--wall-timeout", type=float, default=120,
+                    help="host seconds per scenario before giving up (default 120); "
+                         "virtual-time deadlines are unaffected")
     ap.add_argument("--trace-dir", type=Path,
                     help="write the executed blocks of each machine run here (coverage only)")
     ap.add_argument("--lot", type=int, metavar="SECONDS",
@@ -49,7 +55,10 @@ def main():
     args.output.mkdir(parents=True, exist_ok=False)
     boot = args.machine_script.resolve()
     runtime = StdioRuntime(args.renode.resolve(), root / "scripts/parking_embedded.py",
-                           own_session=False, environment=environment)
+                           own_session=False, environment=environment,
+                           # Start-up (Renode, machine, coverage model) on a
+                           # busy host can exceed the 20 s default.
+                           timeout=RUNTIME_TIMEOUT_S)
     engine = ParkingEngine(runtime, scenario_dirs, args.output / "runs",
                            pace=0, step_ticks=100, **built_config(boot))
     results = []
@@ -63,7 +72,7 @@ def main():
             began = time.monotonic()
             command("select", scenario=name)
             command("start")
-            deadline = began + 120
+            deadline = began + args.wall_timeout
             while time.monotonic() < deadline:
                 state = engine.snapshot()
                 if state["finished"] or state["failure"]:

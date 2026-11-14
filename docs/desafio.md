@@ -72,8 +72,8 @@ exemplo, as duas faixas ao mesmo tempo).
 
 Entregue na forma anunciada pela disciplina:
 
-1. **`student/`**: código, `prj.conf`, `Kconfig`, overlays e, se houver,
-   `mutation-equivalent.json`.
+1. **`student/`**: código, `prj.conf`, `Kconfig`, overlays e as suas suítes
+   de teste de unidade em `student/tests/`.
 2. **Relatório** (PDF ou Markdown): máquina de estados e transições, mapa de
    pinos e interfaces, analisadores e novas tentativas, posse do ADC, exemplos
    de tarifa, falhas e recuperação, limitações conhecidas.
@@ -106,8 +106,7 @@ de reenvio da disciplina.
 |---|---:|---|
 | Cenários públicos | 20 | proporcional aos cenários que passam |
 | Cenários ocultos | 20 | proporcional aos cenários que passam |
-| Cobertura de linhas | 15 | ≥ 95%: 15; entre 85% e 95%: linear; < 85%: 0 |
-| Escore de mutação | 15 | ≥ 90%: 15; entre 75% e 90%: linear; < 75%: 0 |
+| Cobertura de linhas | 30 | ≥ 95%: 30; entre 85% e 95%: linear; < 85%: 0 |
 | Análise estática | 10 | 10 menos 2 por achado, mínimo 0 |
 | Relatório e projeto | 20 | rubrica: estados, posse do ADC, analisadores, tarifa, falhas, limitações |
 
@@ -116,28 +115,54 @@ de reenvio da disciplina.
 ### O que cada métrica mede
 
 - **Cobertura de linhas** ([detalhes](grading-tools.md#firmware-line-coverage)):
-  fração das linhas executáveis de `student/src` que algum cenário **que
-  passa** executou no firmware real dentro do Renode. Na avaliação contam os
-  cenários públicos e os ocultos. Uma linha que só um cenário reprovado executa
-  não conta. Linhas que os modelos não conseguem alcançar (por exemplo, um erro
-  do driver do ADC) podem ser excluídas com
-  `/* LCOV_EXCL_LINE: motivo */`, até 3% das linhas e com justificativa na
-  defesa.
-- **Escore de mutação** ([detalhes](grading-tools.md#mutation-score)): o
-  avaliador cria cópias do seu código com um erro pequeno cada (`<` vira `<=`,
-  `&&` vira `||`, uma constante muda, uma chamada some…). Recompila e roda os
-  cenários que passam pela linha alterada. Um mutante é **morto** quando algum
-  cenário reprova. Escore = mortos ÷ (mortos + sobreviventes); mutantes que
-  nem compilam não contam. A avaliação sorteia 60 mutantes com uma semente
-  anunciada só no dia. Mutantes equivalentes, que não mudam o comportamento,
-  podem ser declarados em `student/mutation-equivalent.json`, até 5% e com
-  motivo.
+  fração das linhas executáveis de `student/src` executadas no firmware real,
+  dentro do Renode, por algum cenário **que passa** ou por alguma das suas
+  suítes de teste de unidade **que passa**. Na avaliação contam os cenários
+  públicos, os ocultos e as suas suítes. Uma linha que só um cenário ou uma
+  suíte reprovada executa não conta.
 - **Análise estática** ([detalhes](grading-tools.md#static-check)): o GCC do
   SDK com `-fanalyzer` e um conjunto fixo de avisos. Conta cada aviso em
   `student/src`.
 
-Um código enxuto, sem caminhos mortos, sobe as duas métricas: o que não existe
-não precisa ser coberto nem pode sobreviver a uma mutação.
+Os cenários sozinhos não alcançam tudo: nenhum deles faz um driver do Zephyr
+falhar. Os caminhos de erro (`if (rc != 0)`, `device_is_ready`, argumentos
+inválidos) se cobrem com **testes de unidade** (próxima seção). Uma linha que
+nem os modelos nem um teste conseguem alcançar pode ser excluída com
+`/* LCOV_EXCL_LINE: motivo */`, até 3% das linhas e com justificativa na
+defesa.
+
+### Testes de unidade (ztest + FFF)
+
+Cada pasta `student/tests/<suíte>/` com um `CMakeLists.txt` é uma suíte
+[ztest](https://docs.zephyrproject.org/latest/develop/test/ztest.html)
+compilada para a mesma placa e executada no Renode pelas ferramentas do curso.
+O [FFF](https://docs.zephyrproject.org/latest/develop/test/fff.html)
+(`zephyr/fff.h`) cria funções falsas que registram as chamadas e devolvem o
+valor que o teste escolher.
+
+`student/tests/unit/` é um exemplo que compila e passa. Para usá-lo no seu
+projeto:
+
+1. Separe a lógica (estados, analisadores, tarifa, sessões) da camada fina
+   que chama os drivers, por exemplo `hw_motor_ligar()` em `src/hw.c`.
+2. Na suíte, compile os módulos de lógica (`target_sources(app PRIVATE
+   ../../src/tarifa.c)`), **não** o `main.c` nem a camada de hardware.
+3. Substitua a camada de hardware por falsos do FFF
+   (`FAKE_VALUE_FUNC(int, hw_motor_ligar, bool)`) e teste os dois lados:
+   o caminho normal e o erro (`hw_motor_ligar_fake.return_val = -EIO`).
+
+Os testes de unidade complementam os cenários, não os substituem: os portões
+e os pontos de cenários continuam medindo o firmware inteiro.
+
+### Escore de mutação: retorno, sem nota
+
+`scripts/mutation-test.py` ([detalhes](grading-tools.md#mutation-score))
+cria cópias do seu código com um erro pequeno cada (`<` vira `<=`, `&&` vira
+`||`, uma constante muda, uma chamada some…) e roda os testes de unidade e os
+cenários que passam pela linha alterada. Um mutante que **sobrevive** aponta
+uma regra que nenhum teste verifica. Não vale nota; use para descobrir onde
+falta um teste. Cobrir uma linha não basta: o teste precisa verificar o
+resultado.
 
 ## Como se autoavaliar
 
@@ -148,11 +173,10 @@ python scripts/grade.py --module "$ZVB_MODULE" \
   --renode "$RENODE_ROOT/renode" --output build/nota-01
 ```
 
-O comando compila `student/`, roda todos os cenários públicos, mede cobertura,
-mutação (60 mutantes, semente 1) e análise estática e imprime portões e
+O comando compila `student/`, roda todos os cenários públicos e as suas
+suítes de unidade, mede cobertura e análise estática e imprime portões e
 pontos. Os itens manuais (G2, G4, G5 e o relatório) aparecem como pendentes.
-Com 4 processos em paralelo, leva cerca de uma hora, quase toda na mutação.
-`--jobs N` usa mais núcleos; `--sample 20` encurta a mutação para treinar.
+Leva de 5 a 10 minutos; `--jobs N` usa mais núcleos.
 
 Para iterar mais rápido, rode cada ferramenta sozinha:
 
@@ -163,14 +187,14 @@ python scripts/firmware-coverage.py --module "$ZVB_MODULE" \
   --renode "$RENODE_ROOT/renode" --output build/cobertura-01
 python scripts/mutation-test.py --module "$ZVB_MODULE" \
   --renode "$RENODE_ROOT/renode" --output build/mutacao-01 \
-  --coverage build/cobertura-01 --sample 20 --seed 7
+  --coverage build/cobertura-01 --sample 20 --seed 7   # retorno, sem nota
 python scripts/static-check.py --module "$ZVB_MODULE" \
   --renode "$RENODE_ROOT/renode" --output build/estatica-01
 ```
 
 O seu resultado é um **limite inferior**: a avaliação acrescenta cenários
-ocultos, que só podem aumentar a cobertura e matar mais mutantes. Eles também
-podem reprovar o seu firmware. A forma de se proteger é cumprir os requisitos,
+ocultos, que só podem aumentar a cobertura. Eles também podem reprovar o seu
+firmware. A forma de se proteger é cumprir os requisitos,
 não os cenários públicos.
 
 Cada execução cria uma pasta nova em `build/`. Apague as antigas quando não
@@ -200,5 +224,6 @@ O agente pode escrever código, mas **quem é avaliado é você**:
 
 Bons pedidos para o agente: "explique o REQ-05 com os seus próprios exemplos",
 "escreva a máquina de estados da entrada antes de codificar", "rode
-`firmware-coverage.py` e explique cada linha não coberta", "qual mutante
-sobreviveu e que cenário o mataria?".
+`firmware-coverage.py` e explique cada linha não coberta", "que teste de
+unidade com FFF cobre o erro deste driver?", "qual mutante sobreviveu e que
+asserção o mataria?".

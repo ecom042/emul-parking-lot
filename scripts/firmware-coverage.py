@@ -4,7 +4,9 @@
 Builds the application with CONFIG_DEBUG_OPTIMIZATIONS (stable line mapping),
 runs each scenario in its own Renode process while models/BlockCoverage.cs
 records executed blocks, and maps them to lines of <app>/src through DWARF.
-Only scenarios that pass count: a line run by a failing scenario is not
+Unit-test suites in <app>/tests/<suite>/ (ztest + FFF, see grading/unit.py)
+run on the same board in Renode and count as well, named "unit:<suite>".
+Only scenarios and suites that pass count: a line run by a failing one is not
 evidence of tested behaviour (the inert starter would otherwise score high).
 Students measure the public fixtures; the instructor adds the hidden set with
 --scenarios-dir, so a student's figure is a lower bound of the graded one.
@@ -17,10 +19,9 @@ import sys
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from grading import linecov, workspace  # noqa: E402
+from grading import linecov, unit, workspace  # noqa: E402
 
 COVERAGE_CMAKE = ["-DCONFIG_DEBUG_OPTIMIZATIONS=y"]
-SCENARIO_TIMEOUT_S = 300
 
 
 def parse_args(argv=None):
@@ -52,25 +53,39 @@ def measure(args, output):
         if name not in names:
             raise SystemExit(f"unknown scenario {name}")
     names = args.scenario or names
-    jobs = [(workspace.assess_command(args.module.resolve(), args.renode.resolve(), boot,
-                                      output / "scenarios" / name, [name],
-                                      [d.resolve() for d in args.scenarios_dir],
-                                      trace_dir=output / "blocks" / name),
-             output / "scenarios" / f"{name}.log", SCENARIO_TIMEOUT_S) for name in names]
     began = time.monotonic()
-    codes = workspace.run_parallel(jobs, args.jobs)
+    statuses, runs = workspace.scenario_statuses(args.module, args.renode, boot,
+                                                 output / "scenarios", names, args.scenarios_dir,
+                                                 args.jobs, trace_root=output / "blocks")
     elf = output / "firmware/zephyr/zephyr.elf"
     ranges = linecov.line_ranges(elf, args.app)
-    hits, statuses, elapsed = {}, {}, {}
-    for name, code in zip(names, codes):
-        records = workspace.records(output / "scenarios" / name)
+    hits, elapsed = {}, {}
+    for name in names:
+        run, trace = runs[name]
+        records = workspace.records(run)
         elapsed[name] = round(records[0]["elapsed"], 1) if records else None
-        statuses[name] = ("pass" if code == 0 and records and workspace.passed(records[0])
-                          else "timeout" if code == -9 else "fail")
-        blocks = linecov.read_blocks(sorted((output / "blocks" / name).glob("*.txt")))
+        blocks = linecov.read_blocks(sorted(trace.glob("*.txt")))
         hits[name] = linecov.hit_lines(ranges, linecov.instruction_addresses(elf, blocks))
-        # Block lists are small, but the per-scenario detail is not needed again.
-        shutil.rmtree(output / "blocks" / name, ignore_errors=True)
+    for suite in unit.suites(args.app):
+        name = f"unit:{suite.name}"
+        work = output / "unit" / suite.name
+        started = time.monotonic()
+        job, error = unit.prepare(args.module, args.renode, work, suite,
+                                  COVERAGE_CMAKE + args.cmake_arg)
+        code = workspace.run_one(*job) if job else 1
+        status, failed = unit.outcome(work, code) if job else ("build failed", [])
+        statuses[name] = "pass" if status == "pass" else status
+        elapsed[name] = round(time.monotonic() - started, 1)
+        if failed:
+            print(f"{name}: failing tests: {', '.join(failed)}")
+        if job:
+            suite_elf = work / "firmware/zephyr/zephyr.elf"
+            blocks = linecov.read_blocks([work / "blocks.txt"]) if (work / "blocks.txt").is_file() else set()
+            hits[name] = linecov.hit_lines(linecov.line_ranges(suite_elf, args.app),
+                                           linecov.instruction_addresses(suite_elf, blocks))
+        else:
+            hits[name] = set()
+            print(f"{name}: {error}")
     excluded, problems = linecov.exclusions(args.app)
     counted = {name: lines for name, lines in hits.items() if statuses[name] == "pass"}
     summary, line_map = linecov.summarize(ranges, counted, excluded, problems)
@@ -94,7 +109,8 @@ def report(summary):
     print(f"{'total':<28} {summary['executable']:>6} {summary['hit']:>6} {summary['percent']:>7.2f}")
     failed = [n for n, s in summary["scenarios"].items() if s != "pass"]
     if failed:
-        print("scenarios that did not pass (their lines are not counted):", ", ".join(failed))
+        print("scenarios/suites that did not pass (their lines are not counted):",
+              ", ".join(failed))
     for note in summary["notes"]:
         print("note:", note)
 

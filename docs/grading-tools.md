@@ -29,8 +29,12 @@ then deleted.
   line table gives it an address, and *hit* when an executed instruction
   starts in its range. A line with two outcomes counts as hit once either one
   runs. Code the linker discarded has no address and is not counted.
-- **Only passing scenarios count.** A failing scenario still runs code, but
-  that is not evidence of tested behaviour.
+- **Only passing scenarios and suites count.** A failing one still runs
+  code, but that is not evidence of tested behaviour.
+- **Host time is never a verdict.** Each scenario gets 900 host seconds
+  (`assess.py --wall-timeout`; the student default stays 120). One that runs
+  out of host time before its end is a *timeout*, not a failure, and is retried
+  once on its own. Virtual-time deadlines are unaffected by host load.
 - **Exclusions need a reason** and may cover at most 3% of executable lines:
   `/* LCOV_EXCL_LINE: reason */`, or a
   `/* LCOV_EXCL_START: reason */` … `/* LCOV_EXCL_STOP */` block. A marker
@@ -52,7 +56,29 @@ Outputs in the output directory:
 
 `--min 95` makes the exit status 1 below 95%.
 
+### Unit-test suites
+
+Every directory `<app>/tests/<suite>/` with a `CMakeLists.txt` is a ztest
+application, normally using FFF (`zephyr/fff.h`) to fake the student's own
+hardware layer. `student/tests/unit/` is a passing template: its CMake adds the
+course hardware and `student/app.overlay`, its `Kconfig` sources the student
+`Kconfig` (the tools pass `CONFIG_PARKING_*`), and it compiles chosen modules
+from `../../src`, not `main.c`.
+
+Each suite is built like the firmware (same board, coverage flags), prepared
+with the same machine description, and run headless in Renode without a
+monitor port (`-P -1`). USART1 goes to `console.log` and blocks are recorded
+as above. The runner stops Renode as soon as ztest prints `PROJECT EXECUTION`,
+which takes a few seconds; the bound is 60 virtual seconds. A suite passes on
+`PROJECT EXECUTION SUCCESSFUL` with no `FAIL` line. Its hits on
+`<app>/src` lines are merged under the name `unit:<suite>`. Lines that only the
+suite's binary contains (for example in a file the firmware does not link) do
+not count: executable lines always come from the firmware ELF.
+
 ## Mutation score
+
+Mutation testing is **feedback, not part of the grade**: a surviving mutant
+shows a rule that no test checks.
 
 ```sh
 python scripts/mutation-test.py --module "$ZVB_MODULE" \
@@ -81,17 +107,18 @@ the same while its line keeps its text.
 deterministically from the seed. Each of the `--jobs` workers owns a copy of
 the application and a build directory that later mutants rebuild
 incrementally. A mutant runs against the passing scenarios that cover its line,
-shortest first, in one Renode process that stops at the first failure:
+shortest first, in one Renode process that stops at the first failure. Unit
+suites that cover the line run first, since they take seconds:
 
-- **killed**: a scenario failed or timed out (limit: 60 s plus twice the
-  scenarios' baseline time);
+- **killed**: a unit test failed or a scenario reported a firmware failure;
 - **survived**: every covering scenario passed;
 - **not covered**: no passing scenario reaches the line; it counts as a
   survivor and is not run;
 - **invalid**: it does not compile; it does not count;
-- **error**: the assessment stopped without a failing scenario (a harness
-  problem such as a Renode transport error); it does not count and is listed
-  with its log in `logs/` so it can be re-run.
+- **error**: host time ran out or the assessment stopped without a firmware
+  failure (a harness problem). It does not count and is listed with its log
+  in `logs/`. Re-run it with `--mutant <id>`, which evaluates only the given
+  mutants.
 
 Lines without a DWARF address (`#define` values, initializers) run against
 every passing scenario. Declared equivalent mutants are listed in
@@ -129,7 +156,8 @@ python scripts/grade.py --module "$ZVB_MODULE" \
 ```
 
 `grade.py` builds the application normally and runs every scenario, then runs
-the three tools above. It prints the gates and points of the
+the coverage tool (scenarios and unit suites) and the static check. It does
+not run mutation testing. It prints the gates and points of the
 [challenge](desafio.md#avaliação) in Portuguese. The instructor adds
 `--scenarios-dir` for the hidden set and `--manual items.json`:
 

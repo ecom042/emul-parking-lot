@@ -13,7 +13,8 @@ protegidas não se aplicam; siga então [`docs/agent-context.md`](docs/agent-con
 ## O que você pode alterar
 
 - **Somente `student/`.** É a única pasta entregue: a avaliação copia `student/`
-  para uma árvore limpa do curso e ignora o resto.
+  para uma árvore limpa do curso e ignora o resto. Isso inclui as suítes de
+  teste de unidade em `student/tests/<suíte>/`.
 - **Nunca altere** `hardware/`, `models/`, `scripts/`, `tests/`, `web/`,
   `manifest/` nem os documentos para fazer um cenário passar. Se um cenário ou
   modelo parecer errado, explique ao aluno e pare; não contorne.
@@ -47,21 +48,25 @@ protegidas não se aplicam; siga então [`docs/agent-context.md`](docs/agent-con
    nada.
 3. **Meça a qualidade com as ferramentas do curso**, nunca com outra métrica
    inventada:
-   - `scripts/firmware-coverage.py`: cobertura de linhas (meta ≥ 95%);
-   - `scripts/mutation-test.py --coverage <pasta da cobertura>`: escore de
-     mutação (meta ≥ 90%);
+   - `scripts/firmware-coverage.py`: cobertura de linhas por cenários e
+     testes de unidade que passam (meta ≥ 95%);
    - `scripts/static-check.py`: zero achados;
-   - `scripts/grade.py`: tudo junto, com portões e pontos.
+   - `scripts/grade.py`: tudo junto, com portões e pontos;
+   - `scripts/mutation-test.py --coverage <pasta da cobertura>`: retorno sem
+     nota; um mutante sobrevivente é uma regra sem teste.
 
    Os detalhes estão em [`docs/grading-tools.md`](docs/grading-tools.md). Os
    números do aluno são um limite inferior: a avaliação acrescenta cenários
    ocultos.
-4. **Melhore as métricas pelo caminho honesto.** Uma linha não coberta indica
-   um requisito sem cenário ou código morto: remova o código morto ou explique
-   qual cenário público o exercita. Um mutante sobrevivente indica uma regra
-   que nenhum cenário verifica: confira o requisito. Use `LCOV_EXCL_LINE` e
-   `mutation-equivalent.json` só em caso justificado, sempre com o motivo, e
-   avise o aluno de que ele terá de defender cada exclusão.
+4. **Cubra com testes de verdade.** Separe a lógica da camada fina que chama
+   os drivers e teste a lógica em `student/tests/<suíte>/` com ztest e FFF
+   (veja o exemplo em `student/tests/unit/` e a seção "Testes de unidade" do
+   desafio). Os falsos do FFF produzem os erros de driver que os cenários não
+   produzem. Cada teste precisa **verificar** o resultado com `zassert_*`;
+   executar a linha sem verificar nada não é teste. Não remova verificações
+   de erro para subir a cobertura. Use `LCOV_EXCL_LINE` só para o que nem
+   modelo nem teste alcançam, sempre com o motivo, e avise o aluno de que ele
+   terá de defender cada exclusão.
 5. **Mantenha `student/REGISTRO_IA.md` atualizado** a cada tarefa: o que foi
    pedido, o que você propôs, o que o aluno aceitou ou rejeitou e como foi
    verificado (cenário, métrica).

@@ -103,7 +103,10 @@ class Scoring(unittest.TestCase):
         self.assertEqual(runner.verdict(0, [passing])["status"], "survived")
         self.assertEqual(runner.verdict(1, [passing, failing]),
                          {"status": "killed", "killed_by": "b"})
-        self.assertEqual(runner.verdict(-9, [passing])["killed_by"], "timeout")
+        # Host time is never a verdict: virtual time runs whatever the firmware does.
+        self.assertEqual(runner.verdict(-9, [passing])["status"], "error")
+        unfinished = {"name": "d", "finished": False, "failure": None}
+        self.assertEqual(runner.verdict(1, [unfinished])["status"], "error")
         self.assertEqual(runner.verdict(1, [harness])["status"], "error")
         self.assertEqual(runner.verdict(1, [])["status"], "error")
 

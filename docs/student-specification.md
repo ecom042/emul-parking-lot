@@ -301,9 +301,10 @@ Trace gaps/transport errors are harness failures, not passes or automatically
 student faults. Owner-local traces cannot resolve every same-timestamp
 cross-owner ordering; see [assessment limits](scenarios.md#continuous-safety-and-every-green-authorization).
 
-Grading gates, points, line-coverage and mutation-score requirements are
-defined in the Portuguese [challenge brief](desafio.md#avaliação) and measured
-by the [grading tools](grading-tools.md). Publish the collaboration/AI and
+Grading gates, points and the line-coverage requirement (scenarios plus the
+student's ztest/FFF unit suites) are defined in the Portuguese
+[challenge brief](desafio.md#avaliação) and measured by the
+[grading tools](grading-tools.md). Publish the collaboration/AI and
 resubmission rules before assessment.
 
 ### Proposed AI-use baseline, pending course approval

@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Mutation score of the student firmware under real scenarios on Renode.
 
+Feedback only: it is not part of the grade. Surviving mutants show rules that
+no scenario or unit test checks.
+
 Needs a finished scripts/firmware-coverage.py run of the same, unchanged
 sources (--coverage DIR). Each mutant changes one place in <app>/src. A copy
 of the application is mutated, rebuilt, and run against the passing scenarios
-that cover the mutated line; a scenario failure kills the mutant. A mutant on
-a line no passing scenario reaches survives without running. Lines without a
+that cover the mutated line; a scenario failure kills the mutant. Passing unit
+suites (<app>/tests/<suite>, ztest + FFF) that cover the line run first. A
+mutant on a line nothing passing reaches survives without running. Lines without a
 DWARF address (#define values, initializers) run against every passing
 scenario. Compile errors are invalid and assessments that stop without a
 failing scenario are errors; neither counts.
@@ -24,7 +28,7 @@ import threading
 import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from grading import mutants as mutation, workspace  # noqa: E402
+from grading import mutants as mutation, unit, workspace  # noqa: E402
 
 EQUIVALENT_FILE = "mutation-equivalent.json"
 EQUIVALENT_CAP = 0.05
@@ -41,6 +45,8 @@ def parse_args(argv=None):
     ap.add_argument("--sample", type=int, default=60,
                     help="mutants to evaluate, chosen with --seed (default 60; 0 = all)")
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--mutant", action="append", default=[],
+                    help="evaluate only this mutant id (repeatable); overrides --sample")
     ap.add_argument("--jobs", type=int, default=4, help="parallel mutants (default 4)")
     ap.add_argument("--min", type=float, help="exit 1 below this mutation score percent")
     return ap.parse_args(argv)
@@ -129,20 +135,49 @@ def executable(coverage):
 
 
 def verdict(code, records):
-    """killed: a scenario failed (firmware failure or unfinished) or timed out.
-    error: the assessment stopped without a failing scenario (harness
-    problem); it is reported and does not count. survived: all passed."""
+    """killed: a scenario reported a firmware failure.
+    error: host time ran out or the harness stopped without a firmware
+    failure; it is reported and does not count. Virtual time keeps running
+    whatever the firmware does, so a host timeout is never a verdict.
+    survived: every scenario passed."""
     if code == -9:
-        return {"status": "killed", "killed_by": "timeout"}
+        return {"status": "error", "error": "host timeout"}
     for record in records:
         failure = record.get("failure") or {}
-        if failure.get("kind") == "harness_failure":
-            return {"status": "error", "error": failure.get("message")}
-        if not workspace.passed(record):
+        if failure.get("kind") == "firmware_failure":
             return {"status": "killed", "killed_by": record["name"]}
+        if not workspace.passed(record):
+            return {"status": "error",
+                    "error": failure.get("message") or "host time ran out before the end"}
     if code != 0:
         return {"status": "error", "error": f"assessment exited {code} without a failing scenario"}
     return {"status": "survived"}
+
+
+def run_suites(module, renode, work, suites, coverage, builds):
+    """Run the unit suites (fast) before any scenario; a failing test kills."""
+    for name in suites:
+        suite = work / "app/tests" / name.split(":", 1)[1]
+        out = work / "unit" / suite.name
+        (out / "console.log").unlink(missing_ok=True)
+        if name not in builds:
+            shutil.rmtree(out, ignore_errors=True)
+            job, error = unit.prepare(module, renode, out, suite, coverage["cmake_args"])
+            if error:
+                return {"status": "invalid"}
+            builds[name] = job
+        else:
+            build, _, _ = workspace.lab.commands(module, renode, out, headless="all", app=suite,
+                                                 cmake_args=coverage["cmake_args"])
+            if workspace.run_one(build, out / "build.log", workspace.BUILD_TIMEOUT_S):
+                return {"status": "invalid"}
+        code = workspace.run_one(*builds[name])
+        status, failed = unit.outcome(out, code)
+        if status == "fail":
+            return {"status": "killed", "killed_by": f"{name} {', '.join(failed)}".strip()}
+        if status != "pass":
+            return {"status": "error", "error": f"{name}: {status}"}
+    return {}
 
 
 def evaluate(args, output, coverage, chosen):
@@ -172,6 +207,7 @@ def evaluate(args, output, coverage, chosen):
                                                    app=work / "app",
                                                    cmake_args=coverage["cmake_args"])
         prepared = False
+        suite_builds = {}
         while True:
             with lock:
                 if not queue:
@@ -186,15 +222,21 @@ def evaluate(args, output, coverage, chosen):
                 code = workspace.run_one(prepare, work / "prepare.log",
                                          workspace.PREPARE_TIMEOUT_S)
                 prepared = code == 0
+            suites = [n for n in names if n.startswith("unit:")]
+            scenarios = [n for n in names if not n.startswith("unit:")]
             if code != 0:
                 result["status"] = "invalid"
             else:
-                limit = STARTUP_S + 2 * sum(coverage["scenario_elapsed_s"].get(n) or 60
-                                            for n in names)
+                result.update(run_suites(module, renode, work, suites, coverage, suite_builds))
+            if "status" not in result and not scenarios:
+                result["status"] = "survived"
+            elif "status" not in result:
+                limit = STARTUP_S + 4 * sum(coverage["scenario_elapsed_s"].get(n) or 60
+                                            for n in scenarios)
                 run = work / "run"
                 code = workspace.run_one(
                     workspace.assess_command(module, renode, work / "firmware/boot.resc", run,
-                                             names, scenario_dirs),
+                                             scenarios, scenario_dirs),
                     work / "run.log", limit)
                 result.update(verdict(code, workspace.records(run)))
                 shutil.rmtree(run, ignore_errors=True)
@@ -231,7 +273,13 @@ def main(argv=None):
     coverage = load_coverage(args.coverage.resolve())
     app = Path(coverage["app"])
     found = candidates(app)
-    chosen = choose(found, args.sample, args.seed)
+    if args.mutant:
+        unknown = set(args.mutant) - {m.id for m in found}
+        if unknown:
+            raise SystemExit(f"unknown mutant id(s): {', '.join(sorted(unknown))}")
+        chosen = [m for m in found if m.id in set(args.mutant)]
+    else:
+        chosen = choose(found, args.sample, args.seed)
     declared, problems = equivalents(app)
     began = time.monotonic()
     results = evaluate(args, output, coverage, chosen)
