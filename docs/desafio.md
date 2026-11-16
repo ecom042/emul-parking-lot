@@ -29,6 +29,180 @@ consulte os contratos conforme precisar: [protocolos](device-protocols.md),
 [modelos de hardware](hardware-models.md), [modelo físico](physical-model.md)
 e [cenários](scenarios.md).
 
+## O cenário
+
+![Visão geral do estacionamento e vista lateral de uma faixa, com os equipamentos numerados](img/estacionamento.svg)
+
+O estacionamento tem uma **faixa de entrada** e uma **faixa de saída**, cada
+uma com o mesmo conjunto de equipamentos (① a ⑧ na figura). Só a saída tem o
+**terminal de pagamento** ⑨ com o seu **display** ⑩. As duas faixas funcionam
+ao mesmo tempo e dividem o mesmo ADC4 e a mesma tabela de sessões. O carro é
+um ponto que anda numa reta: começa a 6000 mm da cancela, aproxima-se, cruza o
+plano da cancela (0 mm) e termina a −2000 mm, do outro lado.
+
+Um ciclo completo na **entrada**:
+
+1. O carro se aproxima. Com a cancela fechada, a distância fica abaixo de
+   1000 mm (código ADC < 683): o firmware pede uma captura à câmera.
+2. A câmera responde com a placa e a confiança. Placa válida, confiança
+   ≥ 85, sem sessão e com vaga livre: a entrada é autorizada.
+3. O firmware liga o motor no sentido de abrir até o fim de curso superior,
+   desliga o motor e só então acende o verde.
+4. O carro passa: o feixe fica ativo e depois inativo, e a distância passa de
+   1500 mm (código > 1024). Só agora a sessão é criada.
+5. O firmware apaga o verde, acende o vermelho e fecha a cancela até o fim de
+   curso inferior.
+
+Na **saída** é igual, mas entre os passos 2 e 3 a placa precisa ter uma
+sessão ativa, o firmware calcula a tarifa, desenha a cobrança no display e
+manda a cobrança ao terminal. A cancela só abre com a confirmação `PAID`
+correta, e a passagem encerra a sessão e libera a vaga. Qualquer situação
+fora do normal leva à **assistência**: motor parado, verde apagado, vermelho
+aceso e um pulso no buzzer.
+
+Os pinos de cada faixa estão no [mapa de pinos](hardware-models.md#pin-map).
+No devicetree, as propriedades de `zephyr,user` têm o prefixo da faixa
+(`entry-enable-gpios`, `exit-red-gpios`…). Todas as entradas são ativas em
+nível alto, com pull-down, e todas as saídas são ativas em nível alto.
+
+### ①②③ Cancela: motor, braço e fins de curso
+
+A "cancela" não é uma saída única: são **duas saídas** que comandam o motor e
+**duas entradas** que dizem onde o braço está.
+
+| Sinal | Entrada | Saída | Função |
+|---|---|---|---|
+| Motor liga (*enable*) | PB12 | PB1 | Alto: o motor gira. Baixo: para no próximo passo de 10 ms. |
+| Motor direção | PB13 | PB2 | Alto abre (sobe), baixo fecha (desce). Sozinha não move nada. |
+| Fim de curso superior | PC5 (EXTI 16) | PC2 (EXTI 13) | Alto exatamente quando o braço está em 90° (aberta). |
+| Fim de curso inferior | PC6 (EXTI 17) | PC3 (EXTI 14) | Alto exatamente quando o braço está em 0° (fechada). |
+
+- O braço gira a 45°/s: de fechado a aberto leva 2 s. O firmware tem
+  **2500 ms** para abrir ou fechar; passou disso, é falha (assistência).
+- Trocar a direção depois de um movimento custa 100 ms parado.
+- **O modelo nunca desliga o motor.** No fim do curso o braço para no batente,
+  mas o motor continua ligado até o firmware desligá-lo. Quem para o motor é o
+  firmware, ao ver o fim de curso (pela interrupção EXTI).
+- Na partida o braço está fechado: inferior aceso, superior apagado.
+- Falhas que os cenários podem provocar: **travamento** (o braço não se move e
+  o fim de curso esperado nunca chega), **fim de curso ausente** (superior ou
+  inferior nunca acende) e **fins de curso contraditórios** (os dois acesos ao
+  mesmo tempo, o que trava em assistência até o reset).
+
+### ④⑤ Sinal vermelho/verde e buzzer
+
+| Sinal | Entrada | Saída |
+|---|---|---|
+| Vermelho / verde / buzzer | PE2 / PE3 / PE4 | PD1 / PD2 / PD3 |
+
+O vermelho fica aceso enquanto o carro espera, é identificado, paga ou a
+cancela fecha. O verde só acende com a cancela no fim de curso superior **e o
+motor desligado**. Na assistência, o buzzer dá um pulso de 100 ms (o cenário
+vê a transição do pino; não há som).
+
+### ⑥ Feixe de passagem e obstrução
+
+Um sensor óptico atravessa a faixa no plano da cancela: PC8 (entrada), PC4
+(saída), com EXTI. Alto quer dizer "tem algo no feixe". Ele é **independente**
+da distância e do braço: o cenário o aciona quando quer. Serve para duas
+coisas:
+
+- **Passagem:** depois de abrir, o feixe precisa ficar ativo e depois inativo,
+  com o carro já a mais de 1500 mm, em até 10000 ms.
+- **Obstrução:** feixe ativo durante o fechamento obriga a desligar o motor em
+  até 10 ms, sem reverter nem religar sozinho.
+
+### ⑦ Sensor de distância (ADC4)
+
+Cada faixa tem um sensor ligado a um canal do **mesmo** conversor ADC4:
+canal 17 (PD13) na entrada e canal 18 (PB0) na saída. O código de 12 bits é
+proporcional à distância do carro até o plano da cancela:
+
+| Distância | 0 mm | 1000 mm | 1500 mm | 3000 mm | 6000 mm ou mais |
+|---|---:|---:|---:|---:|---:|
+| Código | 0 | 682 | 1023 | 2047 | 4095 |
+
+- Código **< 683**: o carro chegou (inicia a captura). Código **> 1024**: o
+  carro saiu (abandona a identificação ou o pagamento, conclui a passagem,
+  rearma depois de uma assistência). Entre os dois, nada muda: é essa folga
+  que absorve o ruído.
+- O sensor é atualizado a cada 10 ms. O cenário pode somar ruído de até ±64
+  códigos.
+- Use o driver **assíncrono** (`adc_read_async`): uma conversão por vez,
+  alternando os dois canais, com o resultado observado em até 100 ms e sem
+  bloquear o resto do firmware enquanto ela não termina.
+
+### ⑧ Câmera de placas (UART)
+
+Cada faixa tem uma câmera numa UART própria: USART3 (PD8 TX / PD9 RX) na
+entrada e USART2 (PD5 TX / PD6 RX) na saída. A câmera **não vê o carro**: a
+placa e a confiança são configuradas pelo cenário, e o firmware só as conhece
+pela UART. O protocolo é de comandos AT, com linhas terminadas em CR LF:
+
+```text
+firmware → câmera   AT+CAPTURE=17\r\n
+câmera → firmware   OK\r\n                        (aceitou o pedido; ainda não é a placa)
+câmera → firmware   +PLATE:17,"ABC1D23",93\r\n     (ID da captura, placa, confiança 0..100)
+```
+
+- Cada tentativa usa um **ID novo** e tem 1000 ms para a resposta completa.
+  São no máximo três tentativas; confiança < 85 ou prazo esgotado passam à
+  próxima. Esgotadas, assistência.
+- A resposta chega em pedaços de até 8 bytes, 10 ms entre eles, cerca de
+  100 ms depois do pedido. O firmware precisa montar a linha.
+- Placa válida: três letras, um algarismo, uma letra ou algarismo, dois
+  algarismos (`ABC1D23`, `ABC1234`). Resposta com outro ID, malformada ou com
+  mais de 128 bytes é descartada.
+- O cenário pode mandar confiança baixa, atrasar a resposta ou só responder
+  `OK` e nunca mandar a placa.
+
+### ⑨ Terminal de pagamento (UART)
+
+Só na saída, na LPUART1 (PG7 TX / PG8 RX). Protocolo `P1`, linhas terminadas
+só em LF, campos separados por um espaço:
+
+```text
+firmware → terminal   P1 CHARGE 3f2a9c10-7b4e-4d21-9a6f-0c5e8b7d12c1 ABC1D23 400 BRL\n
+terminal → firmware   P1 RESULT 3f2a9c10-7b4e-4d21-9a6f-0c5e8b7d12c1 PAID 400 BRL\n
+```
+
+- Cada tentativa de saída tem um **UUID** novo (36 caracteres hexadecimais
+  minúsculos no formato `8-4-4-4-12`). O valor é em **centavos inteiros** e não
+  muda depois da primeira cobrança.
+- Sem resposta em 1000 ms, reenvie **a mesma** cobrança (mesmo UUID e valor),
+  no máximo três envios no total. O terminal reconhece o reenvio e não cobra
+  duas vezes.
+- Só `PAID` com o UUID atual e o mesmo valor abre a cancela. `CANCELLED`,
+  respostas malformadas, de um UUID antigo ou com outro valor nunca abrem.
+  Para desistir, invalide o UUID e mande `P1 CANCEL <uuid>\n`.
+- O cenário pode atrasar, omitir, cancelar ou corromper a resposta.
+
+A tarifa é `200 + (unidades − 1) × 100` centavos, em que as unidades são o
+tempo virtual estacionado, contado desde a passagem na entrada, dividido por
+`CONFIG_PARKING_TARIFF_UNIT_MS`, arredondado para cima e no mínimo 1 (60000 ms
+por padrão; 1000 ms nos cenários e 5000 ms no laboratório interativo). Exemplo com unidade de 1000 ms: 2,5 s estacionado são 3 unidades,
+400 centavos, `BRL 4.00`.
+
+### ⑩ Display do terminal (SPI)
+
+Um controlador ST7789V de 240×320 pixels, em RGB565, na SPI1 (PA5 SCK / PA6
+MISO / PA7 MOSI), com chip select PD14 (ativo baixo), D/C PD15 e reset PE0
+(ativo baixo). O firmware faz o reset por hardware, a sequência de
+inicialização (`SWRESET`, `SLPOUT`, `COLMOD 55`, `MADCTL 00`, `DISPON`) e
+desenha com `CASET`/`RASET`/`RAMWR`, com a fonte que quiser. A tela da
+cobrança mostra a placa, o valor (`BRL 4.00`), `SIMULATED PAYMENT` e
+`NOT PIX`. O cenário lê o que o modelo recebeu pela SPI; texto no console não
+conta.
+
+### O que o cenário controla
+
+Os cenários e o navegador só mexem no **ambiente**: velocidade do carro e
+próximo carro, feixe, travamento, falhas de fim de curso, ruído do ADC,
+configuração da câmera e do terminal, pausa e reset. Eles nunca escrevem nos
+pinos de saída nem no código do ADC; o firmware nunca escreve no estado dos
+modelos. Os detalhes estão em [modelo físico](physical-model.md),
+[protocolos](device-protocols.md) e [cenários](scenarios.md).
+
 ## Regras do jogo
 
 1. **Você só entrega `student/`.** Na avaliação, a sua pasta `student/` é
@@ -151,18 +325,10 @@ projeto:
    (`FAKE_VALUE_FUNC(int, hw_motor_ligar, bool)`) e teste os dois lados:
    o caminho normal e o erro (`hw_motor_ligar_fake.return_val = -EIO`).
 
-Os testes de unidade complementam os cenários, não os substituem: os portões
-e os pontos de cenários continuam medindo o firmware inteiro.
-
-### Escore de mutação: retorno, sem nota
-
-`scripts/mutation-test.py` ([detalhes](grading-tools.md#mutation-score))
-cria cópias do seu código com um erro pequeno cada (`<` vira `<=`, `&&` vira
-`||`, uma constante muda, uma chamada some…) e roda os testes de unidade e os
-cenários que passam pela linha alterada. Um mutante que **sobrevive** aponta
-uma regra que nenhum teste verifica. Não vale nota; use para descobrir onde
-falta um teste. Cobrir uma linha não basta: o teste precisa verificar o
-resultado.
+Cada teste precisa **verificar** o resultado com `zassert_*`: executar uma
+linha sem verificar nada não é teste. Os testes de unidade complementam os
+cenários, não os substituem: os portões e os pontos de cenários continuam
+medindo o firmware inteiro.
 
 ## Como se autoavaliar
 
@@ -177,9 +343,6 @@ python scripts/firmware-coverage.py --module "$ZVB_MODULE" \
   --renode "$RENODE_ROOT/renode" --output build/cobertura-01
 python scripts/static-check.py --module "$ZVB_MODULE" \
   --renode "$RENODE_ROOT/renode" --output build/estatica-01
-python scripts/mutation-test.py --module "$ZVB_MODULE" \
-  --renode "$RENODE_ROOT/renode" --output build/mutacao-01 \
-  --coverage build/cobertura-01 --sample 20 --seed 7   # retorno, sem nota
 ```
 
 `firmware-coverage.py` roda todos os cenários públicos e as suas suítes de
@@ -220,6 +383,5 @@ O agente pode escrever código, mas **quem é avaliado é você**:
 
 Bons pedidos para o agente: "explique o REQ-05 com os seus próprios exemplos",
 "escreva a máquina de estados da entrada antes de codificar", "rode
-`firmware-coverage.py` e explique cada linha não coberta", "que teste de
-unidade com FFF cobre o erro deste driver?", "qual mutante sobreviveu e que
-asserção o mataria?".
+`firmware-coverage.py` e explique cada linha não coberta" e "que teste de
+unidade com FFF cobre o erro deste driver?".

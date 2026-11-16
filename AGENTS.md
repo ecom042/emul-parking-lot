@@ -51,9 +51,7 @@ protegidas não se aplicam; siga então [`docs/agent-context.md`](docs/agent-con
    inventada:
    - `scripts/firmware-coverage.py`: cobertura de linhas por cenários e
      testes de unidade que passam (meta ≥ 95%);
-   - `scripts/static-check.py`: zero achados;
-   - `scripts/mutation-test.py --coverage <pasta da cobertura>`: retorno sem
-     nota; um mutante sobrevivente é uma regra sem teste.
+   - `scripts/static-check.py`: zero achados.
 
    Os detalhes estão em [`docs/grading-tools.md`](docs/grading-tools.md). Os
    números do aluno são um limite inferior: a avaliação acrescenta cenários

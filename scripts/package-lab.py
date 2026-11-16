@@ -28,7 +28,7 @@ ROOT_FILES = {
 EXTENSIONS = {
     ".c", ".h", ".cs", ".py", ".sh", ".cjs", ".js", ".html", ".css",
     ".md", ".txt", ".conf", ".overlay", ".repl", ".resc", ".robot",
-    ".json", ".yaml", ".yml", ".toml",
+    ".json", ".yaml", ".yml", ".toml", ".svg",
 }
 SPECIAL_FILES = {"CMakeLists.txt", "Kconfig"}
 EXCLUDED = {
@@ -74,7 +74,8 @@ def student_source(relative):
     """Curate host infrastructure; never infer that every test/doc is a handout."""
     parts = relative.parts
     if parts[0] == "docs":
-        return len(parts) == 2 and parts[1] in STUDENT_DOCS
+        return ((len(parts) == 2 and parts[1] in STUDENT_DOCS)
+                or (len(parts) == 3 and parts[1] == "img" and relative.suffix == ".svg"))
     if parts[0] == "scripts":
         return Path(*parts[1:]).as_posix() in STUDENT_SCRIPTS
     if parts[0] == "tests":
