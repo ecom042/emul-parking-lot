@@ -27,6 +27,9 @@ def source_hashes(root, directories):
 # uses 5000 ms so that stays of a few virtual seconds show different prices.
 TARIFF_UNIT_MS = {"headless": 1000, "interactive": 5000}
 
+# Hosts with an official Renode 1.17.0 portable build and a Zephyr SDK 1.0.1.
+SUPPORTED_HOSTS = {("Darwin", "arm64"), ("Linux", "x86_64"), ("Linux", "aarch64")}
+
 
 def commands(module, renode, output, headless=None, capacity=None, app=None, cmake_args=()):
     """Build, prepare and launch commands. Grading tools pass another `app`
@@ -77,8 +80,8 @@ def main():
     ap.add_argument("--headless", choices=["all"] + sorted(
         p.stem for p in (ROOT / "tests/scenarios").glob("*.json")))
     args = ap.parse_args()
-    if platform.system() != "Darwin" or platform.machine() != "arm64":
-        ap.error("only macOS arm64 is an evidenced host; Linux/Windows are unvalidated")
+    if (platform.system(), platform.machine()) not in SUPPORTED_HOSTS:
+        ap.error("supported hosts: Linux x86_64/aarch64 and macOS arm64 (see docs/setup.md)")
     if sys.version_info[:2] != (3, 12):
         ap.error("use the documented Python 3.12 virtual environment")
     module, renode, output = (p.resolve() for p in
@@ -93,7 +96,7 @@ def main():
         ap.error("--renode must be the verified official native executable")
     sdk = Path(os.environ.get("ZEPHYR_SDK_INSTALL_DIR", ""))
     if not (sdk / "sdk_version").is_file() or (sdk / "sdk_version").read_text().strip() != "1.0.1":
-        ap.error("set ZEPHYR_SDK_INSTALL_DIR to the existing arm64 Zephyr SDK 1.0.1")
+        ap.error("set ZEPHYR_SDK_INSTALL_DIR to the Zephyr SDK 1.0.1 for this host")
     if not (ROOT / ".west/config").is_file():
         ap.error("initialize the documented local west workspace first")
     try:

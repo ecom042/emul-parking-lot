@@ -9,10 +9,9 @@ controller or solved peripheral probes. Students design the solution.
 The reviewed ZVB fixes are published and pinned at
 `aed53b3cedad1e93d6a92837ce79d8cd7198d2af`; use the downloaded module as
 described in [setup](setup.md). Project-owned source and documentation use
-[Apache-2.0](../LICENSE). Existing runtime
-evidence is macOS arm64 development evidence, including cached dependencies and
-an existing SDK, **not a clean operating-system installation** or validation of
-Linux/Windows. Read the [setup guide](setup.md) before starting.
+[Apache-2.0](../LICENSE). Supported hosts are Linux x86_64/aarch64 and macOS
+arm64; native Windows is not supported. Read the [setup guide](setup.md), or
+the Portuguese [installation guide](instalacao.md), before starting.
 
 Implement a Zephyr controller for `nucleo_u5a5zj_q` that runs a parking lot
 with an entry lane and an exit lane at the same time, and up to

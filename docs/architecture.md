@@ -10,7 +10,7 @@ The current configuration uses `nucleo_u5a5zj_q`, an entry lane and an exit
 lane working concurrently (one point vehicle each), and a lot of up to
 `CONFIG_PARKING_CAPACITY` parking sessions. The required workflow is bounded teaching behavior,
 not a production parking product or a certified safety controller.
-Only macOS arm64 has runtime qualification. See [setup](setup.md) for versions
+Supported hosts are Linux x86_64/aarch64 and macOS arm64. See [setup](setup.md) for versions
 and [hardware models](hardware-models.md) for peripheral limitations.
 
 ## Components and ownership

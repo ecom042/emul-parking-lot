@@ -77,8 +77,9 @@ NVIC masking write that does not cause the intended fault is not valid evidence.
 
 ## Tooling compatibility and provenance
 
-The supported official Renode package is 1.17.0 macOS arm64, reporting
-`1.17.0+20260906gitf1dd1b4af`, .NET 8.0.21. Its Infrastructure gitlink is
+The supported official Renode packages are the 1.17.0 portable builds for
+macOS arm64 (.NET 8.0.21) and Linux x86_64/arm64 (.NET 8.0.16). All report
+`1.17.0+20260906gitf1dd1b4af`, which `lab.py` checks. Its Infrastructure gitlink is
 `cd4b002aac2398994c4a61a34a8b31b5700facf2`; do not infer a submodule revision
 from an unrelated retained source snapshot. The pinned STM32 HAL revision used
 for model analysis is `39130f29ae37c1db34095478ca02b6419b70dcdc`.
@@ -101,9 +102,33 @@ runtime; a timeout is never a successful compilation or integration result.
 
 - Raw simultaneous ADC `ADEN|ADDIS` writes have limited semantics in the model.
   The pinned HAL masks command bits, but broader MMIO support needs tests.
-- Only macOS arm64 has runtime evidence. Fixed-clock/RCC accuracy, ADC1/DMA,
+- Linux x86_64 has no local runtime evidence (see below). Fixed-clock/RCC accuracy, ADC1/DMA,
   complete display-driver support, durable sessions and hostile-code isolation
   are not implemented guarantees.
+
+## Linux host validation
+
+A clean Ubuntu 24.04 aarch64 container (2 CPUs, 2 GB RAM) followed
+[instalacao.md](instalacao.md) from a student package: apt packages, SDK
+minimal + `setup.sh -t arm-zephyr-eabi`, Renode linux-arm64 portable,
+bootstrap, `lab.py --headless normal` (expected starter firmware failure),
+the browser session/snapshot API and Ctrl-C teardown, and the coverage tool on
+the instructor solution: all 19 public scenarios pass, the ztest template
+suite passes.
+
+- **Memory.** Renode peaked near 1.7 GB resident on that 2 GB host, against
+  about 840 MB on a 16 GB macOS host. Two parallel Renode processes were
+  killed by the kernel OOM killer; the harness then reported `runtime
+  disconnected`. The tools therefore treat a harness failure as the host
+  status `error`, retried alone like a timeout, and size `--jobs` by RAM
+  (`workspace.default_jobs`, 2 GB per process).
+- **x86_64.** Only emulated with qemu-user in an arm64 VM, which is not a
+  usable test bed: the packages, pip and `west update` worked and the SDK
+  checksum and `--version` passed, but `arm-zephyr-eabi-gcc` segfaulted during
+  the build and Renode's .NET runtime was killed at `--version`. x86_64
+  runtime behaviour is therefore not evidenced. The steps are identical apart
+  from the asset names; validate on a native x86_64 Linux host (or a VM with
+  Rosetta) before relying on it.
 
 ## Validation records
 

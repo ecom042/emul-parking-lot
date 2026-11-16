@@ -1,6 +1,6 @@
 """Run a command with a host deadline and retain its output and metadata.
 
-Requires POSIX process groups (the validated host is macOS). Only the process
+Requires POSIX process groups (Linux or macOS). Only the process
 group started by this script is terminated on timeout or cancellation; other
 labs are untouched. Descendants that create a separate session are not covered.
 """

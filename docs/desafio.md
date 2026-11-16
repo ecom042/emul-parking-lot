@@ -23,9 +23,9 @@ O ponto de partida em `student/` é inerte de propósito: motor, verde e buzzer
 desligados, vermelho aceso. Ele reprova nos cenários até você implementar o
 controlador.
 
-Leia primeiro o [setup](setup.md) e a
-[especificação do aluno](student-specification.md). Depois consulte os
-contratos conforme precisar: [protocolos](device-protocols.md),
+Instale o ambiente com o [guia de instalação](instalacao.md) (Linux ou
+macOS) e leia a [especificação do aluno](student-specification.md). Depois
+consulte os contratos conforme precisar: [protocolos](device-protocols.md),
 [modelos de hardware](hardware-models.md), [modelo físico](physical-model.md)
 e [cenários](scenarios.md).
 
@@ -167,7 +167,7 @@ resultado.
 ## Como se autoavaliar
 
 A nota é calculada pelo professor. Para acompanhar o seu progresso, rode
-as mesmas ferramentas de medição com o ambiente do [setup](setup.md) ativo,
+as mesmas ferramentas de medição com o [ambiente](instalacao.md#5-variáveis-de-cada-sessão) ativo,
 na raiz do repositório:
 
 ```sh

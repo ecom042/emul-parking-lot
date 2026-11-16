@@ -8,49 +8,65 @@ Project-owned source and documentation use [Apache-2.0](../LICENSE).
 The [release checklist](release-checklist.md) retains the classroom and
 reproducibility qualifications.
 
-## First supported host and prerequisites
+## Supported hosts and prerequisites
 
-Only **macOS arm64** has runtime evidence. Linux, Windows, Intel macOS,
-containers and clean operating-system installations are not validated.
-Install prerequisites through your institution's approved process; commands
-here do not install global applications, alter a firewall or export Zephyr
-globally. A supported browser must run locally; Chrome is the tested browser.
-Use an existing **arm64 Zephyr SDK 1.0.1**, GNU Arm GCC **14.3.0**, Python
-**3.12.16**, CMake **4.4.5**, Ninja **1.13.2**, dtc **1.8.1** and Git.
-These are evidenced versions, not a claim that all other versions fail.
-SDK downloads/toolchain selection must match host arm64 and target
-`arm-zephyr-eabi`; an x86 host SDK is not interchangeable.
+Students follow the Portuguese [installation guide](instalacao.md), which
+gives the same steps command by command. Supported hosts are **Linux x86_64
+and aarch64** and **macOS arm64**: the platforms with both an official
+Renode 1.17.0 portable build and a Zephyr SDK 1.0.1. `lab.py` refuses other
+hosts, such as native Windows. Clean-installation evidence exists for Ubuntu
+24.04 aarch64 in a container; x86_64 Linux is not yet runtime-validated (see
+[agent context](agent-context.md#linux-host-validation)). macOS arm64 is the
+development host. Commands here do not install global
+applications, alter a firewall or export Zephyr globally. A supported browser
+must run locally; Chrome is the tested browser.
 
-Check before setup (substitute the existing SDK path):
+Required: Python **3.12**, Git, CMake ≥ 3.20, Ninja, dtc, and the Zephyr SDK
+**1.0.1** for the host (GNU Arm GCC **14.3.0**, target `arm-zephyr-eabi`).
+Validated versions: Ubuntu 24.04 packages (Python 3.12.3, CMake 3.28.3, Ninja
+1.11.1, dtc 1.7.0) and, on macOS, Python 3.12.16, CMake 4.4.5, Ninja 1.13.2,
+dtc 1.8.1. These are evidenced versions, not a claim that others fail.
+
+On Ubuntu 24.04:
 
 ```sh
-uname -s
-uname -m
+sudo apt-get install --no-install-recommends git cmake ninja-build \
+  device-tree-compiler python3 python3-venv python3-dev wget xz-utils \
+  file ca-certificates unzip
+```
+
+The SDK's minimal bundle plus one toolchain is enough
+(`zephyr-sdk-1.0.1_<host>_minimal.tar.xz`, where `<host>` is `linux-x86_64`,
+`linux-aarch64` or `macos-aarch64`, checked against the release's
+`sha256.sum`, then `./setup.sh -t arm-zephyr-eabi`). Check before setup:
+
+```sh
 python3.12 --version
-git --version
-cmake --version
-ninja --version
-dtc --version
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --version
 export ZEPHYR_SDK_INSTALL_DIR="/absolute/path/to/zephyr-sdk-1.0.1"
 cat "$ZEPHYR_SDK_INSTALL_DIR/sdk_version"
-file "$ZEPHYR_SDK_INSTALL_DIR/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc"
 "$ZEPHYR_SDK_INSTALL_DIR/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc" --version
 ```
 
-Use the official [Renode 1.17.0 macOS arm64 portable release](https://github.com/renode/renode/releases/tag/v1.17.0),
-reporting `1.17.0+20260906gitf1dd1b4af`, .NET 8.0.21. Download the arm64
-portable DMG, verify it, mount it read-only, copy `Renode.app` into the
-worktree-local directory below, and eject the image.
-DMG SHA-256:
-`63b1fb691207f503cea937e4ec8fad3e068a517d0abac3c24c0206c62f6c4d12`.
-Keep its app in this worktree's ignored `build/official-renode/`, not a
-replacement of `/Applications/Renode.app`. Verify actual version output;
+Use an official [Renode 1.17.0 portable release](https://github.com/renode/renode/releases/tag/v1.17.0)
+reporting build `1.17.0+20260906gitf1dd1b4af` (`lab.py` checks it). The
+portable packages bundle .NET 8; distribution packages (`.deb`, `.rpm`) and
+PATH wrappers are not the selected runtime. Verify the SHA-256:
+
+| Host | Asset | SHA-256 |
+|---|---|---|
+| Linux x86_64 | `renode-1.17.0.linux-portable.tar.gz` | `4ba7c68b59e2447f188ef4b4b112fcccd2802582c460beedceb63b84e5605a5f` |
+| Linux aarch64 | `renode-1.17.0.linux-arm64-portable.tar.gz` | `e9051578411441bfb47b77de0381cfba3badce03663367fab561472fd7807f1f` |
+| macOS arm64 | `renode-1.17.0.osx-arm64-portable.dmg` | `63b1fb691207f503cea937e4ec8fad3e068a517d0abac3c24c0206c62f6c4d12` |
+
+On Linux, extract the archive with `--strip-components=1` into a directory of
+its own and set `RENODE_ROOT` to it. On macOS, mount the DMG read-only, copy
+`Renode.app` outside `/Applications` (for example this worktree's ignored
+`build/official-renode/`) and eject the image. Verify actual version output;
 an old PATH wrapper can return zero while printing an error.
 
 ```sh
-shasum -a 256 /path/to/downloaded-renode.dmg
-export RENODE_ROOT="$PWD/build/official-renode/Renode.app/Contents/MacOS"
+export RENODE_ROOT="/absolute/path/to/renode-1.17.0"            # Linux
+export RENODE_ROOT="$PWD/build/official-renode/Renode.app/Contents/MacOS"  # macOS
 "$RENODE_ROOT/renode" --version
 ```
 

@@ -1,4 +1,4 @@
-"""Check the initial safe starter build/launch on macOS; retain no capabilities."""
+"""Check the initial safe starter build/launch (Linux or macOS); retain no capabilities."""
 import argparse
 import http.client
 import json

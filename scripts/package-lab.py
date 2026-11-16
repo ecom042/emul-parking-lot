@@ -41,7 +41,7 @@ EXCLUDED = {
 STUDENT_DOCS = {
     "agent-context.md", "architecture.md", "browser.md", "desafio.md", "device-protocols.md",
     "grading-tools.md",
-    "hardware-models.md", "physical-model.md", "release-checklist.md",
+    "hardware-models.md", "instalacao.md", "physical-model.md", "release-checklist.md",
     "scenarios.md", "setup.md", "student-specification.md",
 }
 STUDENT_SCRIPTS = {
