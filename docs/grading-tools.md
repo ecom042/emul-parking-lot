@@ -17,8 +17,9 @@ python scripts/firmware-coverage.py --module "$ZVB_MODULE" \
 The tool builds `student/` (or `--app DIR`) with
 `CONFIG_DEBUG_OPTIMIZATIONS=y` so that lines map to code predictably, and
 the 1000 ms tariff unit of the headless fixtures. It then runs every scenario
-in its own Renode process (`--jobs`, default 4). Virtual-time deadlines belong
-to each process, so running them in parallel does not change any verdict.
+in its own Renode process (`--jobs`: by default up to 4, limited by the CPUs
+and by about 2 GB of RAM per process). Virtual-time deadlines belong to each
+process, so running them in parallel does not change any verdict.
 
 During those runs `models/BlockCoverage.cs` records each distinct translation
 block the CPU starts (address and instruction count) once. That is kilobytes
@@ -32,10 +33,13 @@ then deleted.
   runs. Code the linker discarded has no address and is not counted.
 - **Only passing scenarios and suites count.** A failing one still runs
   code, but that is not evidence of tested behaviour.
-- **Host time is never a verdict.** Each scenario gets 900 host seconds
+- **The host is never a verdict.** Each scenario gets 900 host seconds
   (`assess.py --wall-timeout`; the student default stays 120). One that runs
-  out of host time before its end is a *timeout*, not a failure, and is retried
-  once on its own. Virtual-time deadlines are unaffected by host load.
+  out of host time before its end is a *timeout*; one whose simulator stops
+  without a firmware failure (for example, killed when the host runs out of
+  memory) is an *error*. Neither is a failure: each is retried once on its
+  own, and if it persists it is reported as a host problem, with its lines
+  not counted. Virtual-time deadlines are unaffected by host load.
 - **Exclusions need a reason** and may cover at most 3% of executable lines:
   `/* LCOV_EXCL_LINE: reason */`, or a
   `/* LCOV_EXCL_START: reason */` … `/* LCOV_EXCL_STOP */` block. A marker

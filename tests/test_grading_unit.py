@@ -47,8 +47,16 @@ class Status(unittest.TestCase):
         self.assertEqual(workspace.status(0, ok), "pass")
         self.assertEqual(workspace.status(1, unfinished), "timeout")
         self.assertEqual(workspace.status(-9, None), "timeout")
+        crashed = {"name": "a", "finished": False,
+                   "failure": {"kind": "harness_failure", "message": "runtime disconnected"}}
         self.assertEqual(workspace.status(1, failed), "fail")
-        self.assertEqual(workspace.status(1, None), "fail")
+        self.assertEqual(workspace.status(1, crashed), "error")
+        self.assertEqual(workspace.status(1, None), "error")
+
+    def test_default_jobs_fit_the_host(self):
+        jobs = workspace.default_jobs()
+        self.assertTrue(1 <= jobs <= 4)
+        self.assertEqual(workspace.default_jobs(limit=1), 1)
 
 
 if __name__ == "__main__":

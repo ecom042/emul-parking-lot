@@ -47,7 +47,8 @@ def parse_args(argv=None):
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--mutant", action="append", default=[],
                     help="evaluate only this mutant id (repeatable); overrides --sample")
-    ap.add_argument("--jobs", type=int, default=4, help="parallel mutants (default 4)")
+    ap.add_argument("--jobs", type=int, default=workspace.default_jobs(),
+                    help="parallel mutants (default: up to 4, about 2 GB of RAM each)")
     ap.add_argument("--min", type=float, help="exit 1 below this mutation score percent")
     return ap.parse_args(argv)
 

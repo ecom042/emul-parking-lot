@@ -22,6 +22,11 @@ PREPARE_TIMEOUT_S = 60
 # Host seconds per scenario. Generous: parallel runs on a loaded host are slow
 # in wall time while every verdict stays in virtual time.
 SCENARIO_WALL_S = 900
+# A Renode process running one scenario peaks near 1.7 GB resident on Linux.
+RENODE_MEMORY_BYTES = 2 * 1024 ** 3
+# Statuses caused by the host (time, memory, a crashed simulator): never a
+# verdict about the firmware, so they are retried once, alone.
+HOST_STATUSES = ("timeout", "error")
 
 
 def _load(name, filename):
@@ -32,6 +37,15 @@ def _load(name, filename):
 
 
 lab = _load("lab", "lab.py")
+
+
+def default_jobs(limit=4):
+    """Parallel Renode processes the host can hold: CPUs and RAM permitting."""
+    try:
+        memory = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (ValueError, OSError):
+        return 1
+    return max(1, min(limit, os.cpu_count() or 1, memory // RENODE_MEMORY_BYTES))
 
 
 def new_output(path):
@@ -195,18 +209,23 @@ def passed(record):
 
 
 def status(code, record):
-    """pass, fail (a firmware failure) or timeout (host time ran out first)."""
+    """pass; fail (a firmware failure); timeout (host time ran out first); or
+    error (the simulator or harness stopped, for example killed when the host
+    ran out of memory)."""
     if record and passed(record):
         return "pass" if code == 0 else "fail"
     if code == -9 or (record and not record.get("failure")):
         return "timeout"
-    return "fail"
+    if record and record["failure"].get("kind") == "firmware_failure":
+        return "fail"
+    return "error"
 
 
 def scenario_statuses(module, renode, boot, output, names, scenario_dirs, workers,
                       trace_root=None):
     """Each scenario in its own Renode process, `workers` at a time. Host
-    timeouts are retried once, alone, so load cannot fail a scenario."""
+    timeouts and errors are retried once, alone, so neither load nor memory
+    pressure can fail a scenario."""
     def job(name, attempt):
         run = output / (name if attempt == 0 else f"{name}.retry")
         trace = None if trace_root is None else trace_root / (name if attempt == 0 else f"{name}.retry")
@@ -220,7 +239,7 @@ def scenario_statuses(module, renode, boot, output, names, scenario_dirs, worker
         found = records(planned[name][1])
         statuses[name] = status(code, found[0] if found else None)
         runs[name] = planned[name][1:]
-    for name in [n for n in names if statuses[n] == "timeout"]:
+    for name in [n for n in names if statuses[n] in HOST_STATUSES]:
         retry = job(name, 1)
         found_code = run_one(*retry[0])
         found = records(retry[1])

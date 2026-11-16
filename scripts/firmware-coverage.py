@@ -41,7 +41,8 @@ def parse_args(argv=None):
                     dest="exclude_pattern", action="append", default=[], metavar="REGEX",
                     help="drop source lines whose whole text matches REGEX (repeatable; "
                          "gcovr-compatible name, applied to lines: there are no branches)")
-    ap.add_argument("--jobs", type=int, default=4, help="parallel Renode processes (default 4)")
+    ap.add_argument("--jobs", type=int, default=workspace.default_jobs(),
+                    help="parallel Renode processes (default: up to 4, about 2 GB of RAM each)")
     ap.add_argument("--min", type=float, help="exit 1 below this line coverage percent")
     return ap.parse_args(argv)
 
@@ -114,10 +115,15 @@ def report(summary):
     for name, entry in sorted(summary["files"].items()):
         print(f"{name:<28} {entry['executable']:>6} {entry['hit']:>6} {entry['percent']:>7.2f}")
     print(f"{'total':<28} {summary['executable']:>6} {summary['hit']:>6} {summary['percent']:>7.2f}")
-    failed = [n for n, s in summary["scenarios"].items() if s != "pass"]
+    failed = [n for n, s in summary["scenarios"].items()
+              if s != "pass" and s not in workspace.HOST_STATUSES]
+    host = [n for n, s in summary["scenarios"].items() if s in workspace.HOST_STATUSES]
     if failed:
         print("scenarios/suites that did not pass (their lines are not counted):",
               ", ".join(failed))
+    if host:
+        print("host problem even after a retry (time or memory; not a firmware verdict, lines"
+              " not counted). Re-run with fewer --jobs:", ", ".join(host))
     if summary.get("excluded_by_pattern"):
         print(f"{summary['excluded_by_pattern']} executable line(s) excluded by pattern")
     for note in summary["notes"]:
