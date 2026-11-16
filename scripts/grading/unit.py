@@ -1,7 +1,7 @@
 """Student unit-test suites (ztest + FFF) on the lab board in Renode.
 
 Every directory `<app>/tests/<suite>/` with a CMakeLists.txt is a Zephyr
-application built for nucleo_u5a5zj_q like the firmware. It runs headless in
+application built for the lab board (parking_lot_u5) like the firmware. It runs headless in
 Renode on the same machine description, without a monitor port, with its
 console written to a file and its executed blocks recorded by
 models/BlockCoverage.cs. A suite passes when ztest prints

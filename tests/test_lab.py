@@ -17,7 +17,7 @@ class LabPackagingTests(unittest.TestCase):
         build, prepare, launch = lab.commands(Path("/module"), Path("/renode"),
                                               Path("/output"))
         self.assertIn(str(ROOT / "student"), build)
-        self.assertIn("nucleo_u5a5zj_q", build)
+        self.assertIn("parking_lot_u5", build)
         self.assertIn(str(ROOT / "scripts/prepare-smoke.py"), prepare)
         self.assertIn(str(ROOT / "scripts/parking-web.py"), launch)
         self.assertNotIn("--allow-external-debug", launch)
@@ -67,7 +67,7 @@ class LabPackagingTests(unittest.TestCase):
         _, prepare, _ = lab.commands(Path("/reviewed"), Path("/renode"),
                                       Path("/output"))
         self.assertEqual(prepare[-2:], [
-            "--config", str(ROOT / "student/boards/zvb/nucleo_u5a5zj_q/zvb.yml")])
+            "--config", str(ROOT / "student/boards/zvb/parking_lot_u5/zvb.yml")])
 
     def test_workspace_must_exist_and_pin_the_zephyr_version(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -103,9 +103,13 @@ class LabPackagingTests(unittest.TestCase):
             self.assertNotEqual(first, lab.source_hashes(root, ["src"]))
 
     def test_student_uses_public_hardware(self):
-        self.assertEqual((ROOT / "student/app.overlay").read_text(),
-                         '#include "../hardware/parking.overlay"\n')
-        bundle = ROOT / "student/boards/zvb/nucleo_u5a5zj_q"
+        cmake = (ROOT / "student/CMakeLists.txt").read_text()
+        self.assertIn("list(APPEND BOARD_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../hardware)", cmake)
+        board = ROOT / "hardware/boards/ufal/parking_lot_u5"
+        self.assertIn("name: parking_lot_u5", (board / "board.yml").read_text())
+        self.assertNotIn("zephyr,user", (board / "parking_lot_u5.dts").read_text())
+        self.assertFalse((ROOT / "hardware/parking.overlay").exists())
+        bundle = ROOT / "student/boards/zvb/parking_lot_u5"
         self.assertIn("hardware/renode/parking.repl", (bundle / "zvb.yml").read_text())
         self.assertEqual((bundle / "../../../../hardware/renode/parking.repl").resolve(),
                          ROOT / "hardware/renode/parking.repl")

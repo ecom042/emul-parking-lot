@@ -1,3 +1,13 @@
 description: Course native RGB565 ST7789V SPI subset
 compatible: "course,st7789v-reference"
 include: spi-device.yaml
+
+properties:
+  dc-gpios:
+    type: phandle-array
+    required: true
+    description: Data/command select output; active selects data.
+  reset-gpios:
+    type: phandle-array
+    required: true
+    description: Hardware reset output (active low on this board).

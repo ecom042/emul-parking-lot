@@ -2,7 +2,7 @@
 
 This is a local Linux development environment, not a public hosting service,
 hostile-firmware sandbox or certified safety system.
-Retain `nucleo_u5a5zj_q`, the limited ADC4 channel-18 subset, existing GPIO,
+Retain the `parking_lot_u5` board, the limited ADC4 subset, existing GPIO,
 UART/SPI/RCC limitations and the [equipment contracts](device-protocols.md).
 Debug remains **DEFERRED**.
 The old generic dashboard and its monitor/GDB routes remain disabled.

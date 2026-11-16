@@ -36,7 +36,7 @@
     <text x="655" y="112">vaga 3</text><text x="725" y="112">vaga 4</text>
   </g>
   <rect x="480" y="160" width="140" height="64" rx="6" fill="#1f5fa8"/>
-  <text x="550" y="185" fill="#fff" text-anchor="middle" font-weight="bold">nucleo_u5a5zj_q</text>
+  <text x="550" y="185" fill="#fff" text-anchor="middle" font-weight="bold">parking_lot_u5</text>
   <text x="550" y="204" fill="#fff" text-anchor="middle" font-size="12">o seu firmware</text>
   <text x="550" y="218" fill="#fff" text-anchor="middle" font-size="11">(Zephyr, simulado no Renode)</text>
   <line x1="480" y1="192" x2="312" y2="180" stroke="#1f5fa8" stroke-width="2" stroke-dasharray="5 4"/>

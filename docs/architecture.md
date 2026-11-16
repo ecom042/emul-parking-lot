@@ -6,7 +6,8 @@ This laboratory lets students implement a Zephyr parking controller without
 physical equipment. GPIO, ADC, UART and SPI operations drive observable Renode
 devices; console messages are diagnostics, not simulation commands.
 
-The current configuration uses `nucleo_u5a5zj_q`, an entry lane and an exit
+The current configuration uses the lab board `parking_lot_u5`
+(`hardware/boards/ufal/`, an STM32U5A5 derived from `nucleo_u5a5zj_q`), an entry lane and an exit
 lane working concurrently (one point vehicle each), and a lot of up to
 `CONFIG_PARKING_CAPACITY` parking sessions. The required workflow is bounded teaching behavior,
 not a production parking product or a certified safety controller.

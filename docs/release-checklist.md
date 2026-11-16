@@ -117,7 +117,7 @@ Use full module/runtime/output arguments as in setup.
   student workflow.
 
 Native Windows remains unsupported; Linux x86_64 and WSL 2 are pending a native test. Retain the
-`nucleo_u5a5zj_q`/ADC4 subset, fixed-clock/RCC/UART/SPI limitations, nondurable
+`parking_lot_u5`/ADC4 subset, fixed-clock/RCC/UART/SPI limitations, nondurable
 sessions (reset is a lab restart), car-queue runs of at most one virtual hour,
 simulated money and same-timestamp
 cross-owner observation limitation. Do not expand scope to resolve these as

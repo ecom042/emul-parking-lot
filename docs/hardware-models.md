@@ -2,9 +2,13 @@
 
 ## Board and loading
 
-The laboratory retains `nucleo_u5a5zj_q` and standard Zephyr GPIO, ADC, UART and
-SPI APIs. Shared configuration is in `hardware/parking.overlay` and
-`hardware/renode/parking.repl`. Students implement driver interaction; solved
+The laboratory uses its own board, `parking_lot_u5`
+(`hardware/boards/ufal/parking_lot_u5/`), and standard Zephyr GPIO, ADC, UART
+and SPI APIs. The board is a trimmed copy of ST's `nucleo_u5a5zj_q`: the same
+STM32U5A5ZJ, clock tree (HSE 16 MHz, PLL to 160 MHz) and console, without the
+Nucleo LEDs, button, Arduino header, USB, CAN or I2C, and with the lot's devices
+in its DTS. `student/CMakeLists.txt` adds `hardware/` to `BOARD_ROOT` and
+`DTS_ROOT`. `hardware/renode/parking.repl` wires the models. Students implement driver interaction; solved
 peripheral probes are not part of this distribution.
 
 Generated MCU descriptions are a starting point, not proof of peripheral
@@ -19,9 +23,22 @@ Renode models or manufacturer implementations.
 ## Pin map
 
 The lot has two independent lanes. Both use the same equipment contract; only
-the exit lane owns the payment terminal and its display. Devicetree properties
-in `zephyr,user` carry an `entry-` or `exit-` prefix (for example
-`entry-enable-gpios`, `exit-red-gpios`).
+the exit lane owns the payment terminal and its display. Every device has a
+devicetree alias; the lane prefix is `entry-` or `exit-`:
+
+| Alias | Node | Firmware access |
+|---|---|---|
+| `<lane>-motor-enable`, `<lane>-motor-direction` | child of `motors` (`gpio-leds`) | `GPIO_DT_SPEC_GET(DT_ALIAS(entry_motor_enable), gpios)` |
+| `<lane>-light-red`, `<lane>-light-green`, `<lane>-buzzer` | child of `signals` (`gpio-leds`) | same |
+| `<lane>-limit-upper`, `<lane>-limit-lower`, `<lane>-beam` | child of `sensors` (`gpio-keys`) | same |
+| `<lane>-distance` | ADC4 channel node (`channel@11` = IN17, `channel@12` = IN18) | `DEVICE_DT_GET(DT_PARENT(node))`, `ADC_CHANNEL_CFG_DT(node)`, `DT_REG_ADDR(node)` |
+| `<lane>-camera` | `usart3` (entry), `usart2` (exit) | `DEVICE_DT_GET(DT_ALIAS(entry_camera))` |
+| `payment-terminal` | `lpuart1` | `DEVICE_DT_GET(DT_ALIAS(payment_terminal))` |
+| `payment-display` | `course,st7789v-reference` on `spi1`, with `dc-gpios` and `reset-gpios` | `SPI_DT_SPEC_GET(node, …)`, `GPIO_DT_SPEC_GET(node, dc_gpios)` |
+
+`gpio-leds` and `gpio-keys` are only containers for named GPIOs. Keep
+`CONFIG_LED` and `CONFIG_INPUT` off; otherwise those drivers take the pins
+(and the input interrupts) away from the firmware.
 
 | Interface | Entry lane | Exit lane |
 |---|---|---|

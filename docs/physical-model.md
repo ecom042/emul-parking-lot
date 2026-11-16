@@ -8,7 +8,7 @@ The machine instantiates it twice, `physicalEntry` (ADC4 channel 17) and
 `physicalExit` (channel 18), with independent timelines, run IDs, sequence
 numbers and state. Every contract below applies to each lane separately; pins
 are listed per lane in the [hardware map](hardware-models.md#pin-map). Student firmware uses real Zephyr GPIO/EXTI and
-asynchronous ADC drivers on **nucleo_u5a5zj_q**. The model provides an
+asynchronous ADC drivers on the lab board **parking_lot_u5**. The model provides an
 environment, not a parking-controller implementation or safety certification.
 
 The [hardware-model limits](hardware-models.md) apply: ADC1, full

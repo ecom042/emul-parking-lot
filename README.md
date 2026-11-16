@@ -29,7 +29,8 @@ infrastructure; source review is still required.
   driver quirks) and shows a pass/fail verdict per car. It does not drive
   physics or turn firmware logs into successful behavior.
 
-The retained target is `nucleo_u5a5zj_q`, with an entry lane and an exit lane
+The target is the lab's own board `parking_lot_u5` (an STM32U5A5 derived
+from `nucleo_u5a5zj_q`, in `hardware/boards/`), with an entry lane and an exit lane
 working at the same time, one point vehicle per lane, and a lot of
 `CONFIG_PARKING_CAPACITY` sessions (default 4). Students run it on Linux x86_64 or aarch64
 ([setup](docs/setup.md#linux-host-and-prerequisites)). These are bounded

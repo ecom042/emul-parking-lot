@@ -7,8 +7,6 @@
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 
-#define USER DT_PATH(zephyr_user)
-
 /** Outputs of one lane, held inactive except for the red signal. */
 struct lane_outputs {
         const char *name;
@@ -19,22 +17,25 @@ struct lane_outputs {
         struct gpio_dt_spec buzzer;
 };
 
+/* Every device of the parking_lot_u5 board has an alias
+ * (hardware/boards/ufal/parking_lot_u5/parking_lot_u5.dts).
+ */
 static const struct lane_outputs lanes[] = {
         {
                 .name = "entry",
-                .enable = GPIO_DT_SPEC_GET(USER, entry_enable_gpios),
-                .direction = GPIO_DT_SPEC_GET(USER, entry_direction_gpios),
-                .red = GPIO_DT_SPEC_GET(USER, entry_red_gpios),
-                .green = GPIO_DT_SPEC_GET(USER, entry_green_gpios),
-                .buzzer = GPIO_DT_SPEC_GET(USER, entry_buzzer_gpios),
+                .enable = GPIO_DT_SPEC_GET(DT_ALIAS(entry_motor_enable), gpios),
+                .direction = GPIO_DT_SPEC_GET(DT_ALIAS(entry_motor_direction), gpios),
+                .red = GPIO_DT_SPEC_GET(DT_ALIAS(entry_light_red), gpios),
+                .green = GPIO_DT_SPEC_GET(DT_ALIAS(entry_light_green), gpios),
+                .buzzer = GPIO_DT_SPEC_GET(DT_ALIAS(entry_buzzer), gpios),
         },
         {
                 .name = "exit",
-                .enable = GPIO_DT_SPEC_GET(USER, exit_enable_gpios),
-                .direction = GPIO_DT_SPEC_GET(USER, exit_direction_gpios),
-                .red = GPIO_DT_SPEC_GET(USER, exit_red_gpios),
-                .green = GPIO_DT_SPEC_GET(USER, exit_green_gpios),
-                .buzzer = GPIO_DT_SPEC_GET(USER, exit_buzzer_gpios),
+                .enable = GPIO_DT_SPEC_GET(DT_ALIAS(exit_motor_enable), gpios),
+                .direction = GPIO_DT_SPEC_GET(DT_ALIAS(exit_motor_direction), gpios),
+                .red = GPIO_DT_SPEC_GET(DT_ALIAS(exit_light_red), gpios),
+                .green = GPIO_DT_SPEC_GET(DT_ALIAS(exit_light_green), gpios),
+                .buzzer = GPIO_DT_SPEC_GET(DT_ALIAS(exit_buzzer), gpios),
         },
 };
 

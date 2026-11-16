@@ -104,7 +104,7 @@ python scripts/lab.py --module "$ZVB_MODULE" \
   --renode "$RENODE_ROOT/renode" --output build/lab-01
 ```
 
-This builds `student/` for `nucleo_u5a5zj_q` into a new output directory,
+This builds `student/` for the lab board `parking_lot_u5` into a new output directory,
 generates the platform and trusted boot/reset through ZVB's existing shared
 machine assembly, then starts the existing restricted bridge/UI and official
 Renode. There is no alternate physics implementation or raw monitor route.
@@ -156,8 +156,9 @@ path is instructor-only privileged infrastructure, not this workflow.
 
 ## Local firmware and trust assumptions
 
-Edit `student/src/` and its CMake/Kconfig as necessary. Public
-`hardware/parking.overlay` and `hardware/renode/parking.repl` define the common
+Edit `student/src/` and its CMake/Kconfig as necessary. The public board
+`hardware/boards/ufal/parking_lot_u5/` (found through `BOARD_ROOT` in
+`student/CMakeLists.txt`) and `hardware/renode/parking.repl` define the common
 wiring used by student firmware and the simulator. Preserve those interfaces and the
 fixed clock/ADC4 subset; no ADC1, DMA or general display driver is supported.
 Custom local projects must retain equivalent public wiring, ZVB bundle,

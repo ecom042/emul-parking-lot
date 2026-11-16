@@ -28,7 +28,7 @@ ROOT_FILES = {
 EXTENSIONS = {
     ".c", ".h", ".cs", ".py", ".sh", ".cjs", ".js", ".html", ".css",
     ".md", ".txt", ".conf", ".overlay", ".repl", ".resc", ".robot",
-    ".json", ".yaml", ".yml", ".toml", ".svg", ".pdf",
+    ".json", ".yaml", ".yml", ".toml", ".svg", ".pdf", ".dts", ".dtsi", ".cmake",
 }
 SPECIAL_FILES = {"CMakeLists.txt", "Kconfig"}
 EXCLUDED = {
@@ -86,6 +86,11 @@ def student_source(relative):
     return True
 
 
+def board_file(name):
+    """Zephyr board files without a suffix (Kconfig.<board>, <board>_defconfig)."""
+    return name.startswith("Kconfig.") or name.endswith("_defconfig")
+
+
 def excluded(name):
     """Conservative name filter, not a claim to detect embedded credentials."""
     lower = name.lower()
@@ -115,7 +120,8 @@ def source_files(root, name):
                             and (name != "emul-parking-lot"
                                  or student_source(candidate.relative_to(root)))
                             and (candidate.suffix in EXTENSIONS
-                                 or filename in SPECIAL_FILES | LEGAL_FILES)):
+                                 or filename in SPECIAL_FILES | LEGAL_FILES
+                                 or board_file(filename))):
                         yield candidate
 
 

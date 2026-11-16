@@ -1,0 +1,14 @@
+identifier: parking_lot_u5
+name: Parking lot controller (STM32U5A5)
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+ram: 2496
+flash: 4096
+supported:
+  - adc
+  - gpio
+  - spi
+  - uart
+vendor: ufal

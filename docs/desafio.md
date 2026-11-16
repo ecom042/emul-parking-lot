@@ -9,7 +9,7 @@ Há uma cópia em PDF deste e dos demais documentos em [`docs/pdf/`](pdf/).
 ## O desafio
 
 Em **dupla** e em **uma semana**, vocês vão escrever, em Zephyr RTOS, o
-firmware de um estacionamento para a placa `nucleo_u5a5zj_q`
+firmware de um estacionamento para a placa `parking_lot_u5`
 ([trabalho em dupla](#trabalho-em-dupla)). Há uma faixa de entrada e uma de saída funcionando ao mesmo
 tempo e até `CONFIG_PARKING_CAPACITY` carros estacionados (padrão 4).
 
@@ -63,9 +63,30 @@ fora do normal leva à **assistência**: motor parado, verde apagado, vermelho
 aceso e um pulso no buzzer.
 
 Os pinos de cada faixa estão no [mapa de pinos](hardware-models.md#pin-map).
-No devicetree, as propriedades de `zephyr,user` têm o prefixo da faixa
-(`entry-enable-gpios`, `exit-red-gpios`…). Todas as entradas são ativas em
-nível alto, com pull-down, e todas as saídas são ativas em nível alto.
+A placa `parking_lot_u5` (`hardware/boards/ufal/parking_lot_u5/`) é uma cópia
+enxuta da Nucleo U5A5ZJ com os equipamentos do estacionamento no devicetree.
+Cada equipamento tem um **alias**, então o código nunca usa número de pino:
+
+| Alias (`entry-` ou `exit-`) | Equipamento |
+|---|---|
+| `<faixa>-motor-enable`, `<faixa>-motor-direction` | ① motor da cancela |
+| `<faixa>-limit-upper`, `<faixa>-limit-lower` | ②③ fins de curso |
+| `<faixa>-light-red`, `<faixa>-light-green`, `<faixa>-buzzer` | ④⑤ sinais e buzzer |
+| `<faixa>-beam` | ⑥ feixe |
+| `<faixa>-distance` | ⑦ canal do ADC4 (17 na entrada, 18 na saída) |
+| `<faixa>-camera` | ⑧ UART da câmera |
+| `payment-terminal`, `payment-display` | ⑨⑩ UART do terminal e display (só na saída) |
+
+```c
+static const struct gpio_dt_spec motor =
+        GPIO_DT_SPEC_GET(DT_ALIAS(entry_motor_enable), gpios);
+static const struct device *const camera = DEVICE_DT_GET(DT_ALIAS(entry_camera));
+static const struct adc_channel_cfg distancia =
+        ADC_CHANNEL_CFG_DT(DT_ALIAS(entry_distance));
+```
+
+Todas as entradas são ativas em nível alto, com
+pull-down, e todas as saídas são ativas em nível alto.
 
 ### ①②③ Cancela: motor, braço e fins de curso
 

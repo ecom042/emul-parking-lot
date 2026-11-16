@@ -1,0 +1,6 @@
+board:
+  name: parking_lot_u5
+  full_name: Parking lot controller (STM32U5A5)
+  vendor: ufal
+  socs:
+    - name: stm32u5a5xx

@@ -72,7 +72,7 @@ Outputs in the output directory:
 Every directory `<app>/tests/<suite>/` with a `CMakeLists.txt` is a ztest
 application, normally using FFF (`zephyr/fff.h`) to fake the student's own
 hardware layer. `student/tests/unit/` is a passing template: its CMake adds the
-course hardware and `student/app.overlay`, its `Kconfig` sources the student
+course board (`BOARD_ROOT`) and bindings (`DTS_ROOT`), its `Kconfig` sources the student
 `Kconfig` (the tools pass `CONFIG_PARKING_*`), and it compiles chosen modules
 from `../../src`, not `main.c`.
 

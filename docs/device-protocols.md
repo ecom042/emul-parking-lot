@@ -2,7 +2,7 @@
 
 This is a course simulation contract, not a camera/payment vendor protocol,
 real payment, image recognition, safety certification, or a complete student
-specification. The retained board is `nucleo_u5a5zj_q`, ADC4 channel 18.
+specification. The board is `parking_lot_u5`, ADC4 channels 17 and 18.
 The [physical/time contract](physical-model.md), limited U5
 ADC4/EXTI/RCC support, and native ST7789V subset still apply.
 The [scenario runner](scenarios.md) and [browser](browser.md) exercise these

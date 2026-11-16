@@ -201,7 +201,7 @@ def _kill(proc):
 def source_hashes(app):
     """sha256 of every file an application build reads, keyed by relative path."""
     return lab.source_hashes(Path(app), ["CMakeLists.txt", "Kconfig", "prj.conf",
-                                         "app.overlay", "boards", "src"])
+                                         "app.overlay", "boards", "src"])  # app.overlay if a student adds one
 
 
 def passed(record):

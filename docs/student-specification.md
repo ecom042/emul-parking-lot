@@ -13,7 +13,7 @@ described in [setup](setup.md). Project-owned source and documentation use
 native Windows is not supported. Read the [setup guide](setup.md), or
 the Portuguese [installation guide](instalacao.md), before starting.
 
-Implement a Zephyr controller for `nucleo_u5a5zj_q` that runs a parking lot
+Implement a Zephyr controller for the lab board `parking_lot_u5` that runs a parking lot
 with an entry lane and an exit lane at the same time, and up to
 `CONFIG_PARKING_CAPACITY` parked vehicles (default 4). `student/Kconfig`
 defines it (1..8) together with `CONFIG_PARKING_TARIFF_UNIT_MS`; the launcher's
@@ -49,7 +49,7 @@ Demonstrate that you can:
 ## Supported development workflow
 
 The launcher builds `student/` as the only application.
-Shared public hardware is in `hardware/parking.overlay`,
+Shared public hardware is the board `hardware/boards/ufal/parking_lot_u5/`,
 `hardware/renode/parking.repl` and `hardware/dts/bindings/`.
 Use the [setup guide](setup.md) for prerequisites and the
 [release checklist](release-checklist.md) for classroom preparation.
@@ -96,9 +96,10 @@ and [equipment signals](device-protocols.md#display-and-signals).
 
 Inputs are active high with pull down; outputs are active high. Buzzer outputs
 are transitions, not host sound. ADC4 (IRQ 113) is shared; ADC1 is unsupported.
-The diagnostic console is USART1 PA9 TX / PA10 RX, IRQ 61. In devicetree, the
-`zephyr,user` properties carry the lane as a prefix, for example
-`entry-enable-gpios` and `exit-red-gpios`.
+The diagnostic console is USART1 PA9 TX / PA10 RX, IRQ 61. Every device has a
+devicetree alias on the board, for example
+`GPIO_DT_SPEC_GET(DT_ALIAS(entry_motor_enable), gpios)`; see the
+[pin map](hardware-models.md#pin-map).
 
 Use the supplied board configuration. Do not replace driver reads with fabricated
 results or host setters. Firmware owns authorization, outputs, retries, pricing

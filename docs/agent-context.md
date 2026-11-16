@@ -6,8 +6,11 @@ this is not a progress diary, test report or substitute for running checks.
 
 ## Retained decisions
 
-- Keep `nucleo_u5a5zj_q` and the ADC learning objective. Do not switch boards or
-  replace ADC with a pulse sensor merely to avoid a model incompatibility.
+- Keep the STM32U5A5 SoC and the ADC learning objective. The lab board
+  `parking_lot_u5` (`hardware/boards/ufal/`) is a trimmed copy of
+  `nucleo_u5a5zj_q` (same clocks, console and pins) with the lot's devices in
+  its DTS, each behind an alias; there is no `zephyr,user` and no overlay. Do
+  not replace ADC with a pulse sensor merely to avoid a model incompatibility.
 - Use Zephyr's GPIO/ADC/UART/SPI driver paths. Firmware logs must not control
   physics, authorization or display pixels.
 - Reuse `zephyr-virtual-board` for generic assembly, scheduling and transports.

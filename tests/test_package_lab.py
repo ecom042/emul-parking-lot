@@ -55,7 +55,7 @@ class PackageTests(unittest.TestCase):
         self.write(self.parking, "probes/io/src/main.c", "/* solution probe marker */\n")
         self.write(self.parking, "student/src/main.c", "/* student implementation */\n")
         self.write(self.parking, "student/CMakeLists.txt", "project(student)\n")
-        self.write(self.parking, "hardware/parking.overlay", "/* hardware configuration */\n")
+        self.write(self.parking, "hardware/boards/ufal/parking_lot_u5/parking_lot_u5.dts", "/* hardware configuration */\n")
         self.write(self.parking, "docs/setup.md", "# Setup\n")
         self.write(self.parking, "docs/release-checklist.md", "# Release checklist\n")
         self.write(self.module, "src/zvb/_resc.py", "# module\n")
@@ -98,7 +98,7 @@ class PackageTests(unittest.TestCase):
         for directory in ("app", "reference", "probes", "instructor"):
             self.assertFalse((extracted / "emul-parking-lot" / directory).exists())
         for relative in ("student/src/main.c", "student/CMakeLists.txt",
-                         "hardware/parking.overlay", "docs/setup.md",
+                         "hardware/boards/ufal/parking_lot_u5/parking_lot_u5.dts", "docs/setup.md",
                          "docs/release-checklist.md"):
             with self.subTest(relative=relative):
                 self.assertEqual(

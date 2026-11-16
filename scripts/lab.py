@@ -37,12 +37,17 @@ ZEPHYR_VERSION = (4, 5, 0)
 SUPPORTED_HOSTS = {("Darwin", "arm64"), ("Linux", "x86_64"), ("Linux", "aarch64")}
 
 
+# The lab's own board (hardware/boards/ufal/parking_lot_u5), derived from
+# ST's nucleo_u5a5zj_q; student/CMakeLists.txt adds hardware/ to BOARD_ROOT.
+BOARD = "parking_lot_u5"
+
+
 def commands(module, renode, output, headless=None, capacity=None, app=None, cmake_args=()):
     """Build, prepare and launch commands. Grading tools pass another `app`
     (a submitted copy of student/) and extra CMake arguments."""
     firmware = output / "firmware"
     unit = TARIFF_UNIT_MS["headless" if headless else "interactive"]
-    build = [sys.executable, "-m", "west", "build", "-b", "nucleo_u5a5zj_q",
+    build = [sys.executable, "-m", "west", "build", "-b", BOARD,
              str(app or ROOT / "student"), "-d", str(firmware), "--",
              f"-DCONFIG_PARKING_TARIFF_UNIT_MS={unit}"]
     if capacity is not None:
@@ -50,7 +55,7 @@ def commands(module, renode, output, headless=None, capacity=None, app=None, cma
     build.extend(cmake_args)
     prepare = [sys.executable, str(ROOT / "scripts/prepare-smoke.py"),
                "--build-dir", str(firmware), "--config",
-               str(ROOT / "student/boards/zvb/nucleo_u5a5zj_q/zvb.yml")]
+               str(ROOT / "student/boards/zvb" / BOARD / "zvb.yml")]
     common = ["--module", str(module), "--renode", str(renode),
               "--machine-script", str(firmware / "boot.resc")]
     if headless:

@@ -1,0 +1,5 @@
+# Course parking lot controller, derived from ST's nucleo_u5a5zj_q.
+# SPDX-License-Identifier: Apache-2.0
+
+config BOARD_PARKING_LOT_U5
+	select SOC_STM32U5A5XX
