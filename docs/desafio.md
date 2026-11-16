@@ -167,7 +167,7 @@ resultado.
 ## Como se autoavaliar
 
 A nota é calculada pelo professor. Para acompanhar o seu progresso, rode
-as mesmas ferramentas de medição com o [ambiente](instalacao.md#5-variáveis-de-cada-sessão) ativo,
+as mesmas ferramentas de medição com o [ambiente](instalacao.md#3-variáveis-de-cada-sessão) ativo,
 na raiz do repositório:
 
 ```sh

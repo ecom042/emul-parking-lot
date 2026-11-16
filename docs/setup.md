@@ -11,7 +11,7 @@ reproducibility qualifications.
 ## Linux host and prerequisites
 
 Students use **Linux, x86_64 or aarch64**; the Portuguese
-[installation guide](instalacao.md) gives these steps command by command.
+[installation guide](instalacao.md) gives these steps in Portuguese.
 Both architectures have an official Renode 1.17.0 portable build and a Zephyr
 SDK 1.0.1. `lab.py` refuses other hosts, such as native Windows.
 Clean-installation evidence exists for Ubuntu 24.04 aarch64 in a container;
@@ -20,31 +20,14 @@ x86_64 is not yet runtime-validated (see
 alter a firewall or export Zephyr globally. A supported browser must run
 locally; Chrome or Chromium is the tested browser.
 
-Required: Python **3.12**, Git, CMake ≥ 3.20, Ninja, dtc, and the Zephyr SDK
-**1.0.1** (GNU Arm GCC **14.3.0**, target `arm-zephyr-eabi`). Validated with
-the Ubuntu 24.04 packages (Python 3.12.3, CMake 3.28.3, Ninja 1.11.1, dtc
-1.7.0); these are evidenced versions, not a claim that others fail. About 5 GB
-of disk and 2 GB of RAM per parallel Renode process.
-
-```sh
-sudo apt-get install --no-install-recommends git cmake ninja-build \
-  device-tree-compiler python3 python3-venv python3-dev wget xz-utils \
-  file ca-certificates unzip
-```
-
-The SDK's minimal bundle plus one toolchain is enough. Verify it against the
-release's `sha256.sum`:
-
-```sh
-A=$(uname -m)    # x86_64 or aarch64
-wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/zephyr-sdk-1.0.1_linux-${A}_minimal.tar.xz
-wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/sha256.sum
-grep "zephyr-sdk-1.0.1_linux-${A}_minimal.tar.xz" sha256.sum | sha256sum -c -
-tar xf zephyr-sdk-1.0.1_linux-${A}_minimal.tar.xz
-(cd zephyr-sdk-1.0.1 && ./setup.sh -t arm-zephyr-eabi)
-export ZEPHYR_SDK_INSTALL_DIR="$PWD/zephyr-sdk-1.0.1"
-"$ZEPHYR_SDK_INSTALL_DIR/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc" --version
-```
+Required: Zephyr **v4.4.0**'s host dependencies and the Zephyr SDK **1.0.1**
+with the `arm-zephyr-eabi` toolchain (GNU Arm GCC 14.3.0), installed as the
+[Getting Started guide](https://docs.zephyrproject.org/4.4.0/develop/getting_started/index.html)
+describes, and Python **3.12**. Do not create a separate `zephyrproject`
+workspace: the manifest pins Zephyr and `west update` fetches it below.
+Validated with the Ubuntu 24.04 packages (Python 3.12.3, CMake 3.28.3, Ninja
+1.11.1, dtc 1.7.0); these are evidenced versions, not a claim that others
+fail. About 5 GB of disk and 2 GB of RAM per parallel Renode process.
 
 Use the official [Renode 1.17.0 portable release](https://github.com/renode/renode/releases/tag/v1.17.0),
 which bundles .NET 8 and reports build `1.17.0+20260906gitf1dd1b4af`
@@ -56,16 +39,9 @@ wrappers are not the selected runtime.
 | `x86_64` | `renode-1.17.0.linux-portable.tar.gz` | `4ba7c68b59e2447f188ef4b4b112fcccd2802582c460beedceb63b84e5605a5f` |
 | `aarch64` | `renode-1.17.0.linux-arm64-portable.tar.gz` | `e9051578411441bfb47b77de0381cfba3badce03663367fab561472fd7807f1f` |
 
-Extract it with `--strip-components=1` into a directory of its own and verify
-the actual version output; an old PATH wrapper can return zero while printing
-an error.
-
-```sh
-mkdir renode-1.17.0
-tar xf renode-1.17.0.linux-portable.tar.gz -C renode-1.17.0 --strip-components=1
-export RENODE_ROOT="$PWD/renode-1.17.0"
-"$RENODE_ROOT/renode" --version
-```
+Extract it into a directory of its own, set `RENODE_ROOT` to it and check
+`"$RENODE_ROOT/renode" --version`: an old PATH wrapper can return zero while
+printing an error.
 
 ## Workspace bootstrap
 
@@ -88,7 +64,7 @@ export ZVB_MODULE="$PWD/deps/zephyr-virtual-board"
 ```
 
 Every new shell needs the venv and `ZEPHYR_SDK_INSTALL_DIR`, `RENODE_ROOT` and
-`ZVB_MODULE`; the [installation guide](instalacao.md#5-variáveis-de-cada-sessão)
+`ZVB_MODULE`; the [installation guide](instalacao.md#3-variáveis-de-cada-sessão)
 keeps them in one file to source.
 
 `west init` is once per workspace; `.west/` and dependencies remain inside

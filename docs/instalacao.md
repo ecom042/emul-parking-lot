@@ -7,90 +7,35 @@ compilar o firmware e rodá-lo no Renode. A referência técnica, em inglês, é
 O Windows nativo não é suportado. O WSL 2 com Ubuntu 24.04 deve funcionar
 com este mesmo guia, mas ainda não foi validado.
 
-Faça tudo como usuário comum, sem `sudo`, exceto a instalação dos pacotes do
-sistema. Nada aqui altera o firewall nem exporta o Zephyr globalmente.
+## Requisitos
 
-## Memória e disco
+- **Zephyr v4.4.0 e Zephyr SDK 1.0.1.** Siga o
+  [Getting Started oficial](https://docs.zephyrproject.org/4.4.0/develop/getting_started/index.html)
+  só nas partes de dependências e do SDK (basta a toolchain
+  `arm-zephyr-eabi`). Não crie um workspace `zephyrproject`: o laboratório
+  fixa a versão do Zephyr e o `west` a baixa no passo 2.
+- **Python 3.12.** No Ubuntu 24.04 é o `python3.12` do sistema.
+- **Renode 1.17.0**, o pacote portátil oficial para Linux da
+  [página da versão](https://github.com/renode/renode/releases/tag/v1.17.0)
+  (`linux-portable` para x86_64, `linux-arm64-portable` para aarch64),
+  extraído numa pasta própria. O `lab.py` só aceita esse Renode: um instalado
+  pelo `apt` ou por um `.deb` é recusado.
+- **Memória e disco**: cerca de 2 GB de RAM por processo do Renode (as
+  ferramentas de medição rodam até 4 em paralelo e escolhem sozinhas quantos
+  cabem; `--jobs 1` força um só) e uns 5 GB de disco.
 
-Cada processo do Renode usa até cerca de **2 GB de RAM**. Um cenário por vez
-roda com 4 GB no total; as ferramentas de medição rodam vários em paralelo e
-escolhem sozinhas quantos cabem (até 4, um a cada 2 GB). Para forçar menos,
-use `--jobs 1`.
-
-| Item | Tamanho aproximado |
-|---|---:|
-| Zephyr SDK 1.0.1 (mínimo + toolchain ARM) | 0,8 GB |
-| Renode 1.17.0 | 0,2 GB |
-| Dependências do west (`deps/`) | 1,4 GB |
-| Ambiente Python (`.venv/`) | 0,75 GB |
-| Cada execução em `build/` | 10 a 60 MB |
-
-Reserve uns 5 GB. Apague as pastas antigas de `build/` quando não precisar
-mais delas.
-
-## Pré-requisitos
-
-Validado em **Ubuntu 24.04**. Em outras distribuições, instale os
-equivalentes dos mesmos pacotes; o que importa é ter **Python 3.12**, Git,
-CMake ≥ 3.20, Ninja e dtc.
-
-## 1. Pacotes do sistema
+## 1. Conferir
 
 ```sh
-sudo apt-get update
-sudo apt-get install --no-install-recommends git cmake ninja-build \
-  device-tree-compiler python3 python3-venv python3-dev wget xz-utils \
-  file ca-certificates unzip
 python3.12 --version
+"$HOME/zephyr-sdk-1.0.1/gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc" --version
+"$HOME/renode-1.17.0/renode" --version
 ```
 
-No Ubuntu 22.04 ou no Debian 12 não há `python3.12` nos pacotes padrão:
-instale um Python 3.12 à parte antes do passo 4.
+Ajuste os caminhos se instalou em outro lugar. O Renode precisa mostrar
+`build: 1.17.0+20260906gitf1dd1b4af`.
 
-## 2. Zephyr SDK 1.0.1
-
-O pacote mínimo tem só as ferramentas de instalação; `setup.sh -t` baixa a
-toolchain ARM (cerca de 100 MB). O `sha256sum -c` precisa imprimir `OK`.
-
-```sh
-cd ~
-A=$(uname -m)        # x86_64 ou aarch64
-wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/zephyr-sdk-1.0.1_linux-${A}_minimal.tar.xz
-wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v1.0.1/sha256.sum
-grep "zephyr-sdk-1.0.1_linux-${A}_minimal.tar.xz" sha256.sum | sha256sum -c -
-tar xf zephyr-sdk-1.0.1_linux-${A}_minimal.tar.xz
-rm zephyr-sdk-1.0.1_linux-${A}_minimal.tar.xz sha256.sum
-cd zephyr-sdk-1.0.1
-./setup.sh -t arm-zephyr-eabi
-gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc --version   # 14.3.0
-```
-
-## 3. Renode 1.17.0
-
-Use o pacote **portátil** oficial: ele já traz o .NET e não precisa de
-instalação. Escolha o arquivo e o SHA-256 da sua arquitetura:
-
-| `uname -m` | Arquivo | SHA-256 |
-|---|---|---|
-| `x86_64` | `renode-1.17.0.linux-portable.tar.gz` | `4ba7c68b59e2447f188ef4b4b112fcccd2802582c460beedceb63b84e5605a5f` |
-| `aarch64` | `renode-1.17.0.linux-arm64-portable.tar.gz` | `e9051578411441bfb47b77de0381cfba3badce03663367fab561472fd7807f1f` |
-
-```sh
-cd ~
-F=renode-1.17.0.linux-portable.tar.gz          # aarch64: renode-1.17.0.linux-arm64-portable.tar.gz
-wget https://github.com/renode/renode/releases/download/v1.17.0/$F
-echo "4ba7c68b59e2447f188ef4b4b112fcccd2802582c460beedceb63b84e5605a5f  $F" | sha256sum -c -
-mkdir renode-1.17.0
-tar xf $F -C renode-1.17.0 --strip-components=1
-rm $F
-~/renode-1.17.0/renode --version
-```
-
-A saída precisa conter `build: 1.17.0+20260906gitf1dd1b4af`. Um Renode
-instalado pelo `apt`, por um `.deb` ou por outro caminho no `PATH` não serve:
-o `lab.py` confere essa versão e recusa as outras.
-
-## 4. Espaço de trabalho
+## 2. Espaço de trabalho
 
 A disciplina entrega o laboratório em dois arquivos `.zip`. Extraia os dois
 na mesma pasta nova e entre no projeto. O caminho pode ter espaços, mas não
@@ -110,10 +55,11 @@ python -m pip install -r deps/zephyr/scripts/requirements.txt
 python -m pip check
 ```
 
-O `west update` baixa o Zephyr e o HAL do STM32 para `deps/` e leva alguns
-minutos. Faça isso uma vez só. Não rode `west zephyr-export`.
+O `west update` baixa o Zephyr v4.4.0 e o HAL do STM32 para `deps/`
+(cerca de 1,4 GB) e leva alguns minutos. Faça isso uma vez só. Não rode
+`west zephyr-export`.
 
-## 5. Variáveis de cada sessão
+## 3. Variáveis de cada sessão
 
 Todo terminal precisa do ambiente Python e de três variáveis. Grave-as em
 `~/estacionamento/ambiente.sh`, ajustando os caminhos se instalou em outro
@@ -140,7 +86,7 @@ Para carregá-lo sempre, acrescente a primeira linha ao `~/.bashrc`
 (`echo '. ~/estacionamento/ambiente.sh' >> ~/.bashrc`). Os comandos a seguir
 rodam na pasta do projeto.
 
-## 6. Primeiro teste
+## 4. Primeiro teste
 
 ```sh
 python scripts/lab.py --module "$ZVB_MODULE" --renode "$RENODE_ROOT/renode" \
@@ -162,7 +108,7 @@ Isso confirma que a instalação está certa. Um erro em `build.log`,
 `prepare.log` ou `renode-version.log` dentro da pasta de saída indica um
 problema de instalação, não do seu firmware.
 
-## 7. Visualização no navegador
+## 5. Visualização no navegador
 
 ```sh
 python scripts/lab.py --module "$ZVB_MODULE" --renode "$RENODE_ROOT/renode" \
@@ -188,6 +134,5 @@ de editar o firmware, rode o comando de novo: não há recarga automática.
 | `output exists` | Escolha uma pasta de saída nova em `build/`. |
 | `supported hosts: …` | Sistema ou arquitetura sem Renode e SDK oficiais, como Windows nativo. |
 
-Estes passos foram validados do zero em Ubuntu 24.04 aarch64, num contêiner
-com 2 GB de RAM: instalação, cenários, testes de unidade e navegador. Em
-x86_64 os passos são os mesmos, mudando só os arquivos baixados.
+Validado do zero em Ubuntu 24.04 aarch64, num contêiner com 2 GB de RAM:
+instalação, cenários, testes de unidade e navegador.
