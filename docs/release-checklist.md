@@ -95,8 +95,9 @@ Use full module/runtime/output arguments as in setup.
   Do not bundle SDK/browser or third-party reference PDFs by assumption.
 - [ ] Capture source archive/wheel hashes, file map, base commits and local
   additions; review packaged assets.
-- [ ] Repeat fresh-venv/fresh-build/extracted-artifact setup on macOS arm64.
-  Existing SDK/tools are prerequisites, not clean OS evidence.
+- [ ] Repeat fresh-venv/fresh-build/extracted-artifact setup with
+  [instalacao.md](instalacao.md) on a clean Linux x86_64 host (aarch64 has
+  container evidence). Record the SDK, Renode and package versions.
 - [ ] Review transitive Python/PEP 517 inputs and remotely fetched
   `STM32U5XX.svd.gz` bytes/provenance. Direct pins and `pip freeze` are not a
   complete lock or offline reproduction guarantee.
@@ -111,7 +112,7 @@ Use full module/runtime/output arguments as in setup.
 - [ ] No debugger, raw monitor dashboard or official Robot listener in normal
   student workflow.
 
-Linux/Windows/Intel macOS remain unsupported pending actual tests. Retain the
+Native Windows remains unsupported; Linux x86_64 and WSL 2 are pending a native test. Retain the
 `nucleo_u5a5zj_q`/ADC4 subset, fixed-clock/RCC/UART/SPI limitations, nondurable
 sessions (reset is a lab restart), car-queue runs of at most one virtual hour,
 simulated money and same-timestamp

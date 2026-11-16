@@ -1,6 +1,6 @@
 # Local browser and runtime interface
 
-This is a local development environment (Linux or macOS), not a public hosting service,
+This is a local Linux development environment, not a public hosting service,
 hostile-firmware sandbox or certified safety system.
 Retain `nucleo_u5a5zj_q`, the limited ADC4 channel-18 subset, existing GPIO,
 UART/SPI/RCC limitations and the [equipment contracts](device-protocols.md).

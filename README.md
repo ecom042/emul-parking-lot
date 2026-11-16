@@ -31,8 +31,8 @@ infrastructure; source review is still required.
 
 The retained target is `nucleo_u5a5zj_q`, with an entry lane and an exit lane
 working at the same time, one point vehicle per lane, and a lot of
-`CONFIG_PARKING_CAPACITY` sessions (default 4). Supported hosts are Linux x86_64/aarch64 and
-macOS arm64 ([setup](docs/setup.md#supported-hosts-and-prerequisites)). These are bounded
+`CONFIG_PARKING_CAPACITY` sessions (default 4). Students run it on Linux x86_64 or aarch64
+([setup](docs/setup.md#linux-host-and-prerequisites)). These are bounded
 teaching models, not general MCU emulation or a certified physical controller.
 
 ## Launch
@@ -74,7 +74,7 @@ python scripts/lab.py --module "$ZVB_MODULE" \
 | [Scenarios](docs/scenarios.md) | Schema, scheduling, assertions, outcomes and developer runner |
 | [Browser](docs/browser.md) | Local API, authentication, snapshots, reconnect and containment |
 | [Setup](docs/setup.md) | Supported toolchain and build/launch instructions |
-| [Instalação](docs/instalacao.md) | Step-by-step installation for Linux and macOS, in Portuguese |
+| [Instalação](docs/instalacao.md) | Step-by-step Linux installation, in Portuguese |
 | [Student specification](docs/student-specification.md) | Requirements, deliverables and learning objectives |
 | [Desafio](docs/desafio.md) | Challenge brief, requirements and grading, in Portuguese |
 | [Grading tools](docs/grading-tools.md) | Firmware line coverage, mutation score and static check |

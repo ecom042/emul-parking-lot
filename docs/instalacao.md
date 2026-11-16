@@ -1,9 +1,11 @@
 # Instalação do laboratório
 
-Este guia prepara o seu computador para compilar o firmware e rodá-lo no
-Renode. Ele cobre **Linux** (x86_64 ou aarch64) e **macOS** em Apple Silicon.
-A referência técnica, em inglês, é o [setup](setup.md); se os dois
-divergirem, vale o setup.
+Este guia prepara um computador com **Linux** (x86_64 ou aarch64) para
+compilar o firmware e rodá-lo no Renode. A referência técnica, em inglês, é o
+[setup](setup.md); se os dois divergirem, vale o setup.
+
+O Windows nativo não é suportado. O WSL 2 com Ubuntu 24.04 deve funcionar
+com este mesmo guia, mas ainda não foi validado.
 
 Faça tudo como usuário comum, sem `sudo`, exceto a instalação dos pacotes do
 sistema. Nada aqui altera o firewall nem exporta o Zephyr globalmente.
@@ -26,13 +28,13 @@ use `--jobs 1`.
 Reserve uns 5 GB. Apague as pastas antigas de `build/` quando não precisar
 mais delas.
 
-## Linux
+## Pré-requisitos
 
 Validado em **Ubuntu 24.04**. Em outras distribuições, instale os
 equivalentes dos mesmos pacotes; o que importa é ter **Python 3.12**, Git,
 CMake ≥ 3.20, Ninja e dtc.
 
-### 1. Pacotes do sistema
+## 1. Pacotes do sistema
 
 ```sh
 sudo apt-get update
@@ -45,7 +47,7 @@ python3.12 --version
 No Ubuntu 22.04 ou no Debian 12 não há `python3.12` nos pacotes padrão:
 instale um Python 3.12 à parte antes do passo 4.
 
-### 2. Zephyr SDK 1.0.1
+## 2. Zephyr SDK 1.0.1
 
 O pacote mínimo tem só as ferramentas de instalação; `setup.sh -t` baixa a
 toolchain ARM (cerca de 100 MB). O `sha256sum -c` precisa imprimir `OK`.
@@ -63,7 +65,7 @@ cd zephyr-sdk-1.0.1
 gnu/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc --version   # 14.3.0
 ```
 
-### 3. Renode 1.17.0
+## 3. Renode 1.17.0
 
 Use o pacote **portátil** oficial: ele já traz o .NET e não precisa de
 instalação. Escolha o arquivo e o SHA-256 da sua arquitetura:
@@ -88,25 +90,7 @@ A saída precisa conter `build: 1.17.0+20260906gitf1dd1b4af`. Um Renode
 instalado pelo `apt`, por um `.deb` ou por outro caminho no `PATH` não serve:
 o `lab.py` confere essa versão e recusa as outras.
 
-Siga para [o espaço de trabalho](#4-espaço-de-trabalho).
-
-## macOS (Apple Silicon)
-
-Instale Python 3.12, Git, CMake, Ninja e dtc pelo processo da sua
-instituição (por exemplo, Homebrew). Depois:
-
-- **SDK**: os mesmos comandos do passo 2, com
-  `zephyr-sdk-1.0.1_macos-aarch64_minimal.tar.xz` e `shasum -a 256 -c`
-  no lugar de `sha256sum -c`.
-- **Renode**: baixe `renode-1.17.0.osx-arm64-portable.dmg` (SHA-256
-  `63b1fb691207f503cea937e4ec8fad3e068a517d0abac3c24c0206c62f6c4d12`),
-  confira com `shasum -a 256`, monte a imagem e copie `Renode.app` para
-  `~/renode-1.17.0/`, sem substituir um `/Applications/Renode.app`. No passo 5,
-  use `RENODE_ROOT="$HOME/renode-1.17.0/Renode.app/Contents/MacOS"`.
-
-## Os dois sistemas
-
-### 4. Espaço de trabalho
+## 4. Espaço de trabalho
 
 A disciplina entrega o laboratório em dois arquivos `.zip`. Extraia os dois
 na mesma pasta nova e entre no projeto. O caminho pode ter espaços, mas não
@@ -129,23 +113,34 @@ python -m pip check
 O `west update` baixa o Zephyr e o HAL do STM32 para `deps/` e leva alguns
 minutos. Faça isso uma vez só. Não rode `west zephyr-export`.
 
-### 5. Variáveis de cada sessão
+## 5. Variáveis de cada sessão
 
-Todo terminal novo precisa do ambiente Python e de três variáveis. Crie
+Todo terminal precisa do ambiente Python e de três variáveis. Grave-as em
 `~/estacionamento/ambiente.sh`, ajustando os caminhos se instalou em outro
 lugar:
 
 ```sh
-cd ~/estacionamento/emul-parking-lot
-. .venv/bin/activate
+cat > ~/estacionamento/ambiente.sh <<'FIM'
+LAB="$HOME/estacionamento/emul-parking-lot"
+. "$LAB/.venv/bin/activate"
 export ZEPHYR_SDK_INSTALL_DIR="$HOME/zephyr-sdk-1.0.1"
 export RENODE_ROOT="$HOME/renode-1.17.0"
-export ZVB_MODULE="$PWD/deps/zephyr-virtual-board"
+export ZVB_MODULE="$LAB/deps/zephyr-virtual-board"
+FIM
 ```
 
-e carregue-o com `. ~/estacionamento/ambiente.sh`.
+Em cada terminal novo, carregue o arquivo e vá para o projeto:
 
-### 6. Primeiro teste
+```sh
+. ~/estacionamento/ambiente.sh
+cd "$LAB"
+```
+
+Para carregá-lo sempre, acrescente a primeira linha ao `~/.bashrc`
+(`echo '. ~/estacionamento/ambiente.sh' >> ~/.bashrc`). Os comandos a seguir
+rodam na pasta do projeto.
+
+## 6. Primeiro teste
 
 ```sh
 python scripts/lab.py --module "$ZVB_MODULE" --renode "$RENODE_ROOT/renode" \
@@ -167,7 +162,7 @@ Isso confirma que a instalação está certa. Um erro em `build.log`,
 `prepare.log` ou `renode-version.log` dentro da pasta de saída indica um
 problema de instalação, não do seu firmware.
 
-### 7. Visualização no navegador
+## 7. Visualização no navegador
 
 ```sh
 python scripts/lab.py --module "$ZVB_MODULE" --renode "$RENODE_ROOT/renode" \
@@ -193,7 +188,6 @@ de editar o firmware, rode o comando de novo: não há recarga automática.
 | `output exists` | Escolha uma pasta de saída nova em `build/`. |
 | `supported hosts: …` | Sistema ou arquitetura sem Renode e SDK oficiais, como Windows nativo. |
 
-Os passos de Linux foram validados do zero em Ubuntu 24.04 aarch64, num
-contêiner com 2 GB de RAM: instalação, cenários, testes de unidade e
-navegador. Em x86_64 os passos são os mesmos, mudando só os arquivos
-baixados. O macOS arm64 é o ambiente em que o laboratório é desenvolvido.
+Estes passos foram validados do zero em Ubuntu 24.04 aarch64, num contêiner
+com 2 GB de RAM: instalação, cenários, testes de unidade e navegador. Em
+x86_64 os passos são os mesmos, mudando só os arquivos baixados.

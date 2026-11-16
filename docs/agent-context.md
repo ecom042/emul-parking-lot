@@ -108,6 +108,13 @@ runtime; a timeout is never a successful compilation or integration result.
 
 ## Linux host validation
 
+Student documentation covers Linux only. `lab.py` also accepts macOS arm64,
+the development host: SDK `zephyr-sdk-1.0.1_macos-aarch64_minimal.tar.xz`
+and Renode `renode-1.17.0.osx-arm64-portable.dmg` (SHA-256
+`63b1fb691207f503cea937e4ec8fad3e068a517d0abac3c24c0206c62f6c4d12`), with
+`Renode.app` copied outside `/Applications` and
+`RENODE_ROOT=<dir>/Renode.app/Contents/MacOS`.
+
 A clean Ubuntu 24.04 aarch64 container (2 CPUs, 2 GB RAM) followed
 [instalacao.md](instalacao.md) from a student package: apt packages, SDK
 minimal + `setup.sh -t arm-zephyr-eabi`, Renode linux-arm64 portable,

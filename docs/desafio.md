@@ -23,8 +23,8 @@ O ponto de partida em `student/` é inerte de propósito: motor, verde e buzzer
 desligados, vermelho aceso. Ele reprova nos cenários até você implementar o
 controlador.
 
-Instale o ambiente com o [guia de instalação](instalacao.md) (Linux ou
-macOS) e leia a [especificação do aluno](student-specification.md). Depois
+Instale o ambiente com o [guia de instalação](instalacao.md) (Linux) e
+leia a [especificação do aluno](student-specification.md). Depois
 consulte os contratos conforme precisar: [protocolos](device-protocols.md),
 [modelos de hardware](hardware-models.md), [modelo físico](physical-model.md)
 e [cenários](scenarios.md).
