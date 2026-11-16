@@ -18,18 +18,18 @@ class CommittedPdfs(unittest.TestCase):
 
     def test_no_instructor_page_is_published(self):
         for source in ("docs/grading-instructor.md", "docs/agent-context.md",
-                       "docs/release-checklist.md"):
+                       "docs/release-checklist.md", "AGENTS.md", "docs/setup.md"):
             self.assertNotIn(source, docs_pdf.DOCUMENTS)
 
 
 class Links(unittest.TestCase):
     def test_links_are_valid_inside_docs_pdf(self):
-        text = ("[a](setup.md#x) [b](release-checklist.md) [c](#local) "
+        text = ("[a](setup.md#x) [b](instalacao.md#passo) [c](#local) "
                 "[d](https://example.org/x.md) [e](../AGENTS.md) ![f](img/estacionamento.svg)")
         self.assertEqual(docs_pdf.rewrite("docs/desafio.md", text),
-                         "[a](setup.pdf) "
-                         f"[b]({docs_pdf.REPOSITORY}docs/release-checklist.md) c "
-                         "[d](https://example.org/x.md) [e](AGENTS.pdf) "
+                         f"[a]({docs_pdf.REPOSITORY}docs/setup.md#x) "
+                         "[b](instalacao.pdf) c "
+                         f"[d](https://example.org/x.md) [e]({docs_pdf.REPOSITORY}AGENTS.md) "
                          "![f](/docs/img/estacionamento.svg)")
 
 

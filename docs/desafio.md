@@ -4,7 +4,7 @@ Este é o enunciado do desafio e a regra de avaliação. O contrato técnico
 completo (pinos, protocolos, tempos, modelos) está nos documentos em inglês
 ligados abaixo. Quando este texto e um contrato técnico parecerem divergir, o
 contrato técnico vale para o comportamento e este texto vale para a nota.
-Há uma cópia em PDF deste e dos demais documentos em [`docs/pdf/`](pdf/).
+Este enunciado e o guia de instalação também estão em PDF, em [`docs/pdf/`](pdf/).
 
 ## O desafio
 

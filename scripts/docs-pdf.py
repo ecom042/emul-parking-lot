@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""PDF copies of the student documents, committed in docs/pdf/.
+"""PDF copies of the documents students read, committed in docs/pdf/.
 
     python scripts/docs-pdf.py            # regenerate the PDFs that are stale
     python scripts/docs-pdf.py --all      # regenerate every PDF
@@ -29,21 +29,12 @@ MANIFEST = OUTPUT / "SOURCES.json"
 TEMPLATE = ROOT / "scripts/docs-pdf.typ"
 REPOSITORY = "https://github.com/ecom042/emul-parking-lot/blob/main/"
 
-# Repository path -> language. The student documents; instructor-only pages
-# (grading-instructor, agent-context, release-checklist) are not included.
+# Repository path -> language. Only the documents people read: the
+# Portuguese challenge brief and installation guide. The English technical
+# references and AGENTS.md are read by agents and stay Markdown only.
 DOCUMENTS = {
     "docs/desafio.md": "pt",
     "docs/instalacao.md": "pt",
-    "AGENTS.md": "pt",
-    "docs/student-specification.md": "en",
-    "docs/setup.md": "en",
-    "docs/device-protocols.md": "en",
-    "docs/hardware-models.md": "en",
-    "docs/physical-model.md": "en",
-    "docs/scenarios.md": "en",
-    "docs/browser.md": "en",
-    "docs/architecture.md": "en",
-    "docs/grading-tools.md": "en",
 }
 
 LINK = re.compile(r"(!?)\[((?:[^\[\]]|\[[^\]]*\])*)\]\(([^)\s]+)\)")
