@@ -17,7 +17,7 @@ is required. Then:
 
 ```sh
 python scripts/parking-web.py \
-  --module "$PWD/deps/zephyr-virtual-board" \
+  --module "$ZVB_MODULE" \
   --renode "$RENODE_ROOT/renode" \
   --machine-script "$PWD/build/student/boot.resc" \
   --evidence "$PWD/build/interactive-01"

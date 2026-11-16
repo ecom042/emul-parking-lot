@@ -16,7 +16,8 @@ protegidas não se aplicam; siga então [`docs/agent-context.md`](docs/agent-con
   para uma árvore limpa do curso e ignora o resto. Isso inclui as suítes de
   teste de unidade em `student/tests/<suíte>/`.
 - **Nunca altere** `hardware/`, `models/`, `scripts/`, `tests/`, `web/`,
-  `manifest/` nem os documentos para fazer um cenário passar. Se um cenário ou
+  os documentos, o `zephyr-virtual-board` nem o workspace do Zephyr para
+  fazer um cenário passar. Se um cenário ou
   modelo parecer errado, explique ao aluno e pare; não contorne.
 
 ## O que é proibido no firmware

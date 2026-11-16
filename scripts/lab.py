@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Build and launch the supported local parking lab; never enable raw services."""
 import argparse
+import configparser
 import hashlib
 import importlib.util
 import json
 import os
 from pathlib import Path
 import platform
+import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +28,10 @@ def source_hashes(root, directories):
 # Finite fixtures use the documented 1000 ms tariff unit; the interactive lot
 # uses 5000 ms so that stays of a few virtual seconds show different prices.
 TARIFF_UNIT_MS = {"headless": 1000, "interactive": 5000}
+
+# West topology 2: this repository is the manifest repository (west.yml) and
+# `west update` puts Zephyr, its modules and zephyr-virtual-board beside it.
+ZEPHYR_VERSION = (4, 5, 0)
 
 # Hosts with an official Renode 1.17.0 portable build and a Zephyr SDK 1.0.1.
 SUPPORTED_HOSTS = {("Darwin", "arm64"), ("Linux", "x86_64"), ("Linux", "aarch64")}
@@ -58,14 +64,57 @@ def commands(module, renode, output, headless=None, capacity=None, app=None, cma
     return build, prepare, launch
 
 
+def workspace_topdir(path):
+    """The west workspace containing `path` (the closest .west/), or None."""
+    for parent in (path, *path.parents):
+        if (parent / ".west/config").is_file():
+            return parent
+    return None
+
+
+def workspace():
+    """(topdir, ZEPHYR_BASE, None) of the workspace holding this lab, else (None, None, error)."""
+    wanted = "v{}.{}.{}".format(*ZEPHYR_VERSION)
+    topdir = workspace_topdir(ROOT)
+    if topdir is None:
+        return None, None, ("initialize the west workspace first: west init -l emul-parking-lot, "
+                            "then west update --narrow (see docs/setup.md)")
+    config = configparser.ConfigParser()
+    config.read(topdir / ".west/config")
+    base = (topdir / config.get("zephyr", "base", fallback="zephyr")).resolve()
+    try:
+        fields = dict(map(str.strip, line.split("=", 1))
+                      for line in (base / "VERSION").read_text().splitlines() if "=" in line)
+        found = tuple(int(fields[k]) for k in ("VERSION_MAJOR", "VERSION_MINOR", "PATCHLEVEL"))
+    except (OSError, KeyError, ValueError):
+        return None, None, f"no Zephyr in {base}; run west update --narrow"
+    if found != ZEPHYR_VERSION:
+        return None, None, (f"the workspace has Zephyr v{'.'.join(map(str, found))} and this lab "
+                            f"pins {wanted}; run west update --narrow")
+    return topdir, base, None
+
+
 def environment(module):
+    topdir, base, error = workspace()
+    if error:
+        raise SystemExit(error)
     env = os.environ.copy()
     env.pop("ZVB_CONFIG", None)
-    env["WEST_CONFIG_LOCAL"] = str(ROOT / ".west/config")
-    env["ZEPHYR_BASE"] = str(ROOT / "deps/zephyr")
+    env["WEST_CONFIG_LOCAL"] = str(topdir / ".west/config")
+    env["ZEPHYR_BASE"] = str(base)
     env["ZVB_MODULE_DIR"] = str(module)
     env["PYTHONPATH"] = str(module / "src")
     return env
+
+
+def zephyr_revision(base):
+    """The checked-out Zephyr commit, for provenance only."""
+    try:
+        result = subprocess.run(["git", "-C", str(base), "rev-parse", "HEAD"],
+                                capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return result.stdout.strip() if result.returncode == 0 else None
 
 
 def main():
@@ -91,14 +140,15 @@ def main():
     for path in ("src/zvb/stdio.py", "src/zvb/local_web.py", "src/zvb/embedded.py",
                  "src/zvb/models/EquipmentTimeline.cs", "LICENSE"):
         if not (module / path).is_file():
-            ap.error(f"selected module is missing {path}; use the manifest revision")
+            ap.error(f"selected module is missing {path}; use the workspace zephyr-virtual-board (west update)")
     if not renode.is_file() or not os.access(renode, os.X_OK):
         ap.error("--renode must be the verified official native executable")
     sdk = Path(os.environ.get("ZEPHYR_SDK_INSTALL_DIR", ""))
     if not (sdk / "sdk_version").is_file() or (sdk / "sdk_version").read_text().strip() != "1.0.1":
         ap.error("set ZEPHYR_SDK_INSTALL_DIR to the Zephyr SDK 1.0.1 for this host")
-    if not (ROOT / ".west/config").is_file():
-        ap.error("initialize the documented local west workspace first")
+    _, base, error = workspace()
+    if error:
+        ap.error(error)
     try:
         output.mkdir(parents=True, exist_ok=False)
     except FileExistsError:
@@ -114,11 +164,12 @@ def main():
     provenance = {
         "v": 1, "host": platform.platform(), "arch": platform.machine(),
         "python": sys.version, "module": str(module), "sdk": str(sdk.resolve()),
+        "zephyr": {"base": str(base), "revision": zephyr_revision(base)},
         "app": "student",
         "commands": [build, prepare, launch],
         "parking_sources": source_hashes(ROOT, [
             "student", "hardware", "models", "scripts", "tests", "web",
-            "manifest", "requirements-tools.txt"]),
+            "requirements-tools.txt", "west.yml"]),
         "module_sources": source_hashes(module, ["src", "scripts", "pyproject.toml", "LICENSE"]),
     }
     (output / "source.json").write_text(json.dumps(provenance, indent=2) + "\n")

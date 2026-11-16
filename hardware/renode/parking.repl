@@ -5,7 +5,7 @@ sysbus:
         include @../../models/ST7789V.cs
         include @../../models/ParkingPhysical.cs
         include @../../models/ParkingProtocols.cs
-        sysbus Unregister "sysbus.adc4"
+        sysbus Unregister "sysbus.adc4common"
 
 adcClock: Analog.CourseU5ADCClock @ {
     sysbus new Bus.BusRangeRegistration { address: 0x46020c6c; size: 4; offset: 0x6c };

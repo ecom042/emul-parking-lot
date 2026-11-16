@@ -37,12 +37,12 @@ teaching models, not general MCU emulation or a certified physical controller.
 
 ## Launch
 
-Follow [setup](docs/setup.md) first to install project-local dependencies,
-initialize west and select the existing SDK and verified Renode executable.
-From the activated environment at the repository root:
+Follow [setup](docs/setup.md) first: the west workspace of this manifest
+repository (Zephyr v4.5.0 and `zephyr-virtual-board` beside it), its Python
+venv, the SDK and the verified Renode executable. From the activated environment at the repository root:
 
 ```sh
-export ZVB_MODULE="$PWD/deps/zephyr-virtual-board"
+export ZVB_MODULE="$PWD/../zephyr-virtual-board"
 python scripts/lab.py --module "$ZVB_MODULE" \
   --renode "$RENODE_ROOT/renode" --output build/student-01
 ```
@@ -90,7 +90,7 @@ describe expected behavior; they do not provide firmware state-machine,
 parser, ADC-acquisition or display-rendering implementations.
 
 Generic tooling comes from the immutable published `zephyr-virtual-board`
-revision in [the west manifest](manifest/west.yml). An attached checkout is
+revision pinned in the [west manifest](west.yml) and fetched by `west update`. An attached checkout is
 optional for tooling development, not a required student dependency.
 
 ## Verification and limitations

@@ -5,8 +5,11 @@
 Use this checklist for each source distribution or classroom rollout. It is not
 a test result or permission to publish a release.
 
-Project-owned source/documentation use Apache-2.0. The lab selects a published
-ZVB commit through the manifest; retain that immutable identity and its notices.
+Project-owned source/documentation use Apache-2.0. The manifest (`west.yml`) pins
+Zephyr v4.5.0 and a published ZVB commit, fetched by `west update`; retain
+that immutable identity and its notices. Students receive only the
+`emul-parking-lot` archive; the `zephyr-virtual-board` archive is review
+evidence of the pinned ZVB bytes, hashes and notices.
 Changing source or documentation changes archive bytes: create new candidates
 and manifests rather than relabeling an earlier archive.
 
@@ -56,10 +59,8 @@ print("Verified and extracted local candidate; no publication performed.")
 PY
 ```
 
-Then follow setup from the extracted `emul-parking-lot/`, selecting its sibling
-`zephyr-virtual-board/`. For a nested pilot use setup's explicit absolute
-manifest initialization; never remove the ancestor workspace. The automated
-launch audit is:
+Then follow setup's workspace bootstrap with the extracted `emul-parking-lot/`
+in a new folder outside any west workspace. The automated launch audit is:
 
 ```sh
 python scripts/bounded-command.py --timeout 220 --output build/pilot-launch.log -- \
@@ -87,7 +88,7 @@ Use full module/runtime/output arguments as in setup.
 - [ ] Review the exact source being distributed and record its commit and any
   local modifications.
 - [ ] Verify the manifest resolves an accessible immutable ZVB revision with the
-  required runtime/model assets.
+  required runtime/model assets, matching the packaged review archive.
 - [ ] Include the project Apache-2.0 `LICENSE`; preserve third-party terms.
 - [ ] Retain ZVB `LICENSE` (Apache-2.0) and applicable upstream notices.
   Zephyr/HAL/CMSIS, Renode, SDK, generator and Python/browser dependencies keep

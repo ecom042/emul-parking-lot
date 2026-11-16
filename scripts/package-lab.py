@@ -12,7 +12,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTORIES = {
     "emul-parking-lot": {
-        "docs", "hardware", "manifest", "models", "scripts", "student", "tests", "web",
+        "docs", "hardware", "models", "scripts", "student", "tests", "web",
     },
     "zephyr-virtual-board": {"docs", "scripts", "src", "tests", "zephyr"},
 }
@@ -20,7 +20,7 @@ LEGAL_FILES = {"LICENSE", "LICENSE.txt", "LICENSE.md", "NOTICE", "NOTICE.txt",
                "NOTICE.md", "COPYING"}
 ROOT_FILES = {
     "emul-parking-lot": {"README.md", "AGENTS.md", "CLAUDE.md", ".gitignore",
-                         "requirements-tools.txt"},
+                         "requirements-tools.txt", "west.yml"},
     "zephyr-virtual-board": {
         "README.md", "CONTRIBUTING.md", ".gitignore", "pyproject.toml",
     },

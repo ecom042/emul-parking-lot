@@ -125,6 +125,7 @@ class PackageTests(unittest.TestCase):
         public = [
             "scripts/scenario/observations.py", "tests/test_scenario.py",
             "tests/scenario.robot", "tests/scenarios/normal.json",
+            "west.yml",  # the student's workspace manifest (topology 2)
         ]
         for relative in public:
             self.write(self.parking, relative, "public infrastructure\n")

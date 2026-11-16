@@ -1,9 +1,10 @@
 # Local laboratory setup
 
-This is the student launch workflow. The manifest selects published
-ZVB revision `aed53b3cedad1e93d6a92837ce79d8cd7198d2af`, containing the reviewed
-model, stdio and HTTP/SSE fixes. Use the module downloaded by `west update`;
-an attached checkout or unpublished patch is no longer necessary.
+This is the student launch workflow. The manifest ([`west.yml`](../west.yml))
+selects Zephyr v4.5.0 and published ZVB revision
+`aed53b3cedad1e93d6a92837ce79d8cd7198d2af`, containing the reviewed model,
+stdio and HTTP/SSE fixes; `west update` fetches both. An attached checkout or
+unpublished patch is no longer necessary.
 Project-owned source and documentation use [Apache-2.0](../LICENSE).
 The [release checklist](release-checklist.md) retains the classroom and
 reproducibility qualifications.
@@ -20,14 +21,13 @@ x86_64 is not yet runtime-validated (see
 alter a firewall or export Zephyr globally. A supported browser must run
 locally; Chrome or Chromium is the tested browser.
 
-Required: Zephyr **v4.4.0**'s host dependencies and the Zephyr SDK **1.0.1**
-with the `arm-zephyr-eabi` toolchain (GNU Arm GCC 14.3.0), installed as the
-[Getting Started guide](https://docs.zephyrproject.org/4.4.0/develop/getting_started/index.html)
-describes, and Python **3.12**. Do not create a separate `zephyrproject`
-workspace: the manifest pins Zephyr and `west update` fetches it below.
+Required: the host dependencies of Zephyr v4.5.0's
+[Getting Started guide](https://docs.zephyrproject.org/4.5.0/develop/getting_started/index.html)
+and Python **3.12**. Zephyr itself and the Zephyr SDK **1.0.1** (`arm-zephyr-eabi`
+toolchain, GNU Arm GCC 14.3.0) come from the lab workspace below.
 Validated with the Ubuntu 24.04 packages (Python 3.12.3, CMake 3.28.3, Ninja
 1.11.1, dtc 1.7.0); these are evidenced versions, not a claim that others
-fail. About 5 GB of disk and 2 GB of RAM per parallel Renode process.
+fail. About 6 GB of disk (workspace and SDK) and 2 GB of RAM per parallel Renode process.
 
 Use the official [Renode 1.17.0 portable release](https://github.com/renode/renode/releases/tag/v1.17.0),
 which bundles .NET 8 and reports build `1.17.0+20260906gitf1dd1b4af`
@@ -45,33 +45,44 @@ printing an error.
 
 ## Workspace bootstrap
 
-Run from this repository root. Ordinary spaces in supported input paths are
+The lab uses west **topology 2**: this repository is the manifest repository,
+and `west update` places Zephyr, `hal_stm32`, `cmsis_6` and
+`zephyr-virtual-board` beside it in the workspace folder. Use a new folder
+outside any other west workspace. Ordinary spaces in supported input paths are
 tested; quotes, semicolons, backslashes and other whitespace are rejected.
 Internet access is required for Python, Git dependencies and the generator's
-remote SVD. A student source archive has the same relative layout as this
-repository; extract both archives into a new workspace and select its ZVB root.
-No Git HEAD is required in the extracted module.
+remote SVD. Students receive only the `emul-parking-lot` archive; no Git HEAD
+is required in it.
 
 ```sh
+mkdir ~/estacionamento && cd ~/estacionamento
+unzip /path/to/emul-parking-lot.zip
 python3.12 -m venv .venv
 . .venv/bin/activate
-python -m pip install -r requirements-tools.txt
-west init -l manifest
+python -m pip install -r emul-parking-lot/requirements-tools.txt
+west init -l emul-parking-lot
 west update --narrow
-python -m pip install -r deps/zephyr/scripts/requirements.txt
+west packages pip --install
+west sdk install -t arm-zephyr-eabi
 python -m pip check
-export ZVB_MODULE="$PWD/deps/zephyr-virtual-board"
 ```
 
-Every new shell needs the venv and `ZEPHYR_SDK_INSTALL_DIR`, `RENODE_ROOT` and
-`ZVB_MODULE`; the [installation guide](instalacao.md#3-variáveis-de-cada-sessão)
-keeps them in one file to source.
+The resulting layout is `.venv/`, `.west/`, `emul-parking-lot/`,
+`modules/hal/{stm32,cmsis_6}`, `zephyr/` and `zephyr-virtual-board/`.
+`west packages pip --install` installs Zephyr's and the modules' Python
+requirements into the venv; `west sdk install` puts the SDK in
+`~/zephyr-sdk-1.0.1` (skip it when that SDK is already installed). Every new
+shell needs the venv and `ZEPHYR_SDK_INSTALL_DIR`, `RENODE_ROOT` and
+`ZVB_MODULE` (the workspace's `zephyr-virtual-board/`); the
+[installation guide](instalacao.md#3-variáveis-de-cada-sessão) keeps them in
+one file to source. Do not run `west zephyr-export`.
 
-`west init` is once per workspace; `.west/` and dependencies remain inside
-this project. Do not run `west zephyr-export`. Build-time dependencies use the
-published manifest for Zephyr/CMSIS/HAL; the launcher explicitly selects the
-reviewed module's Python assembly and transport without modifying `.west/`,
-the manifest, nested source or global packages. It rejects missing reviewed
+`lab.py` finds the workspace from its own location (the closest `.west/`
+above this repository), sets `WEST_CONFIG_LOCAL` and `ZEPHYR_BASE` from it
+(ignoring inherited values) and checks that `zephyr/` is exactly v4.5.0, so a
+workspace not updated after a manifest change is refused. It explicitly selects
+the reviewed module's Python assembly and transport without modifying the
+workspace, nested source or global packages. It rejects missing reviewed
 runtime files. Presence checks do not replace instructor artifact verification.
 `lab.py` is a command-line process, not an in-process library API: it selects
 its own cwd/environment (discarding inherited ZVB/west/Python source overrides),
@@ -81,7 +92,7 @@ ancestor workspace or persistent west configuration. Imported helper functions
 are used by host tests; calling `main()` inside another application is not a
 supported integration contract.
 Direct bootstrap pins are in `requirements-tools.txt`; the generator Git pin
-and Zephyr commit are exact. Upstream Python requirement ranges, PEP 517 build
+is exact, and `source.json` records the Zephyr path and commit of each build. Upstream Python requirement ranges, PEP 517 build
 inputs, SDK/host distributions and remote SVD bytes are **not a complete hash
 lock**. `pip freeze` records one environment, not a portable lock.
 
@@ -149,9 +160,9 @@ Edit `student/src/` and its CMake/Kconfig as necessary. Public
 wiring used by student firmware and the simulator. Preserve those interfaces and the
 fixed clock/ADC4 subset; no ADC1, DMA or general display driver is supported.
 Custom local projects must retain equivalent public wiring, ZVB bundle,
-equipment timeline and common models; integration of an arbitrary external
-Zephyr workspace is not automatic. Do not modify `deps/`, models or assessment
-expectations to make a submission pass.
+equipment timeline and common models. Do not modify the Zephyr workspace, the
+`zephyr-virtual-board` module, models or assessment expectations to make a
+submission pass.
 
 This is not protection against a person editing their local simulator or
 running malicious native code. Instructor assessment uses trusted frozen
@@ -181,16 +192,6 @@ Automated artifact/host checks complement, not replace, that human pilot.
 Record which steps actually ran and whether dependencies were downloaded or
 read-copied from known caches; retain those results with the pilot's build output.
 
-When piloting **inside another west workspace** (for example beneath its
-ignored `build/`), `west init` initially discovers the ancestor `.west/` and
-refuses. Do not delete that ancestor. Initialize the extracted workspace from
-a directory outside any west workspace, supplying its absolute manifest:
-
-```sh
-P="/absolute/path/to/extracted/emul-parking-lot"
-(cd / && env -u ZEPHYR_BASE "$P/.venv/bin/west" init -l "$P/manifest")
-```
-
-Then return to `$P` for update/install/build. This writes only the extracted
-workspace's `.west/`, not its ancestor or `/`. Normal independent checkouts
-use the bootstrap command above.
+Pilot in a new folder outside any west workspace (not beneath another
+workspace's `build/`): `west init -l` refuses to create a workspace inside
+another one. Do not delete that ancestor.

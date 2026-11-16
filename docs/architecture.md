@@ -63,8 +63,10 @@ The normal launcher builds only `student/`; no reference-firmware option exists.
 The separate `zephyr-virtual-board` dependency owns generic machine assembly,
 configuration discovery, virtual-time scheduling, private stdio control and
 restricted HTTP/SSE transport. Parking rules stay in this repository. Use its
-published commit selected by `manifest/west.yml`; do not patch downloaded
-dependencies to hide compatibility problems.
+published commit pinned by [`west.yml`](../west.yml); do not patch it to hide
+compatibility problems. This repository is the west manifest repository
+(topology 2): Zephyr v4.5.0, its modules and ZVB sit beside it in the
+workspace, and `lab.py` takes `ZEPHYR_BASE` from that workspace.
 
 ## Time and lifecycle
 

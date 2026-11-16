@@ -106,6 +106,30 @@ runtime; a timeout is never a successful compilation or integration result.
   complete display-driver support, durable sessions and hostile-code isolation
   are not implemented guarantees.
 
+## West topology 2 and Zephyr v4.5.0
+
+`west.yml` at this repository's root makes it the manifest repository of a
+topology-2 workspace: `west init -l emul-parking-lot` and
+`west update --narrow` put `zephyr/`, `modules/hal/{stm32,cmsis_6}` and
+`zephyr-virtual-board/` beside it, and `west packages pip --install` and
+`west sdk install -t arm-zephyr-eabi` complete it, so students need only the
+Getting Started host dependencies and a single archive. `lab.workspace()`
+finds the closest `.west/` above the lab, reads `zephyr.base`, and refuses a
+`VERSION` other than exactly 4.5.0 (a workspace not updated after a manifest
+change). `lab.environment` sets `WEST_CONFIG_LOCAL` and `ZEPHYR_BASE` from it,
+ignoring inherited values. ZVB is a tooling-only Zephyr module (no CMake);
+the lab uses it through `--module` and `PYTHONPATH`, and its west commands
+come with the manifest. `source.json` records the Zephyr path and commit.
+
+v4.5.0 uses the same SDK 1.0.1. Its STM32U5 devicetree puts each ADC under a
+common node (`adc4_common: adc@46021000` containing `adc4`), so dts2repl now
+names the generated model `adc4common` (and adds an unused `adc12common` at
+`0x42028000`; ADC1 stays disabled). `hardware/renode/parking.repl` therefore
+unregisters `sysbus.adc4common` before registering the course ADC4 model; on
+v4.4.0 the name was `adc4`, and a wrong name makes the runtime `init` fail
+with only "embedded operation failed". After any Zephyr change, diff the
+generated `zvb.repl` against the previous version first.
+
 ## Linux host validation
 
 Student documentation covers Linux only. `lab.py` also accepts macOS arm64,
@@ -116,12 +140,16 @@ and Renode `renode-1.17.0.osx-arm64-portable.dmg` (SHA-256
 `RENODE_ROOT=<dir>/Renode.app/Contents/MacOS`.
 
 A clean Ubuntu 24.04 aarch64 container (2 CPUs, 2 GB RAM) followed
-[instalacao.md](instalacao.md) from a student package: apt packages, SDK
-minimal + `setup.sh -t arm-zephyr-eabi`, Renode linux-arm64 portable,
-bootstrap, `lab.py --headless normal` (expected starter firmware failure),
-the browser session/snapshot API and Ctrl-C teardown, and the coverage tool on
-the instructor solution: all 19 public scenarios pass, the ztest template
-suite passes.
+[instalacao.md](instalacao.md) from a student package with the topology-2
+workspace and Zephyr v4.5.0: Getting Started apt packages, Renode
+linux-arm64 portable, then `west init -l`, `west update --narrow`,
+`west packages pip --install` and `west sdk install -t arm-zephyr-eabi`
+(workspace 3.7 GB, SDK 1.9 GB), `pip check` clean. `lab.py --headless normal`
+gave the expected starter firmware failure, `check-student-launch.py` passed
+(build, auth, network audit, teardown), the ztest template suite passed, and
+the coverage tool on the instructor solution passed all 19 public and 4 hidden
+scenarios (90.73% lines, 7m53s with one Renode at a time). The same results
+hold on the macOS development host.
 
 - **Memory.** Renode peaked near 1.7 GB resident on that 2 GB host, against
   about 840 MB on a 16 GB macOS host. Two parallel Renode processes were

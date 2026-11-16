@@ -38,20 +38,58 @@ class LabPackagingTests(unittest.TestCase):
         self.assertEqual(build[-3:], ["--", "-DCONFIG_PARKING_TARIFF_UNIT_MS=1000",
                                       "-DCONFIG_PARKING_CAPACITY=2"])
 
-    def test_explicit_workspace_and_bundle_ignore_inherited_overrides(self):
-        with patch.dict(lab.os.environ, {"ZVB_CONFIG": "/wrong.yml",
-                                       "WEST_CONFIG_LOCAL": "/other/workspace",
-                                       "PYTHONPATH": "/stale/source",
-                                       "ZEPHYR_BASE": "/other/zephyr"}):
-            env = lab.environment(Path("/reviewed"))
+    @staticmethod
+    def workspace(root, version=(4, 5, 0)):
+        """A topology-2 workspace: .west/, zephyr/ of `version` and the lab; returns the lab."""
+        (root / ".west").mkdir(parents=True)
+        (root / ".west/config").write_text(
+            "[manifest]\npath = emul-parking-lot\nfile = west.yml\n\n[zephyr]\nbase = zephyr\n")
+        (root / "zephyr").mkdir()
+        (root / "zephyr/VERSION").write_text(
+            "VERSION_MAJOR = {}\nVERSION_MINOR = {}\nPATCHLEVEL = {}\n".format(*version))
+        (root / "emul-parking-lot").mkdir()
+        return root / "emul-parking-lot"
+
+    def test_zephyr_comes_from_the_labs_own_workspace(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            topdir = Path(temporary).resolve() / "estacionamento"
+            lab_root = self.workspace(topdir)
+            with patch.object(lab, "ROOT", lab_root), \
+                    patch.dict(lab.os.environ, {"ZVB_CONFIG": "/wrong.yml",
+                                                "WEST_CONFIG_LOCAL": "/other/workspace",
+                                                "PYTHONPATH": "/stale/source",
+                                                "ZEPHYR_BASE": "/other/zephyr"}):
+                env = lab.environment(Path("/reviewed"))
         self.assertNotIn("ZVB_CONFIG", env)
-        self.assertEqual(env["WEST_CONFIG_LOCAL"], str(ROOT / ".west/config"))
-        self.assertEqual(env["ZEPHYR_BASE"], str(ROOT / "deps/zephyr"))
+        self.assertEqual(env["WEST_CONFIG_LOCAL"], str(topdir / ".west/config"))
+        self.assertEqual(env["ZEPHYR_BASE"], str(topdir / "zephyr"))
         self.assertEqual(env["PYTHONPATH"], "/reviewed/src")
         _, prepare, _ = lab.commands(Path("/reviewed"), Path("/renode"),
                                       Path("/output"))
         self.assertEqual(prepare[-2:], [
             "--config", str(ROOT / "student/boards/zvb/nucleo_u5a5zj_q/zvb.yml")])
+
+    def test_workspace_must_exist_and_pin_the_zephyr_version(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            temporary = Path(temporary).resolve()
+            with patch.object(lab, "ROOT", temporary / "loose/emul-parking-lot"):
+                self.assertIn("west init -l emul-parking-lot", lab.workspace()[2])
+            old = self.workspace(temporary / "old", (4, 4, 0))
+            with patch.object(lab, "ROOT", old):
+                self.assertIn("has Zephyr v4.4.0", lab.workspace()[2])
+                with self.assertRaises(SystemExit):
+                    lab.environment(Path("/reviewed"))
+            empty = self.workspace(temporary / "empty")
+            (empty.parent / "zephyr/VERSION").unlink()
+            with patch.object(lab, "ROOT", empty):
+                self.assertIn("run west update", lab.workspace()[2])
+
+    def test_manifest_is_topology_2(self):
+        text = (ROOT / "west.yml").read_text()
+        self.assertIn("path: emul-parking-lot", text)
+        self.assertIn("path: zephyr\n", text)
+        self.assertIn("path: zephyr-virtual-board\n", text)
+        self.assertIn("# Zephyr v4.5.0", text)
 
     def test_hashes_record_unpublished_bytes_not_cache(self):
         with tempfile.TemporaryDirectory() as temporary:
