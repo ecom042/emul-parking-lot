@@ -60,7 +60,7 @@
   <line x1="20" y1="295" x2="1080" y2="295" stroke="#ccc" stroke-width="1"/>
 
   <!-- ============ Vista lateral ============ -->
-  <text x="20" y="325" font-size="18" font-weight="bold">B. Uma faixa vista de lado (a de saída; a de entrada é igual, sem ⑨ e ⑩)</text>
+  <text x="20" y="325" font-size="18" font-weight="bold">B. Uma faixa vista de lado (a de saída; a de entrada é igual, sem 9 e 10)</text>
 
   <!-- chão -->
   <rect x="20" y="600" width="1060" height="8" fill="#888"/>

@@ -28,7 +28,7 @@ ROOT_FILES = {
 EXTENSIONS = {
     ".c", ".h", ".cs", ".py", ".sh", ".cjs", ".js", ".html", ".css",
     ".md", ".txt", ".conf", ".overlay", ".repl", ".resc", ".robot",
-    ".json", ".yaml", ".yml", ".toml", ".svg",
+    ".json", ".yaml", ".yml", ".toml", ".svg", ".pdf",
 }
 SPECIAL_FILES = {"CMakeLists.txt", "Kconfig"}
 EXCLUDED = {
@@ -66,8 +66,8 @@ STUDENT_TESTS = {
 
 # Kept in the course repository only: the grade computation, its tests and doc.
 INSTRUCTOR_DOCS = {"grading-instructor.md"}
-INSTRUCTOR_SCRIPTS = {"grade.py"}
-INSTRUCTOR_TESTS = {"test_grading_points.py"}
+INSTRUCTOR_SCRIPTS = {"grade.py", "docs-pdf.py"}
+INSTRUCTOR_TESTS = {"test_grading_points.py", "test_docs_pdf.py"}
 
 
 def student_source(relative):
@@ -75,7 +75,8 @@ def student_source(relative):
     parts = relative.parts
     if parts[0] == "docs":
         return ((len(parts) == 2 and parts[1] in STUDENT_DOCS)
-                or (len(parts) == 3 and parts[1] == "img" and relative.suffix == ".svg"))
+                or (len(parts) == 3 and parts[1] == "img" and relative.suffix == ".svg")
+                or (len(parts) == 3 and parts[1] == "pdf"))
     if parts[0] == "scripts":
         return Path(*parts[1:]).as_posix() in STUDENT_SCRIPTS
     if parts[0] == "tests":

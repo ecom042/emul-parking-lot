@@ -1,0 +1,37 @@
+"""The committed PDFs in docs/pdf/ match their Markdown sources."""
+import importlib.util
+from pathlib import Path
+import json
+import unittest
+
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts/docs-pdf.py"
+SPEC = importlib.util.spec_from_file_location("docs_pdf", SCRIPT)
+docs_pdf = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(docs_pdf)
+
+
+class CommittedPdfs(unittest.TestCase):
+    def test_every_pdf_is_current(self):
+        manifest = json.loads(docs_pdf.MANIFEST.read_text())
+        self.assertEqual(docs_pdf.stale(manifest), [],
+                         "run: python scripts/docs-pdf.py")
+
+    def test_no_instructor_page_is_published(self):
+        for source in ("docs/grading-instructor.md", "docs/agent-context.md",
+                       "docs/release-checklist.md"):
+            self.assertNotIn(source, docs_pdf.DOCUMENTS)
+
+
+class Links(unittest.TestCase):
+    def test_links_are_valid_inside_docs_pdf(self):
+        text = ("[a](setup.md#x) [b](release-checklist.md) [c](#local) "
+                "[d](https://example.org/x.md) [e](../AGENTS.md) ![f](img/estacionamento.svg)")
+        self.assertEqual(docs_pdf.rewrite("docs/desafio.md", text),
+                         "[a](setup.pdf) "
+                         f"[b]({docs_pdf.REPOSITORY}docs/release-checklist.md) c "
+                         "[d](https://example.org/x.md) [e](AGENTS.pdf) "
+                         "![f](/docs/img/estacionamento.svg)")
+
+
+if __name__ == "__main__":
+    unittest.main()
