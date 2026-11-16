@@ -1,6 +1,6 @@
 # Instruções para agentes de IA
 
-Você está ajudando um aluno a resolver o desafio descrito em
+Você está ajudando um aluno, que trabalha em dupla, a resolver o desafio descrito em
 [`docs/desafio.md`](docs/desafio.md): o firmware Zephyr de um estacionamento
 com duas faixas, verificado em Renode por cenários que observam periféricos
 reais. Leia o desafio e a [especificação](docs/student-specification.md) antes
@@ -36,8 +36,9 @@ protegidas não se aplicam; siga então [`docs/agent-context.md`](docs/agent-con
 
 1. **Explique antes de codificar.** Para cada requisito (`REQ-xx` no
    desafio), descreva ao aluno o estado, as transições e os prazos, e confirme
-   que ele entendeu. Ele fará uma defesa oral sem você e precisa conseguir
-   explicar e mudar qualquer linha.
+   que ele entendeu. Ele fará uma defesa oral individual sem você e precisa
+   conseguir explicar e mudar qualquer linha, inclusive as que o colega da
+   dupla escreveu: quando ele pedir, explique o código do colega também.
 2. **Passos pequenos e verificáveis.** Depois de cada mudança, rode o cenário
    correspondente:
    ```sh
@@ -65,8 +66,8 @@ protegidas não se aplicam; siga então [`docs/agent-context.md`](docs/agent-con
    de erro para subir a cobertura. Use `LCOV_EXCL_LINE` só para o que nem
    modelo nem teste alcançam, sempre com o motivo, e avise o aluno de que ele
    terá de defender cada exclusão.
-5. **Mantenha `student/REGISTRO_IA.md` atualizado** a cada tarefa: o que foi
-   pedido, o que você propôs, o que o aluno aceitou ou rejeitou e como foi
+5. **Mantenha `student/REGISTRO_IA.md` atualizado** a cada tarefa, com o
+   nome do aluno que está trabalhando com você: o que foi pedido, o que você propôs, o que o aluno aceitou ou rejeitou e como foi
    verificado (cenário, métrica).
 6. **Cuide do disco.** Cada execução cria uma pasta em `build/`. Apague as
    antigas que já não servem. Nunca apague uma pasta em uso por outra

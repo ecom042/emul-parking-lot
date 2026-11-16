@@ -7,8 +7,9 @@ contrato técnico vale para o comportamento e este texto vale para a nota.
 
 ## O desafio
 
-Você vai escrever, em Zephyr RTOS, o firmware de um estacionamento para a placa
-`nucleo_u5a5zj_q`. Há uma faixa de entrada e uma de saída funcionando ao mesmo
+Em **dupla** e em **uma semana**, vocês vão escrever, em Zephyr RTOS, o
+firmware de um estacionamento para a placa `nucleo_u5a5zj_q`
+([trabalho em dupla](#trabalho-em-dupla)). Há uma faixa de entrada e uma de saída funcionando ao mesmo
 tempo e até `CONFIG_PARKING_CAPACITY` carros estacionados (padrão 4).
 
 O firmware comanda cancelas, sinais e buzzer por GPIO, mede a distância do
@@ -218,6 +219,42 @@ modelos. Os detalhes estão em [modelo físico](physical-model.md),
 4. **O tempo é virtual.** Todos os prazos usam o tempo virtual do Renode,
    nunca o relógio do computador.
 
+## Trabalho em dupla
+
+A dupla entrega **um** `student/` e um relatório, e recebe **uma** nota de
+pontos. A defesa oral é **individual**: cada um responde por todo o código,
+inclusive pela parte que o colega escreveu.
+
+- **Um repositório para os dois.** Cada um faz commits com a própria
+  identidade do git; o histórico mostra quem fez o quê.
+- **Dividam pelo meio das interfaces, não pelas faixas.** As duas faixas usam
+  o mesmo código, então dividir "entrada" e "saída" duplica trabalho. Uma
+  divisão que funciona:
+
+  | Pessoa A | Pessoa B |
+  |---|---|
+  | Cancela, fins de curso, feixe, segurança e assistência (REQ-01, 06–09) | Câmera e terminal: os dois analisadores de UART (REQ-02, 05, 11) |
+  | ADC4 assíncrono e as duas faixas juntas (REQ-03, 04, 10) | Display, tarifa e sessões (REQ-04, 12) |
+  | Cenários de segurança do portão G3 | Suítes ztest/FFF para a cobertura |
+
+  O REQ-13 (reset) é dos dois.
+- **Combinem as interfaces no primeiro dia**, antes de codificar: o que a
+  máquina de estados de cada faixa chama (por exemplo, pedir uma captura,
+  cobrar um valor, desenhar a tela) e quais eventos recebe de volta (placa
+  aceita, pagamento confirmado, prazo esgotado). Com isso cada um testa a sua
+  parte com falsos do FFF sem esperar o outro.
+- **Revisem o código um do outro.** Quem não escreveu um módulo precisa
+  conseguir explicá-lo e mudá-lo na defesa. Reservem o último dia para isso.
+
+Um plano possível para a semana:
+
+| Dia | Trabalho |
+|---|---|
+| 1 | Os dois instalam o ambiente e rodam o primeiro cenário; leem o desafio; combinam as interfaces e a divisão |
+| 2–3 | Cada um implementa a sua parte, com testes de unidade e cenários |
+| 4 | Integração: as duas faixas juntas, a saída com pagamento e display, todos os cenários públicos |
+| 5 | Cobertura, análise estática, relatório e cada um explica ao outro o que escreveu |
+
 ## Requisitos
 
 Cada requisito resume uma parte da
@@ -248,13 +285,15 @@ Entregue na forma anunciada pela disciplina:
 
 1. **`student/`**: código, `prj.conf`, `Kconfig`, overlays e as suas suítes
    de teste de unidade em `student/tests/`.
-2. **Relatório** (PDF ou Markdown): máquina de estados e transições, mapa de
-   pinos e interfaces, analisadores e novas tentativas, posse do ADC, exemplos
-   de tarifa, falhas e recuperação, limitações conhecidas.
+2. **Relatório** (PDF ou Markdown), um por dupla: máquina de estados e
+   transições, mapa de pinos e interfaces, analisadores e novas tentativas,
+   posse do ADC, exemplos de tarifa, falhas e recuperação, limitações
+   conhecidas, e quem fez cada parte.
 3. **Evidências**: a saída dos cenários, de `scripts/firmware-coverage.py`
    e de `scripts/static-check.py`, com IDs de execução e tempos virtuais. Mantenha as falhas; capturas de tela sozinhas
    não bastam.
-4. **`student/REGISTRO_IA.md`** preenchido (modelo no próprio arquivo).
+4. **`student/REGISTRO_IA.md`** preenchido pelos dois, com o autor de cada
+   entrada (modelo no próprio arquivo).
 
 ## Avaliação
 
@@ -268,8 +307,8 @@ A nota tem **portões**, que precisam passar todos, e **pontos**, que somam
 | G1 Build | `student/` compila em uma árvore limpa do curso | não avaliado |
 | G2 Sem leituras fabricadas | Revisão do código: drivers reais, nada de escrever no estado dos modelos | não avaliado |
 | G3 Segurança | Os cenários `obstruction-during-close`, `jam`, `contradictory-limits` e `missing-lower` passam | não avaliado |
-| G4 Registro de IA | `student/REGISTRO_IA.md` preenchido e atribuições de código de terceiros | não avaliado |
-| G5 Defesa oral | Conversa curta, **sem agente**: você explica um requisito e faz uma pequena mudança ao vivo | a nota fica limitada a 5,0 |
+| G4 Registro de IA | `student/REGISTRO_IA.md` com entradas dos dois alunos e atribuições de código de terceiros | não avaliado |
+| G5 Defesa oral | Individual e **sem agente**: o professor escolhe um requisito, que pode ser da parte do colega; você explica e faz uma pequena mudança ao vivo | a nota de quem falhar fica limitada a 5,0 |
 
 "Não avaliado" significa que a entrega volta para correção, conforme a regra
 de reenvio da disciplina.
@@ -284,7 +323,8 @@ de reenvio da disciplina.
 | Análise estática | 10 | 10 menos 2 por achado, mínimo 0 |
 | Relatório e projeto | 20 | rubrica: estados, posse do ADC, analisadores, tarifa, falhas, limitações |
 
-**Nota = pontos ÷ 10**, limitada a 5,0 se a defesa oral falhar.
+**Nota = pontos ÷ 10**, a mesma para os dois. Ela fica limitada a 5,0 só
+para quem não passar na própria defesa oral.
 
 ### O que cada métrica mede
 
@@ -369,19 +409,20 @@ ele.
 
 O agente pode escrever código, mas **quem é avaliado é você**:
 
-- **A defesa oral é sem agente.** Você precisa explicar qualquer parte do
-  código entregue e fazer uma pequena mudança ao vivo, como trocar um prazo,
+- **A defesa oral é individual e sem agente.** Você precisa explicar
+  qualquer parte do código entregue, inclusive a do colega, e fazer uma pequena mudança ao vivo, como trocar um prazo,
   um limiar ou uma regra de rearme. Peça ao agente que explique cada decisão
   e anote o que você não entendeu.
 - **Valide pelos periféricos**, não pela conversa. "Implementei e funciona"
   vale só depois de um cenário passar. Peça ao agente para rodar os cenários
   e mostrar o resultado.
-- **Registre em `student/REGISTRO_IA.md`** a ferramenta e o modelo, o que
-  pediu, o que aceitou ou rejeitou e como verificou.
+- **Registre em `student/REGISTRO_IA.md`**, com o seu nome na entrada, a
+  ferramenta e o modelo, o que pediu, o que aceitou ou rejeitou e como verificou.
 - **Não envie** material privado, credenciais ou o link de capacidade do
   laboratório para serviços externos.
 
-Bons pedidos para o agente: "explique o REQ-05 com os seus próprios exemplos",
+Bons pedidos para o agente: "explique o módulo que o meu colega escreveu
+como se eu fosse defendê-lo", "explique o REQ-05 com os seus próprios exemplos",
 "escreva a máquina de estados da entrada antes de codificar", "rode
 `firmware-coverage.py` e explique cada linha não coberta" e "que teste de
 unidade com FFF cobre o erro deste driver?".
