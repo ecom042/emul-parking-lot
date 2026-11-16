@@ -207,8 +207,9 @@ modelos. Os detalhes estão em [modelo físico](physical-model.md),
 
 ## Regras do jogo
 
-1. **Você só entrega `student/`.** Na avaliação, a sua pasta `student/` é
-   copiada para uma árvore limpa do curso. Mudanças em `hardware/`, `models/`,
+1. **Você só entrega `student/`.** A entrega é um pull request
+   ([como entregar](#como-entregar-fork-e-pull-request)); na avaliação, a pasta
+   `student/` do PR é copiada para uma árvore limpa do curso. Mudanças em `hardware/`, `models/`,
    `scripts/`, `tests/`, `web/` ou nos documentos são ignoradas. Não adianta
    "consertar" um cenário ou um modelo.
 2. **Use os drivers reais do Zephyr**: GPIO/EXTI, ADC4 assíncrono, UARTs e
@@ -226,8 +227,9 @@ A dupla entrega **um** `student/` e um relatório, e recebe **uma** nota de
 pontos. A defesa oral é **individual**: cada um responde por todo o código,
 inclusive pela parte que o colega escreveu.
 
-- **Um repositório para os dois.** Cada um faz commits com a própria
-  identidade do git; o histórico mostra quem fez o quê.
+- **Um fork para os dois.** Um da dupla faz o fork e adiciona o colega como
+  colaborador. Cada um faz commits com a própria identidade do git; o
+  histórico do PR mostra quem fez o quê.
 - **A divisão do trabalho é de vocês.** Lembrem que as duas faixas usam o
   mesmo código: dividir "entrada" e "saída" duplica trabalho.
 - **Combinem as interfaces no primeiro dia**, antes de codificar: o que a
@@ -271,19 +273,59 @@ exemplo, as duas faixas ao mesmo tempo).
 | REQ-12 | **Display e tarifa.** O display ST7789V é desenhado via SPI real, com a placa, `BRL r.cc`, `SIMULATED PAYMENT` e `NOT PIX`. A tarifa é `200 + (unidades − 1) × 100` centavos, congelada na primeira cobrança; acima de 9999 unidades, assistência. | `normal`, `payment-delayed` |
 | REQ-13 | **Reset.** Um reset limpa sessões, pedidos pendentes e saídas de forma coerente; uma resposta atrasada de antes do reset não autoriza nada. | `reset-capture`, `reset-payment` |
 
+## Como entregar: fork e pull request
+
+O repositório da disciplina, [`ecom042/emul-parking-lot`](https://github.com/ecom042/emul-parking-lot), é a base do
+trabalho. A dupla desenvolve num fork e entrega por um **pull request (PR)**.
+A correção acontece no próprio PR: o professor comenta no código, a dupla
+responde e corrige com novos commits no mesmo PR.
+
+1. **Fork.** Um da dupla faz o fork de `ecom042/emul-parking-lot` na sua conta
+   do GitHub e adiciona o colega como colaborador (*Settings → Collaborators*).
+2. **Workspace a partir do fork.** Siga o [guia de instalação](instalacao.md)
+   usando a URL do fork no `west init`. O `emul-parking-lot/` do workspace é um
+   clone do fork, com o fork como `origin`.
+3. **Branch de trabalho.** Trabalhem num branch, não no `main`:
+
+   ```sh
+   cd ~/estacionamento/emul-parking-lot
+   git switch -c solucao
+   git push -u origin solucao
+   ```
+
+4. **PR cedo, como rascunho.** Abram o PR de `<conta>/emul-parking-lot:solucao`
+   para `ecom042/emul-parking-lot:main` já no primeiro dia, como *draft*, com
+   o título `Dupla: <nome 1> e <nome 2>`. O GitHub preenche a descrição com um
+   modelo; completem-no ao longo da semana.
+5. **Commits pequenos.** Um commit por passo verificado, com mensagem que diga
+   o que mudou e qual cenário passou. Façam push com frequência: o PR é o
+   histórico do trabalho.
+6. **Pronto para avaliação.** No prazo, marquem o PR como *Ready for review*.
+   Vale o último commit do PR dentro do prazo.
+7. **Correções.** Respondam aos comentários do professor no próprio PR e
+   corrijam com novos commits no mesmo branch. Não abram outro PR nem reescrevam
+   o histórico (`git push --force`).
+
+O PR **não será mesclado**: ele existe para a entrega e a correção. Ele só pode
+alterar arquivos em `student/`. Mudanças em outras pastas são ignoradas na
+avaliação e devem ser desfeitas antes de marcar o PR como pronto. Se o
+laboratório receber uma correção, atualizem o fork (*Sync fork* no GitHub;
+depois, no branch `solucao`, `git fetch origin` e `git merge origin/main`), e rodem `west update --narrow`.
+
 ## Entregáveis
 
-Entregue na forma anunciada pela disciplina:
+Tudo vai no PR:
 
 1. **`student/`**: código, `prj.conf`, `Kconfig`, overlays e as suas suítes
    de teste de unidade em `student/tests/`.
-2. **Relatório** (PDF ou Markdown), um por dupla: máquina de estados e
-   transições, mapa de pinos e interfaces, analisadores e novas tentativas,
+2. **Relatório** em `student/RELATORIO.md`, um por dupla: máquina de estados
+   e transições, mapa de pinos e interfaces, analisadores e novas tentativas,
    posse do ADC, exemplos de tarifa, falhas e recuperação, limitações
    conhecidas, e quem fez cada parte.
-3. **Evidências**: a saída dos cenários, de `scripts/firmware-coverage.py`
-   e de `scripts/static-check.py`, com IDs de execução e tempos virtuais. Mantenha as falhas; capturas de tela sozinhas
-   não bastam.
+3. **Evidências** na descrição do PR, conforme o modelo: o resultado dos
+   cenários, de `scripts/firmware-coverage.py` e de `scripts/static-check.py`,
+   com IDs de execução e tempos virtuais. Mantenham as falhas; capturas de
+   tela sozinhas não bastam.
 4. **`student/REGISTRO_IA.md`** preenchido pelos dois, com o autor de cada
    entrada (modelo no próprio arquivo).
 
@@ -302,8 +344,8 @@ A nota tem **portões**, que precisam passar todos, e **pontos**, que somam
 | G4 Registro de IA | `student/REGISTRO_IA.md` com entradas dos dois alunos e atribuições de código de terceiros | não avaliado |
 | G5 Defesa oral | Individual e **sem agente**: o professor escolhe um requisito, que pode ser da parte do colega; você explica e faz uma pequena mudança ao vivo | a nota de quem falhar fica limitada a 5,0 |
 
-"Não avaliado" significa que a entrega volta para correção, conforme a regra
-de reenvio da disciplina.
+"Não avaliado" significa que a entrega volta para correção no próprio PR,
+conforme a regra de reenvio da disciplina.
 
 ### Pontos
 

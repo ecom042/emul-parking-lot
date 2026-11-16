@@ -109,12 +109,13 @@ runtime; a timeout is never a successful compilation or integration result.
 ## West topology 2 and Zephyr v4.5.0
 
 `west.yml` at this repository's root makes it the manifest repository of a
-topology-2 workspace: `west init -m https://github.com/ecom042/emul-parking-lot
---mr <tag>` (or `west init -l` on a local checkout) and
+topology-2 workspace: `west init -m https://github.com/<account>/emul-parking-lot
+--mr main` on the pair's fork (or `west init -l` on a local checkout) and
 `west update --narrow` put `zephyr/`, `modules/hal/{stm32,cmsis_6}` and
 `zephyr-virtual-board/` beside it, and `west packages pip --install` and
 `west sdk install -t arm-zephyr-eabi` complete it, so students need only the
-Getting Started host dependencies and the release tag. The public repository
+Getting Started host dependencies and a fork; submissions are pull requests
+from the fork, graded and reviewed in place, never merged. The public repository
 also holds the instructor-only `grade.py`; the gates and points are public in
 `desafio.md` anyway, and `package-lab.py` remains a release/review tool. `lab.workspace()`
 finds the closest `.west/` above the lab, reads `zephyr.base`, and refuses a

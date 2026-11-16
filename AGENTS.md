@@ -69,7 +69,11 @@ protegidas não se aplicam; siga então [`docs/agent-context.md`](docs/agent-con
 5. **Mantenha `student/REGISTRO_IA.md` atualizado** a cada tarefa, com o
    nome do aluno que está trabalhando com você: o que foi pedido, o que você propôs, o que o aluno aceitou ou rejeitou e como foi
    verificado (cenário, métrica).
-6. **Cuide do disco.** Cada execução cria uma pasta em `build/`. Apague as
+6. **Trabalhe no branch do PR.** O aluno entrega por um pull request do fork
+   da dupla ([como entregar](docs/desafio.md#como-entregar-fork-e-pull-request)).
+   Faça um commit por passo verificado, só com arquivos de `student/`, e
+   nunca use `git push --force` nem altere o `main` do fork.
+7. **Cuide do disco.** Cada execução cria uma pasta em `build/`. Apague as
    antigas que já não servem. Nunca apague uma pasta em uso por outra
    execução.
 

@@ -7,9 +7,10 @@ a test result or permission to publish a release.
 
 Project-owned source/documentation use Apache-2.0. The manifest (`west.yml`) pins
 Zephyr v4.5.0 and a published ZVB commit, fetched by `west update`; retain
-that immutable identity and its notices. Students run `west init -m
-https://github.com/ecom042/emul-parking-lot --mr <tag>`: push an annotated
-release tag on the reviewed commit and announce it (the guides use `v1.0`).
+that immutable identity and its notices. Students fork the repository and run `west init -m` on their fork's
+`main`, so the reviewed release must be on `ecom042/emul-parking-lot:main`
+before they fork; tag it as well, to know which base each pair started from.
+Pull requests from the forks are reviewed and graded, never merged.
 The archives from `package-lab.py` are review evidence of the released bytes,
 hashes and notices, not a student download.
 Changing source or documentation changes archive bytes: create new candidates

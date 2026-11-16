@@ -51,15 +51,16 @@ and `west update` places Zephyr, `hal_stm32`, `cmsis_6` and
 outside any other west workspace. Ordinary spaces in supported input paths are
 tested; quotes, semicolons, backslashes and other whitespace are rejected.
 Internet access is required for Python, Git dependencies and the generator's
-remote SVD. Students clone the lab with `west init -m` at the announced
-release tag (`v1.0` below); no archive is distributed.
+remote SVD. Each student pair forks `ecom042/emul-parking-lot`, clones its fork with
+`west init -m` and submits a pull request from a branch of the fork (see the
+[challenge brief](desafio.md)); no archive is distributed.
 
 ```sh
 mkdir ~/estacionamento && cd ~/estacionamento
 python3.12 -m venv .venv
 . .venv/bin/activate
 python -m pip install west
-west init -m https://github.com/ecom042/emul-parking-lot --mr v1.0 .
+west init -m https://github.com/<account>/emul-parking-lot --mr main .
 python -m pip install -r emul-parking-lot/requirements-tools.txt
 west update --narrow
 west packages pip --install
