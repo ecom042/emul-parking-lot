@@ -51,16 +51,16 @@ and `west update` places Zephyr, `hal_stm32`, `cmsis_6` and
 outside any other west workspace. Ordinary spaces in supported input paths are
 tested; quotes, semicolons, backslashes and other whitespace are rejected.
 Internet access is required for Python, Git dependencies and the generator's
-remote SVD. Students receive only the `emul-parking-lot` archive; no Git HEAD
-is required in it.
+remote SVD. Students clone the lab with `west init -m` at the announced
+release tag (`v1.0` below); no archive is distributed.
 
 ```sh
 mkdir ~/estacionamento && cd ~/estacionamento
-unzip /path/to/emul-parking-lot.zip
 python3.12 -m venv .venv
 . .venv/bin/activate
+python -m pip install west
+west init -m https://github.com/ecom042/emul-parking-lot --mr v1.0 .
 python -m pip install -r emul-parking-lot/requirements-tools.txt
-west init -l emul-parking-lot
 west update --narrow
 west packages pip --install
 west sdk install -t arm-zephyr-eabi
@@ -193,5 +193,5 @@ Record which steps actually ran and whether dependencies were downloaded or
 read-copied from known caches; retain those results with the pilot's build output.
 
 Pilot in a new folder outside any west workspace (not beneath another
-workspace's `build/`): `west init -l` refuses to create a workspace inside
+workspace's `build/`): `west init` refuses to create a workspace inside
 another one. Do not delete that ancestor.

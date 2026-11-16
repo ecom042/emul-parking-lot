@@ -38,17 +38,19 @@ Ajuste o caminho se instalou o Renode em outro lugar. Ele precisa mostrar
 O laboratório é um workspace `west` (topologia 2): o projeto
 `emul-parking-lot` traz o manifesto (`west.yml`), e o `west update` baixa ao
 lado dele o Zephyr v4.5.0, o HAL do STM32, o CMSIS e o `zephyr-virtual-board`
-(cerca de 1,5 GB). A disciplina entrega o projeto num arquivo `.zip`. Use uma
-pasta nova, fora de qualquer outro workspace `west`. O caminho pode ter
+(cerca de 1,5 GB). O `west init` clona o laboratório do
+[repositório da disciplina](https://github.com/ecom042/emul-parking-lot) na
+versão `v1.0`; use a versão que a disciplina anunciar. Use uma pasta nova,
+fora de qualquer outro workspace `west`. O caminho pode ter
 espaços, mas não aspas, ponto e vírgula nem barra invertida.
 
 ```sh
 mkdir ~/estacionamento && cd ~/estacionamento
-unzip /caminho/emul-parking-lot.zip
 python3.12 -m venv .venv
 . .venv/bin/activate
+python -m pip install west
+west init -m https://github.com/ecom042/emul-parking-lot --mr v1.0 .
 python -m pip install -r emul-parking-lot/requirements-tools.txt
-west init -l emul-parking-lot
 west update --narrow
 west packages pip --install
 west sdk install -t arm-zephyr-eabi
@@ -139,7 +141,7 @@ de editar o firmware, rode o comando de novo: não há recarga automática.
 | `use the documented Python 3.12 virtual environment` | O `.venv` não está ativo ou foi criado com outro Python. Ative-o ou recrie-o com Python 3.12. |
 | `set ZEPHYR_SDK_INSTALL_DIR to the Zephyr SDK 1.0.1 for this host` | A variável não aponta para a pasta do SDK (a que contém `sdk_version`). |
 | `Wrong runtime identity` | O `--renode` não é o Renode 1.17.0 oficial. Veja `renode-version.log`. |
-| `initialize the west workspace first` | Falta `west init -l emul-parking-lot` e `west update --narrow` em `~/estacionamento`. |
+| `initialize the west workspace first` | Falta o `west init -m …` e o `west update --narrow` do passo 2 em `~/estacionamento`. |
 | `the workspace has Zephyr v…` ou `no Zephyr in …` | Rode `west update --narrow` em `~/estacionamento` (também depois de receber uma versão nova do laboratório). |
 | `output exists` | Escolha uma pasta de saída nova em `build/`. |
 | `supported hosts: …` | Sistema ou arquitetura sem Renode e SDK oficiais, como Windows nativo. |
