@@ -227,17 +227,8 @@ inclusive pela parte que o colega escreveu.
 
 - **Um repositório para os dois.** Cada um faz commits com a própria
   identidade do git; o histórico mostra quem fez o quê.
-- **Dividam pelo meio das interfaces, não pelas faixas.** As duas faixas usam
-  o mesmo código, então dividir "entrada" e "saída" duplica trabalho. Uma
-  divisão que funciona:
-
-  | Pessoa A | Pessoa B |
-  |---|---|
-  | Cancela, fins de curso, feixe, segurança e assistência (REQ-01, 06–09) | Câmera e terminal: os dois analisadores de UART (REQ-02, 05, 11) |
-  | ADC4 assíncrono e as duas faixas juntas (REQ-03, 04, 10) | Display, tarifa e sessões (REQ-04, 12) |
-  | Cenários de segurança do portão G3 | Suítes ztest/FFF para a cobertura |
-
-  O REQ-13 (reset) é dos dois.
+- **A divisão do trabalho é de vocês.** Lembrem que as duas faixas usam o
+  mesmo código: dividir "entrada" e "saída" duplica trabalho.
 - **Combinem as interfaces no primeiro dia**, antes de codificar: o que a
   máquina de estados de cada faixa chama (por exemplo, pedir uma captura,
   cobrar um valor, desenhar a tela) e quais eventos recebe de volta (placa
@@ -251,7 +242,7 @@ Um plano possível para a semana:
 | Dia | Trabalho |
 |---|---|
 | 1 | Os dois instalam o ambiente e rodam o primeiro cenário; leem o desafio; combinam as interfaces e a divisão |
-| 2–3 | Cada um implementa a sua parte, com testes de unidade e cenários |
+| 2–3 | Implementação, com testes de unidade e cenários |
 | 4 | Integração: as duas faixas juntas, a saída com pagamento e display, todos os cenários públicos |
 | 5 | Cobertura, análise estática, relatório e cada um explica ao outro o que escreveu |
 
