@@ -26,7 +26,17 @@ class AllowlistTests(unittest.TestCase):
                    for p in (root / "scripts/scenario").glob("*.py")}
         self.assertEqual(modules - packager.STUDENT_SCRIPTS, set())
         tests = {p.name for p in (root / "tests").glob("test_*")}
-        self.assertEqual(tests - packager.STUDENT_TESTS, set())
+        self.assertEqual(tests - packager.STUDENT_TESTS - packager.INSTRUCTOR_TESTS, set())
+
+    def test_grade_tool_is_not_a_handout(self):
+        self.assertFalse(packager.INSTRUCTOR_SCRIPTS & packager.STUDENT_SCRIPTS)
+        self.assertFalse(packager.INSTRUCTOR_TESTS & packager.STUDENT_TESTS)
+        self.assertFalse(packager.INSTRUCTOR_DOCS & packager.STUDENT_DOCS)
+        root = SCRIPT.parents[1]
+        for relative in ("scripts/grade.py", "tests/test_grading_points.py",
+                         "docs/grading-instructor.md"):
+            self.assertTrue((root / relative).is_file(), relative)
+            self.assertFalse(packager.student_source(Path(relative)), relative)
 
 
 class PackageTests(unittest.TestCase):
@@ -108,6 +118,7 @@ class PackageTests(unittest.TestCase):
             "tests/native/distance_lifetime.c", "tests/parking.robot",
             "tests/test_distance_lifetime.py", "tests/unknown_solution.py",
             "scripts/validate-phase5-browser.py", "scripts/unknown_solution.py",
+            "scripts/grade.py", "tests/test_grading_points.py", "docs/grading-instructor.md",
         ]
         for relative in private:
             self.write(self.parking, relative, "INSTRUCTOR_SOLUTION_MARKER\n")

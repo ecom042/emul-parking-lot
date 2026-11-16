@@ -4,7 +4,8 @@ These host tools measure a firmware submission with the same models and
 scenarios as the lab. Each takes the same `--module` and `--renode` as
 [`lab.py`](setup.md#build-launch-and-inspect) and a **new** `--output`
 directory beneath `build/`. They never modify `student/`. The Portuguese
-[challenge brief](desafio.md) explains how the results become a grade.
+[challenge brief](desafio.md) explains how the results become a grade; the
+grade itself is computed by the instructor.
 
 ## Firmware line coverage
 
@@ -47,7 +48,6 @@ then deleted.
   example `'\s*(LOG_[A-Z_]+\(|[A-Z0-9_]+_DEFINE\(|ZEPHLET_[A-Z_]+\().*'`
   removes logging calls and `*_DEFINE(` macros. These lines are reported as
   `excluded_by_pattern` and do not count toward the 3% marker cap.
-  `grade.py` passes the option through.
 - `--scenarios-dir DIR` adds trusted fixtures. The instructor uses it for the
   hidden set; a student's public-only figure is a lower bound of the graded
   one.
@@ -154,24 +154,3 @@ This builds the application with Zephyr's GCC analyzer variant
 the pinned SDK, so nothing is installed. Zephyr is compiled with the same flags,
 but only diagnostics located in `<app>/src` count, once per file, line and
 flag. The exit status is 1 when there is any finding or the build fails.
-
-## Grade
-
-```sh
-python scripts/grade.py --module "$ZVB_MODULE" \
-  --renode "$RENODE_ROOT/renode" --output build/grade-01
-```
-
-`grade.py` builds the application normally and runs every scenario, then runs
-the coverage tool (scenarios and unit suites) and the static check. It does
-not run mutation testing. It prints the gates and points of the
-[challenge](desafio.md#avaliação) in Portuguese. The instructor adds
-`--scenarios-dir` for the hidden set and `--manual items.json`:
-
-```json
-{"no_fabrication": true, "ai_log": true, "report": 16, "defense": "pass"}
-```
-
-Without them, the hidden scenarios, the manual gates and the report are shown
-as pending and the grade is partial. Weights and bands are the constants at the
-top of `scripts/grade.py`; change them together with the challenge brief.

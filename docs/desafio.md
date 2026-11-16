@@ -77,8 +77,8 @@ Entregue na forma anunciada pela disciplina:
 2. **Relatório** (PDF ou Markdown): máquina de estados e transições, mapa de
    pinos e interfaces, analisadores e novas tentativas, posse do ADC, exemplos
    de tarifa, falhas e recuperação, limitações conhecidas.
-3. **Evidências**: a saída de `scripts/grade.py` e dos cenários, com IDs de
-   execução e tempos virtuais. Mantenha as falhas; capturas de tela sozinhas
+3. **Evidências**: a saída dos cenários, de `scripts/firmware-coverage.py`
+   e de `scripts/static-check.py`, com IDs de execução e tempos virtuais. Mantenha as falhas; capturas de tela sozinhas
    não bastam.
 4. **`student/REGISTRO_IA.md`** preenchido (modelo no próprio arquivo).
 
@@ -166,31 +166,27 @@ resultado.
 
 ## Como se autoavaliar
 
-Com o ambiente do [setup](setup.md) ativo, na raiz do repositório:
-
-```sh
-python scripts/grade.py --module "$ZVB_MODULE" \
-  --renode "$RENODE_ROOT/renode" --output build/nota-01
-```
-
-O comando compila `student/`, roda todos os cenários públicos e as suas
-suítes de unidade, mede cobertura e análise estática e imprime portões e
-pontos. Os itens manuais (G2, G4, G5 e o relatório) aparecem como pendentes.
-Leva de 5 a 10 minutos; `--jobs N` usa mais núcleos.
-
-Para iterar mais rápido, rode cada ferramenta sozinha:
+A nota é calculada pelo professor. Para acompanhar o seu progresso, rode
+as mesmas ferramentas de medição com o ambiente do [setup](setup.md) ativo,
+na raiz do repositório:
 
 ```sh
 python scripts/lab.py --module "$ZVB_MODULE" --renode "$RENODE_ROOT/renode" \
   --output build/normal-01 --headless normal          # um cenário
 python scripts/firmware-coverage.py --module "$ZVB_MODULE" \
   --renode "$RENODE_ROOT/renode" --output build/cobertura-01
+python scripts/static-check.py --module "$ZVB_MODULE" \
+  --renode "$RENODE_ROOT/renode" --output build/estatica-01
 python scripts/mutation-test.py --module "$ZVB_MODULE" \
   --renode "$RENODE_ROOT/renode" --output build/mutacao-01 \
   --coverage build/cobertura-01 --sample 20 --seed 7   # retorno, sem nota
-python scripts/static-check.py --module "$ZVB_MODULE" \
-  --renode "$RENODE_ROOT/renode" --output build/estatica-01
 ```
+
+`firmware-coverage.py` roda todos os cenários públicos e as suas suítes de
+unidade e lista os que não passaram; os cenários do G3 precisam passar.
+Leva de 5 a 10 minutos; `--jobs N` usa mais núcleos. Com a tabela de
+[pontos](#pontos), você estima os pontos dos cenários públicos, da cobertura
+e da análise estática.
 
 O seu resultado é um **limite inferior**: a avaliação acrescenta cenários
 ocultos, que só podem aumentar a cobertura. Eles também podem reprovar o seu

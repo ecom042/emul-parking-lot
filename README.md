@@ -75,7 +75,7 @@ python scripts/lab.py --module "$ZVB_MODULE" \
 | [Setup](docs/setup.md) | Supported toolchain and build/launch instructions |
 | [Student specification](docs/student-specification.md) | Requirements, deliverables and learning objectives |
 | [Desafio](docs/desafio.md) | Challenge brief, requirements and grading, in Portuguese |
-| [Grading tools](docs/grading-tools.md) | Firmware line coverage, mutation score, static check and grade |
+| [Grading tools](docs/grading-tools.md) | Firmware line coverage, mutation score and static check |
 | [Release checklist](docs/release-checklist.md) | Packaging, pilot and rollout checks |
 | [Agent context](docs/agent-context.md) | Design rationale and maintenance discoveries |
 

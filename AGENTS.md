@@ -51,7 +51,6 @@ protegidas não se aplicam; siga então [`docs/agent-context.md`](docs/agent-con
    - `scripts/firmware-coverage.py`: cobertura de linhas por cenários e
      testes de unidade que passam (meta ≥ 95%);
    - `scripts/static-check.py`: zero achados;
-   - `scripts/grade.py`: tudo junto, com portões e pontos;
    - `scripts/mutation-test.py --coverage <pasta da cobertura>`: retorno sem
      nota; um mutante sobrevivente é uma regra sem teste.
 
