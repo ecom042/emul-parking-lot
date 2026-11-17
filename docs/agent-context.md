@@ -118,9 +118,10 @@ topology-2 workspace: `west init -m https://github.com/<account>/emul-parking-lo
 `zephyr-virtual-board/` beside it, and `west packages pip --install` and
 `west sdk install -t arm-zephyr-eabi` complete it, so students need only the
 Getting Started host dependencies and a fork; submissions are pull requests
-from the fork, graded and reviewed in place, never merged. The public repository
-also holds the instructor-only `grade.py`; the gates and points are public in
-`desafio.md` anyway, and `package-lab.py` remains a release/review tool. `lab.workspace()`
+from the fork, graded and reviewed in place, never merged. This repository is public,
+so instructor-only material (grade computation, plagiarism check, hidden
+scenarios, reference solution) is never committed here; the gates and points
+are public in `desafio.md`, and `package-lab.py` remains a release/review tool. `lab.workspace()`
 finds the closest `.west/` above the lab, reads `zephyr.base`, and refuses a
 `VERSION` other than exactly 4.5.0 (a workspace not updated after a manifest
 change). `lab.environment` sets `WEST_CONFIG_LOCAL` and `ZEPHYR_BASE` from it,

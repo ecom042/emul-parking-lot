@@ -65,9 +65,9 @@ STUDENT_TESTS = {
 }
 
 # Kept in the course repository only: the grade computation, its tests and doc.
-INSTRUCTOR_DOCS = {"grading-instructor.md"}
-INSTRUCTOR_SCRIPTS = {"grade.py", "docs-pdf.py"}
-INSTRUCTOR_TESTS = {"test_grading_points.py", "test_docs_pdf.py"}
+INSTRUCTOR_DOCS = set()
+INSTRUCTOR_SCRIPTS = {"docs-pdf.py"}
+INSTRUCTOR_TESTS = {"test_docs_pdf.py"}
 
 
 def student_source(relative):

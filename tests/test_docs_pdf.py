@@ -17,7 +17,7 @@ class CommittedPdfs(unittest.TestCase):
                          "run: python scripts/docs-pdf.py")
 
     def test_no_instructor_page_is_published(self):
-        for source in ("docs/grading-instructor.md", "docs/agent-context.md",
+        for source in ("docs/agent-context.md",
                        "docs/release-checklist.md", "AGENTS.md", "docs/setup.md"):
             self.assertNotIn(source, docs_pdf.DOCUMENTS)
 

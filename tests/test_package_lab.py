@@ -28,15 +28,17 @@ class AllowlistTests(unittest.TestCase):
         tests = {p.name for p in (root / "tests").glob("test_*")}
         self.assertEqual(tests - packager.STUDENT_TESTS - packager.INSTRUCTOR_TESTS, set())
 
-    def test_grade_tool_is_not_a_handout(self):
+    def test_instructor_material_stays_out_of_this_public_repository(self):
         self.assertFalse(packager.INSTRUCTOR_SCRIPTS & packager.STUDENT_SCRIPTS)
         self.assertFalse(packager.INSTRUCTOR_TESTS & packager.STUDENT_TESTS)
         self.assertFalse(packager.INSTRUCTOR_DOCS & packager.STUDENT_DOCS)
+        # Grade, plagiarism check and hidden scenarios live on the instructor's
+        # private branch, never in this public repository.
         root = SCRIPT.parents[1]
+        self.assertFalse((root / "instructor").exists())
         for relative in ("scripts/grade.py", "tests/test_grading_points.py",
                          "docs/grading-instructor.md"):
-            self.assertTrue((root / relative).is_file(), relative)
-            self.assertFalse(packager.student_source(Path(relative)), relative)
+            self.assertFalse((root / relative).exists(), relative)
 
 
 class PackageTests(unittest.TestCase):
