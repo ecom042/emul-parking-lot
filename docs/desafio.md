@@ -4,7 +4,19 @@ Este é o enunciado do desafio e a regra de avaliação. O contrato técnico
 completo (pinos, protocolos, tempos, modelos) está nos documentos em inglês
 ligados abaixo. Quando este texto e um contrato técnico parecerem divergir, o
 contrato técnico vale para o comportamento e este texto vale para a nota.
-Este enunciado e o guia de instalação também estão em PDF, em [`docs/pdf/`](pdf/).
+
+> **Comece aqui.** O repositório da disciplina é
+> [github.com/ecom042/emul-parking-lot](https://github.com/ecom042/emul-parking-lot). Tudo o que este enunciado cita
+> (documentos técnicos em inglês, código, cenários) está lá. Os passos:
+>
+> 1. Instale o ambiente com o [guia de instalação](instalacao.md), que clona o
+>    repositório.
+> 2. Crie o repositório privado da dupla
+>    ([como entregar](#como-entregar-repositório-privado-e-pull-request)).
+> 3. Rode o primeiro teste e leia os [requisitos](#requisitos).
+>
+> O enunciado e o guia de instalação também estão num único PDF,
+> [`docs/pdf/desafio.pdf`](pdf/desafio.pdf), com o guia no fim.
 
 ## O desafio
 
@@ -229,7 +241,7 @@ modelos. Os detalhes estão em [modelo físico](physical-model.md),
 ## Regras do jogo
 
 1. **Você só entrega `student/`.** A entrega é um pull request
-   ([como entregar](#como-entregar-fork-e-pull-request)); na avaliação, a pasta
+   ([como entregar](#como-entregar-repositório-privado-e-pull-request)); na avaliação, a pasta
    `student/` do PR é copiada para uma árvore limpa do curso. Mudanças em `hardware/`, `models/`,
    `scripts/`, `tests/`, `web/` ou nos documentos são ignoradas. Não adianta
    "consertar" um cenário ou um modelo.
@@ -248,9 +260,9 @@ A dupla entrega **um** `student/` e um relatório, e recebe **uma** nota de
 pontos. A defesa oral é **individual**: cada um responde por todo o código,
 inclusive pela parte que o colega escreveu.
 
-- **Um fork para os dois.** Um da dupla faz o fork e adiciona o colega como
-  colaborador. Cada um faz commits com a própria identidade do git; o
-  histórico do PR mostra quem fez o quê.
+- **Um repositório privado para os dois.** Um da dupla cria o repositório e
+  adiciona o colega como colaborador. Cada um faz commits com a própria
+  identidade do git; o histórico do PR mostra quem fez o quê.
 - **A divisão do trabalho é de vocês.** Lembrem que as duas faixas usam o
   mesmo código: dividir "entrada" e "saída" duplica trabalho.
 - **Combinem as interfaces no primeiro dia**, antes de codificar: o que a
@@ -294,44 +306,63 @@ exemplo, as duas faixas ao mesmo tempo).
 | REQ-12 | **Display e tarifa.** O display ST7789V é desenhado via SPI real, com a placa, `BRL r.cc`, `SIMULATED PAYMENT` e `NOT PIX`. A tarifa é `200 + (unidades − 1) × 100` centavos, congelada na primeira cobrança; acima de 9999 unidades, assistência. | `normal`, `payment-delayed` |
 | REQ-13 | **Reset.** Um reset limpa sessões, pedidos pendentes e saídas de forma coerente; uma resposta atrasada de antes do reset não autoriza nada. | `reset-capture`, `reset-payment` |
 
-## Como entregar: fork e pull request
+## Como entregar: repositório privado e pull request
 
 O repositório da disciplina, [`ecom042/emul-parking-lot`](https://github.com/ecom042/emul-parking-lot), é a base do
-trabalho. A dupla desenvolve num fork e entrega por um **pull request (PR)**.
-A correção acontece no próprio PR: o professor comenta no código, a dupla
-responde e corrige com novos commits no mesmo PR.
+trabalho. Durante a semana a dupla trabalha num **repositório privado**; na
+entrega, abre um **pull request (PR)** a partir de um fork. A correção acontece
+no próprio PR: o professor comenta no código, a dupla responde e corrige com
+novos commits.
 
-1. **Fork.** Um da dupla faz o fork de `ecom042/emul-parking-lot` na sua conta
-   do GitHub e adiciona o colega como colaborador (*Settings → Collaborators*).
-2. **Workspace a partir do fork.** Siga o [guia de instalação](instalacao.md)
-   usando a URL do fork no `west init`. O `emul-parking-lot/` do workspace é um
-   clone do fork, com o fork como `origin`.
-3. **Branch de trabalho.** Trabalhem num branch, não no `main`:
+1. **Repositório privado.** Um da dupla cria no GitHub um repositório
+   **privado e vazio** (sem README, licença nem `.gitignore`), por exemplo
+   `<conta>/estacionamento`, e adiciona o colega como colaborador
+   (*Settings → Collaborators*). Não use fork para isso: o fork de um
+   repositório público é sempre público.
+2. **Workspace.** Quem criou o repositório segue o
+   [guia de instalação](instalacao.md), que clona a base pública, e então
+   aponta o laboratório para o repositório privado:
 
    ```sh
    cd ~/estacionamento/emul-parking-lot
+   git remote rename origin upstream
+   git remote add origin https://github.com/<conta>/estacionamento.git
+   git push -u origin main
    git switch -c solucao
    git push -u origin solucao
    ```
 
-4. **PR cedo, como rascunho.** Abram o PR de `<conta>/emul-parking-lot:solucao`
-   para `ecom042/emul-parking-lot:main` já no primeiro dia, como *draft*, com
-   o título `Dupla: <nome 1> e <nome 2>`. O GitHub preenche a descrição com um
-   modelo; completem-no ao longo da semana.
-5. **Commits pequenos.** Um commit por passo verificado, com mensagem que diga
-   o que mudou e qual cenário passou. Façam push com frequência: o PR é o
-   histórico do trabalho.
-6. **Pronto para avaliação.** No prazo, marquem o PR como *Ready for review*.
-   Vale o último commit do PR dentro do prazo.
-7. **Correções.** Respondam aos comentários do professor no próprio PR e
-   corrijam com novos commits no mesmo branch. Não abram outro PR nem reescrevam
-   o histórico (`git push --force`).
+   O colega segue o mesmo guia trocando a URL do `west init` pela do
+   repositório privado (`https://github.com/<conta>/estacionamento`; o `git`
+   precisa estar autenticado, por exemplo com `gh auth login`) e depois roda
+   `git remote add upstream https://github.com/ecom042/emul-parking-lot` e `git switch solucao`.
+3. **Durante a semana.** Trabalhem no branch `solucao`, um commit por passo
+   verificado, com mensagem que diga o que mudou e qual cenário passou. Façam
+   push com frequência: o histórico é a prova de como o trabalho foi feito.
+   Mantenham o repositório privado e não compartilhem código, acesso nem
+   prompts com outras duplas (veja [plágio](#plágio)).
+4. **Entrega, até o prazo.** Um da dupla faz o fork de `ecom042/emul-parking-lot`,
+   envia o branch para ele e abre o PR de `<conta>/emul-parking-lot:solucao`
+   para `ecom042/emul-parking-lot:main`, com o título
+   `Dupla: <nome 1> e <nome 2>`:
+
+   ```sh
+   git remote add entrega https://github.com/<conta>/emul-parking-lot.git
+   git push entrega solucao
+   ```
+
+   O GitHub preenche a descrição do PR com um modelo; completem-no. No prazo,
+   o professor registra o último commit de cada PR: é esse commit que é
+   avaliado.
+5. **Correções.** Respondam aos comentários do professor no próprio PR e
+   corrijam com novos commits no mesmo branch (`git push entrega solucao`).
+   Não abram outro PR nem reescrevam o histórico (`git push --force`).
 
 O PR **não será mesclado**: ele existe para a entrega e a correção. Ele só pode
 alterar arquivos em `student/`. Mudanças em outras pastas são ignoradas na
-avaliação e devem ser desfeitas antes de marcar o PR como pronto. Se o
-laboratório receber uma correção, atualizem o fork (*Sync fork* no GitHub;
-depois, no branch `solucao`, `git fetch origin` e `git merge origin/main`), e rodem `west update --narrow`.
+avaliação e devem ser desfeitas antes da entrega. Se o laboratório receber uma
+correção, tragam-na para o branch (`git fetch upstream` e
+`git merge upstream/main`) e rodem `west update --narrow`.
 
 ## Entregáveis
 
@@ -380,6 +411,25 @@ conforme a regra de reenvio da disciplina.
 
 **Nota = pontos ÷ 10**, a mesma para os dois. Ela fica limitada a 5,0 só
 para quem não passar na própria defesa oral.
+
+### Plágio
+
+Depois do prazo, o professor compara o `student/` de todas as entregas entre si
+com uma ferramenta de similaridade que desconta o código do ponto de partida.
+A ferramenta só aponta suspeitas. Quem decide é o professor, olhando o código,
+o histórico de commits e o `REGISTRO_IA.md` e ouvindo as duplas. Semelhanças
+que surgem de forma independente (o mesmo exemplo da documentação do Zephyr,
+por exemplo) são levadas em conta.
+
+- **Similaridade alta confirmada:** a nota é dividida entre as duplas
+  envolvidas. Com duas duplas, cada uma recebe metade da própria nota; com
+  três, um terço, e assim por diante.
+- **Sem consentimento:** se a dupla de quem o código saiu declarar que não
+  consentiu (por exemplo, o código vazou), ela mantém a nota inteira, e a
+  outra dupla recebe **zero**.
+
+A melhor proteção é a do [passo 3 da entrega](#como-entregar-repositório-privado-e-pull-request): repositório
+privado até a entrega, sem compartilhar código, acesso nem prompts.
 
 ### O que cada métrica mede
 

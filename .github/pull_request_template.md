@@ -1,4 +1,4 @@
-<!-- Entrega do desafio (docs/desafio.md). Mantenha este PR como draft até o prazo. -->
+<!-- Entrega do desafio (docs/desafio.md). Abra este PR até o prazo, a partir do fork de entrega. -->
 
 ## Dupla
 

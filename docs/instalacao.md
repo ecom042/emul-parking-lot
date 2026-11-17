@@ -38,10 +38,10 @@ Ajuste o caminho se instalou o Renode em outro lugar. Ele precisa mostrar
 O laboratório é um workspace `west` (topologia 2): o projeto
 `emul-parking-lot` traz o manifesto (`west.yml`), e o `west update` baixa ao
 lado dele o Zephyr v4.5.0, o HAL do STM32, o CMSIS e o `zephyr-virtual-board`
-(cerca de 1,5 GB). O `west init` clona o laboratório do **fork da
-dupla** do [repositório da disciplina](https://github.com/ecom042/emul-parking-lot)
-(veja [como entregar](desafio.md#como-entregar-fork-e-pull-request)): troque
-`<conta>` pela conta do GitHub dona do fork. Use uma pasta nova,
+(cerca de 1,5 GB). O `west init` clona o laboratório do
+[repositório da disciplina](https://github.com/ecom042/emul-parking-lot). Quem entra no repositório privado que o
+colega já criou troca a URL pela desse repositório (veja
+[como entregar](desafio.md#como-entregar-repositório-privado-e-pull-request)). Use uma pasta nova,
 fora de qualquer outro workspace `west`. O caminho pode ter
 espaços, mas não aspas, ponto e vírgula nem barra invertida.
 
@@ -50,7 +50,7 @@ mkdir ~/estacionamento && cd ~/estacionamento
 python3.12 -m venv .venv
 . .venv/bin/activate
 python -m pip install west
-west init -m https://github.com/<conta>/emul-parking-lot --mr main .
+west init -m https://github.com/ecom042/emul-parking-lot --mr main .
 python -m pip install -r emul-parking-lot/requirements-tools.txt
 west update --narrow
 west packages pip --install

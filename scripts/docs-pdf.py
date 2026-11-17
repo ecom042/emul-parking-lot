@@ -7,7 +7,9 @@
 
 The Markdown files stay authoritative. Each PDF is compiled with Typst and the
 pinned @preview/cmarker package (downloaded by Typst on first use) through
-scripts/docs-pdf.typ. Links to another document in the set point to its PDF;
+scripts/docs-pdf.typ, one PDF per bundle (the brief and the installation
+guide go to students as a single file). Links to a document of the set keep
+only their text;
 links to other repository files point to GitHub; links inside the same
 document keep only their text. docs/pdf/SOURCES.json records a hash of the
 inputs of each PDF, so --check (and tests/test_docs_pdf.py) catches a
@@ -36,12 +38,10 @@ DOCUMENTS = {
     "docs/desafio.md": "pt",
     "docs/instalacao.md": "pt",
 }
+# PDF name -> the documents it holds, in order: students receive one file.
+BUNDLES = {"desafio.pdf": ["docs/desafio.md", "docs/instalacao.md"]}
 
 LINK = re.compile(r"(!?)\[((?:[^\[\]]|\[[^\]]*\])*)\]\(([^)\s]+)\)")
-
-
-def pdf_name(source):
-    return Path(source).stem + ".pdf"
 
 
 def rewrite(source, text):
@@ -59,7 +59,7 @@ def rewrite(source, text):
         if bang:
             return f"![{label}](/{relative})"
         if relative in DOCUMENTS:
-            return f"[{label}]({pdf_name(relative)})"
+            return label  # in the same PDF; Typst has no matching label
         return f"[{label}]({REPOSITORY}{relative}{'#' + anchor if anchor else ''})"
 
     return LINK.sub(link, text)
@@ -69,33 +69,38 @@ def images(text):
     return sorted({m.group(3) for m in LINK.finditer(text) if m.group(1)})
 
 
-def digest(source):
+def digest(name):
     """Hash of everything a PDF is made from."""
-    text = (ROOT / source).read_text()
     h = hashlib.sha256()
-    for part in [text.encode(), TEMPLATE.read_bytes(), Path(__file__).read_bytes()]:
+    for part in [TEMPLATE.read_bytes(), Path(__file__).read_bytes()]:
         h.update(hashlib.sha256(part).digest())
-    for image in images(text):
-        h.update(hashlib.sha256(((ROOT / source).parent / image).read_bytes()).digest())
+    for source in BUNDLES[name]:
+        text = (ROOT / source).read_text()
+        h.update(hashlib.sha256(text.encode()).digest())
+        for image in images(text):
+            h.update(hashlib.sha256(((ROOT / source).parent / image).read_bytes()).digest())
     return h.hexdigest()
 
 
 def stale(manifest):
-    return [s for s in DOCUMENTS
-            if manifest.get(pdf_name(s)) != digest(s) or not (OUTPUT / pdf_name(s)).is_file()]
+    return [n for n in BUNDLES if manifest.get(n) != digest(n) or not (OUTPUT / n).is_file()]
 
 
-def build(source, typst, work):
-    markdown = work / (Path(source).stem + ".md")
-    markdown.write_text(rewrite(source, (ROOT / source).read_text()))
+def build(name, typst, work):
+    sources = BUNDLES[name]
+    markdowns = []
+    for source in sources:
+        markdown = work / (Path(source).stem + ".md")
+        markdown.write_text(rewrite(source, (ROOT / source).read_text()))
+        markdowns.append("/" + markdown.relative_to(ROOT).as_posix())
     command = [typst, "compile", "--root", str(ROOT),
-               "--input", f"source={source}",
-               "--input", f"markdown=/{markdown.relative_to(ROOT).as_posix()}",
-               "--input", f"lang={DOCUMENTS[source]}",
-               str(TEMPLATE), str(OUTPUT / pdf_name(source))]
+               "--input", f"source={', '.join(sources)}",
+               "--input", f"markdown={';'.join(markdowns)}",
+               "--input", f"lang={DOCUMENTS[sources[0]]}",
+               str(TEMPLATE), str(OUTPUT / name)]
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
-        raise SystemExit(f"{source}: typst failed\n{result.stderr}")
+        raise SystemExit(f"{name}: typst failed\n{result.stderr}")
 
 
 def main():
@@ -104,10 +109,10 @@ def main():
     ap.add_argument("--all", action="store_true", help="regenerate every PDF")
     args = ap.parse_args()
     manifest = json.loads(MANIFEST.read_text()) if MANIFEST.is_file() else {}
-    todo = list(DOCUMENTS) if args.all else stale(manifest)
+    todo = list(BUNDLES) if args.all else stale(manifest)
     if args.check:
-        for source in todo:
-            print(f"stale: docs/pdf/{pdf_name(source)} (from {source})")
+        for name in todo:
+            print(f"stale: docs/pdf/{name} (from {', '.join(BUNDLES[name])})")
         return 1 if todo else 0
     typst = shutil.which("typst")
     if not typst:
@@ -116,13 +121,15 @@ def main():
     work = ROOT / "build/docs-pdf-src"
     work.mkdir(parents=True, exist_ok=True)
     try:
-        for source in todo:
-            build(source, typst, work)
-            manifest[pdf_name(source)] = digest(source)
-            print(f"docs/pdf/{pdf_name(source)}")
+        for name in todo:
+            build(name, typst, work)
+            manifest[name] = digest(name)
+            print(f"docs/pdf/{name}")
     finally:
         shutil.rmtree(work, ignore_errors=True)
-    manifest = {pdf_name(s): manifest[pdf_name(s)] for s in DOCUMENTS if pdf_name(s) in manifest}
+    for stray in set(p.name for p in OUTPUT.glob("*.pdf")) - set(BUNDLES):
+        (OUTPUT / stray).unlink()
+    manifest = {n: manifest[n] for n in BUNDLES if n in manifest}
     MANIFEST.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return 0
 
