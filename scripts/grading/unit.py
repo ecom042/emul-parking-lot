@@ -3,14 +3,15 @@
 Every directory `<app>/tests/<suite>/` with a CMakeLists.txt is a Zephyr
 application built for the lab board (parking_lot_u5) like the firmware. It runs headless in
 Renode on the same machine description, without a monitor port, with its
-console written to a file and its executed blocks recorded by
-models/BlockCoverage.cs. A suite passes when ztest prints
-"PROJECT EXECUTION SUCCESSFUL" and no failure.
+console written to a file. Built for coverage (grading/gcov.py), the suite
+dumps its gcov counters on that console when main() returns, after ztest's
+summary. A suite passes when ztest prints "PROJECT EXECUTION SUCCESSFUL" and
+no failure.
 """
 from pathlib import Path
 import re
 
-from grading import workspace
+from grading import gcov, workspace
 
 RUN_SECONDS = 60  # virtual-time bound; the runner stops Renode once ztest ends
 TIMEOUT_S = 300
@@ -32,13 +33,11 @@ def _path(path):
     return "@" + text.replace(" ", "\\ ")
 
 
-def script(boot, console, blocks, seconds=RUN_SECONDS):
-    """Monitor script: the prepared machine, console to file, block coverage."""
+def script(boot, console, seconds=RUN_SECONDS):
+    """Monitor script: the prepared machine with its console to a file."""
     return "\n".join([
         f"include {_path(boot)}",
-        f"include {_path(workspace.ROOT / 'models/BlockCoverage.cs')}",
         f"sysbus.usart1 CreateFileBackend {_path(console)} true",
-        f"sysbus.cpu0 StartBlockCoverage {_path(blocks)}",
         f'emulation RunFor "{seconds}"',
         "quit",
     ]) + "\n"
@@ -57,13 +56,15 @@ def prepare(module, renode, output, suite, cmake_args=()):
     if error:
         return None, error
     resc = output / "unit.resc"
-    resc.write_text(script(boot, output / "console.log", output / "blocks.txt"))
+    resc.write_text(script(boot, output / "console.log"))
     command = [str(Path(renode).resolve()), "--disable-gui", "--plain", "--hide-log",
                "-P", "-1", "-e", f"include {_path(resc)}"]
     console = output / "console.log"
-    # ztest's last line, in both outcomes, ends the run; blocks are already
-    # flushed, so stopping Renode then loses nothing.
-    finished = lambda: console.is_file() and "PROJECT EXECUTION" in console.read_text(errors="replace")
+    # The gcov dump follows ztest's summary in both outcomes; once it ends,
+    # stopping Renode loses nothing.
+    def finished():
+        text = console.read_text(errors="replace") if console.is_file() else ""
+        return "PROJECT EXECUTION" in text and "GCOV_COVERAGE_DUMP_END" in text
     return (command, output / "renode.log", TIMEOUT_S, finished), None
 
 
@@ -73,3 +74,9 @@ def outcome(output, code):
     status = "timeout" if code == -9 else verdict(text)
     failed = [m.group(1) for m in re.finditer(r"^ FAIL - (\S+) in ", text, re.M)]
     return status, failed
+
+
+def dumps(output):
+    """The gcov dumps a suite printed (normally one)."""
+    console = Path(output) / "console.log"
+    return gcov.parse_dumps(console.read_text(errors="replace")) if console.is_file() else []

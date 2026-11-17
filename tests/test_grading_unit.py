@@ -28,14 +28,22 @@ class Suites(unittest.TestCase):
                          "fail")
         self.assertEqual(unit.verdict("*** Booting Zephyr ***"), "incomplete")
 
-    def test_script_runs_machine_with_console_and_coverage(self):
-        text = unit.script(Path("/b/boot.resc"), Path("/o/console.log"), Path("/o/b.txt"))
+    def test_script_runs_machine_with_console(self):
+        text = unit.script(Path("/b/boot.resc"), Path("/o/console.log"))
         self.assertIn("include @/b/boot.resc", text)
         self.assertIn("sysbus.usart1 CreateFileBackend @/o/console.log true", text)
-        self.assertIn("sysbus.cpu0 StartBlockCoverage @/o/b.txt", text)
+        self.assertNotIn("BlockCoverage", text)
         self.assertTrue(text.rstrip().endswith("quit"))
         with self.assertRaises(SystemExit):
-            unit.script(Path('/b/"x".resc'), Path("/o/c"), Path("/o/b"))
+            unit.script(Path('/b/"x".resc'), Path("/o/c"))
+
+    def test_suite_dump_comes_from_its_console(self):
+        with tempfile.TemporaryDirectory() as out:
+            self.assertEqual(unit.dumps(out), [])
+            (Path(out) / "console.log").write_text(
+                "PROJECT EXECUTION SUCCESSFUL\nGCOV_COVERAGE_DUMP_START\n*/b/x.gcda<00\n"
+                "GCOV_COVERAGE_DUMP_END\n")
+            self.assertEqual(unit.dumps(out), [{"/b/x.gcda": b"\x00"}])
 
 
 class Status(unittest.TestCase):

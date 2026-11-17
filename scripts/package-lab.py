@@ -46,7 +46,9 @@ STUDENT_DOCS = {
 }
 STUDENT_SCRIPTS = {
     "assess.py", "bounded-command.py", "check-student-launch.py", "firmware-coverage.py",
-    "grading/__init__.py", "grading/linecov.py", "grading/mutants.py",
+    "grading/__init__.py", "grading/gcov.py", "grading/gcov_module/CMakeLists.txt",
+    "grading/gcov_module/dump_irq.c", "grading/gcov_module/zephyr/module.yml",
+    "grading/linecov.py", "grading/mutants.py",
     "grading/unit.py", "grading/workspace.py", "lab.py", "mutation-test.py", "static-check.py",
     "package-lab.py", "parking-web.py", "parking_embedded.py", "parking_web.py",
     "prepare-smoke.py", "scenario-run.py", "scenario-schema.py",

@@ -1,127 +1,17 @@
-"""Line coverage of student sources from Renode block lists and DWARF.
+"""Exclusions, totals and LCOV for line and branch coverage of student sources.
 
-`models/BlockCoverage.cs` records each distinct translation block as
-"<hex start address> <instruction count>". Thumb-2 instruction lengths come
-from the ELF bytes, so every executed instruction address is known exactly.
-A source line is *executable* when the DWARF line table gives it at least one
-address range, and *hit* when an executed instruction starts inside one.
-Code the linker discarded has no addresses and is therefore not counted.
+The measurements come from gcov (grading/gcov.py): executable lines
+`(file, line)` and branch outcomes `(file, line, index)` of `<app>/src`, and
+the ones each passing scenario or suite ran. A reasoned LCOV_EXCL marker or an
+announced pattern drops a line together with its branches.
 """
-import bisect
-import os
 from pathlib import Path
 import re
-
-from elftools.elf.constants import SH_FLAGS
-from elftools.elf.elffile import ELFFile
 
 SOURCE_SUFFIXES = {".c", ".h"}
 # A reason is mandatory, for example: /* LCOV_EXCL_LINE: unreachable default */
 MARKER = re.compile(r"LCOV_EXCL_(LINE|START|STOP)\b(?:\s*:\s*((?:(?!\*/).)*\S))?")
 EXCLUSION_CAP = 0.03
-
-
-def thumb_length(halfword):
-    """Thumb-2: a first halfword of 0b11101/0b11110/0b11111 starts a 32-bit one."""
-    return 4 if (halfword >> 11) in (0b11101, 0b11110, 0b11111) else 2
-
-
-def read_blocks(paths):
-    blocks = set()
-    for path in paths:
-        for line in Path(path).read_text().splitlines():
-            if line.strip():
-                address, count = line.split()
-                blocks.add((int(address, 16), int(count)))
-    return blocks
-
-
-def executable_sections(elf):
-    sections = []
-    for section in elf.iter_sections():
-        if section["sh_flags"] & SH_FLAGS.SHF_EXECINSTR and section["sh_type"] == "SHT_PROGBITS":
-            sections.append((section["sh_addr"], section.data()))
-    return sections
-
-
-def instruction_addresses(elf_path, blocks):
-    """Start address of every instruction inside the executed blocks."""
-    with open(elf_path, "rb") as stream:
-        sections = executable_sections(ELFFile(stream))
-    addresses = set()
-    for start, count in blocks:
-        for base, data in sections:
-            if base <= start < base + len(data):
-                address = start
-                for _ in range(count):
-                    offset = address - base
-                    if offset + 2 > len(data):
-                        break
-                    addresses.add(address)
-                    address += thumb_length(int.from_bytes(data[offset:offset + 2], "little"))
-                break
-    return addresses
-
-
-def _file_path(program, cu, index):
-    version = program.header.version
-    entries = program["file_entry"]
-    entry = entries[index] if version >= 5 else entries[index - 1]
-    name = entry.name.decode()
-    directories = program["include_directory"]
-    top = cu.get_top_DIE().attributes
-    comp_dir = top["DW_AT_comp_dir"].value.decode() if "DW_AT_comp_dir" in top else ""
-    if version >= 5:
-        directory = directories[entry.dir_index].decode()
-    else:
-        directory = directories[entry.dir_index - 1].decode() if entry.dir_index else comp_dir
-    path = Path(name) if os.path.isabs(name) else Path(directory) / name
-    if not path.is_absolute():
-        path = Path(comp_dir) / path
-    return Path(os.path.normpath(path))
-
-
-def line_ranges(elf_path, app):
-    """{(relative source, line): [(low, high), ...]} for files under app/src."""
-    source_root = Path(os.path.realpath(Path(app) / "src"))
-    ranges = {}
-    with open(elf_path, "rb") as stream:
-        dwarf = ELFFile(stream).get_dwarf_info()
-        for cu in dwarf.iter_CUs():
-            program = dwarf.line_program_for_CU(cu)
-            if program is None:
-                continue
-            names = {}
-            previous = None
-            for entry in program.get_entries():
-                state = entry.state
-                if state is None:
-                    continue
-                if previous is not None and state.address > previous.address:
-                    if previous.file not in names:
-                        path = Path(os.path.realpath(_file_path(program, cu, previous.file)))
-                        names[previous.file] = (path.relative_to(source_root.parent).as_posix()
-                                                if path.is_relative_to(source_root)
-                                                and path.suffix in SOURCE_SUFFIXES else None)
-                    name = names[previous.file]
-                    if name is not None:
-                        ranges.setdefault((name, previous.line), []).append(
-                            (previous.address, state.address))
-                previous = None if state.end_sequence else state
-    return ranges
-
-
-def hit_lines(ranges, addresses):
-    """Lines with at least one executed instruction start in their ranges."""
-    ordered = sorted(addresses)
-    hits = set()
-    for key, spans in ranges.items():
-        for low, high in spans:
-            index = bisect.bisect_left(ordered, low)
-            if index < len(ordered) and ordered[index] < high:
-                hits.add(key)
-                break
-    return hits
 
 
 def exclusions(app):
@@ -170,47 +60,72 @@ def pattern_exclusions(app, patterns):
     return excluded
 
 
-def summarize(ranges, scenario_hits, excluded, problems=(), cap=EXCLUSION_CAP,
-              by_pattern=frozenset()):
+def summarize(executable, scenario_hits, excluded, problems=(), cap=EXCLUSION_CAP,
+              by_pattern=frozenset(), branches=frozenset(), branch_hits=None):
     """Merge per-scenario hits into totals, per-file figures and a line map.
 
     `excluded` are reasoned markers, capped; `by_pattern` are lines removed by
-    an announced pattern, outside the cap."""
-    executable = set(ranges) - set(by_pattern)
-    patterned = len(set(ranges) & set(by_pattern))
-    applied = excluded & executable
+    an announced pattern, outside the cap. Branch outcomes on a dropped line
+    are dropped with it."""
+    executable_lines = set(executable) - set(by_pattern)
+    patterned = len(set(executable) & set(by_pattern))
+    applied = excluded & executable_lines
     notes = list(problems)
-    if executable and len(applied) > cap * len(executable):
+    if executable_lines and len(applied) > cap * len(executable_lines):
         notes.append(f"{len(applied)} excluded lines exceed the {cap:.0%} cap; "
                      "no exclusion was applied")
         applied = set()
     if problems:
         notes.append("exclusion markers without a reason; no exclusion was applied")
         applied = set()
-    counted = executable - applied
+    counted = executable_lines - applied
     covered = set().union(*scenario_hits.values()) & counted if scenario_hits else set()
+    counted_branches = {key for key in branches if key[:2] in counted}
+    branch_hits = branch_hits or {}
+    covered_branches = (set().union(*branch_hits.values()) & counted_branches
+                        if branch_hits else set())
     files = {}
     for name, line in sorted(counted):
-        entry = files.setdefault(name, {"executable": 0, "hit": 0, "uncovered": []})
+        entry = files.setdefault(name, {"executable": 0, "hit": 0, "uncovered": [],
+                                        "branches": 0, "branches_hit": 0,
+                                        "uncovered_branches": []})
         entry["executable"] += 1
         if (name, line) in covered:
             entry["hit"] += 1
         else:
             entry["uncovered"].append(line)
+    for key in sorted(counted_branches):
+        entry = files[key[0]]
+        entry["branches"] += 1
+        if key in covered_branches:
+            entry["branches_hit"] += 1
+        else:
+            entry["uncovered_branches"].append(f"{key[1]}:{key[2]}")
     for entry in files.values():
         entry["percent"] = round(100 * entry["hit"] / entry["executable"], 2)
+        entry["branch_percent"] = (round(100 * entry["branches_hit"] / entry["branches"], 2)
+                                   if entry["branches"] else 100.0)
     line_map = {}
     for scenario, hits in sorted(scenario_hits.items()):
         for name, line in sorted(hits & counted):
             line_map.setdefault(name, {}).setdefault(str(line), []).append(scenario)
+    branch_map = {}
+    for scenario, hits in sorted(branch_hits.items()):
+        for name, line, index in sorted(hits & counted_branches):
+            branch_map.setdefault(name, {}).setdefault(f"{line}:{index}", []).append(scenario)
     return {"executable": len(counted), "hit": len(covered),
             "percent": round(100 * len(covered) / len(counted), 2) if counted else 0.0,
+            "branches": len(counted_branches), "branches_hit": len(covered_branches),
+            "branch_percent": (round(100 * len(covered_branches) / len(counted_branches), 2)
+                               if counted_branches else 100.0),
             "excluded": len(applied), "excluded_by_pattern": patterned,
-            "notes": notes, "files": files}, line_map
+            "notes": notes, "files": files}, line_map, branch_map
 
 
-def write_lcov(path, app, summary, line_map):
-    """LCOV for editors and genhtml; counts are scenarios that hit the line."""
+def write_lcov(path, app, summary, line_map, branch_map=None):
+    """LCOV for editors and genhtml; counts are scenarios that hit the line or
+    took the branch outcome."""
+    branch_map = branch_map or {}
     lines = ["TN:firmware"]
     for name, entry in sorted(summary["files"].items()):
         lines.append(f"SF:{(Path(app) / name).resolve()}")
@@ -219,5 +134,12 @@ def write_lcov(path, app, summary, line_map):
         numbers = sorted({int(n) for n in hit} | uncovered)
         for number in numbers:
             lines.append(f"DA:{number},{0 if number in uncovered else len(hit[str(number)])}")
-        lines += [f"LH:{entry['hit']}", f"LF:{entry['executable']}", "end_of_record"]
+        taken = branch_map.get(name, {})
+        outcomes = sorted({tuple(map(int, k.split(":"))) for k in taken}
+                          | {tuple(map(int, k.split(":"))) for k in entry["uncovered_branches"]})
+        for line, index in outcomes:
+            runs = taken.get(f"{line}:{index}")
+            lines.append(f"BRDA:{line},0,{index},{len(runs) if runs else 0}")
+        lines += [f"BRH:{entry['branches_hit']}", f"BRF:{entry['branches']}",
+                  f"LH:{entry['hit']}", f"LF:{entry['executable']}", "end_of_record"]
     Path(path).write_text("\n".join(lines) + "\n")

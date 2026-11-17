@@ -5,10 +5,18 @@ import System
 
 boot = System.Environment.GetEnvironmentVariable("PARKING_BOOT")
 reset = System.Environment.GetEnvironmentVariable("PARKING_RESET")
-# Coverage runs only: a trusted directory for one block list per machine run.
+# Coverage runs only: a trusted directory for the console and one gcov dump
+# per machine run (scripts/grading/gcov.py reads them).
 trace_dir = System.Environment.GetEnvironmentVariable("PARKING_TRACE_DIR")
-coverage_model = System.Environment.GetEnvironmentVariable("PARKING_COVERAGE_MODEL")
-traces = [0]
+dumps = [0]
+# Whether the machine ran since boot or the last reset (nothing to dump otherwise).
+ran = [False]
+# scripts/grading/gcov_module/dump_irq.c: pending this IRQ dumps the counters.
+GCOV_IRQ = 112
+DUMP_START = "GCOV_COVERAGE_DUMP_START"
+DUMP_END = "GCOV_COVERAGE_DUMP_END"
+DUMP_STEP_S = 0.005
+DUMP_STEPS = 400
 LANES = ["entry", "exit"]
 # Fixed owner table: browser text never selects a device path.
 PATHS = {
@@ -29,18 +37,64 @@ def include_file(path):
         raise Exception("script failed")
 
 
+console = []
+
+
 def start_trace():
-    """Begin a new block-coverage file; boot and every reset each start one."""
-    if not trace_dir:
+    """Coverage runs: collect the console, where the gcov dumps arrive."""
+    if not trace_dir or console:
         return
     if any(c in trace_dir for c in ['"', ";", "\n", "\r", "\\"]):
         raise Exception("invalid trace directory")
-    if not traces[0]:
-        include_file(coverage_model)
-    traces[0] += 1
-    path = "%s/blocks-%04d.txt" % (trace_dir, traces[0])
-    if not monitor.Parse("sysbus.cpu0 StartBlockCoverage @" + path.replace(" ", "\\ ")):
-        raise Exception("block coverage failed")
+    console.append("")
+
+    def received(value):
+        console.append(chr(value))
+    monitor.Machine["sysbus.usart1"].CharReceived += received
+
+
+def read_console():
+    text = "".join(console)
+    del console[:]
+    console.append(text)
+    return text
+
+
+def dump_coverage():
+    """Coverage runs: make the firmware dump its gcov counters (one machine
+    run's worth: they restart at every reset) and keep that dump in its own
+    file. A firmware that cannot answer leaves no file; the host reports it."""
+    if not trace_dir:
+        return
+    if not ran[0]:
+        return
+    try:
+        _dump()
+    except Exception as error:
+        System.IO.File.AppendAllText(trace_dir + "/dump-errors.txt", str(error) + "\n")
+
+
+def _dump():
+    before = read_console().count(DUMP_END)
+    # The NVIC is CPU-local (not on sysbus for the host): pulse its IRQ line.
+    for level in ("true", "false"):
+        if not monitor.Parse("nvic0 OnGPIO %d %s" % (GCOV_IRQ, level)):
+            raise Exception("cannot pend the gcov dump interrupt")
+    for _ in range(DUMP_STEPS):
+        text = read_console()
+        if text.count(DUMP_END) > before:
+            end = text.rindex(DUMP_END)
+            start = text.rindex(DUMP_START, 0, end)
+            dumps[0] += 1
+            System.IO.File.WriteAllText(trace_dir + "/console.log", text)
+            System.IO.File.WriteAllText("%s/dump-%04d.txt" % (trace_dir, dumps[0]),
+                                        text[start:end + len(DUMP_END)] + "\n")
+            return
+        if not monitor.Parse('emulation RunFor "%.3f"' % DUMP_STEP_S):
+            break
+    System.IO.File.AppendAllText(trace_dir + "/dump-errors.txt",
+                                 "no gcov dump after %.1f s of virtual time\n"
+                                 % (DUMP_STEP_S * DUMP_STEPS))
 
 
 def lane_device(lane, kind):
@@ -94,8 +148,9 @@ def handle_request(request):
             devices[owner] = monitor.Machine[PATHS[owner]]
         devices["display"] = monitor.Machine["sysbus.spi1.display"]
     elif op == "reset":
+        dump_coverage()
         include_file(reset)
-        start_trace()
+        ran[0] = False
         for owner in PATHS:
             last_sequences[owner] = 0
         last_pixels = None
@@ -110,6 +165,7 @@ def handle_request(request):
             raise Exception("step bound")
         if not monitor.Parse('emulation RunFor "%.2f"' % (ticks / 100.0)):
             raise Exception("finite step failed")
+        ran[0] = True
     elif op == "submit":
         if request["owner"] not in PATHS:
             raise Exception("unknown owner")
@@ -119,6 +175,8 @@ def handle_request(request):
             command["signal"], command["value"]))
     elif op == "replay":
         lane_device("exit", "protocol").ReplayPayment(request["uuid"], request["delay_ticks"])
+    elif op == "coverage_dump":
+        dump_coverage()
     elif op != "snapshot":
         raise Exception("unknown operation")
     return state()

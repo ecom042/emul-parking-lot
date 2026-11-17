@@ -1,0 +1,5 @@
+# Course module added to coverage builds only (scripts/grading/gcov.py passes
+# it in EXTRA_ZEPHYR_MODULES); never part of a student build.
+name: course_gcov
+build:
+  cmake: .

@@ -26,7 +26,8 @@ def main():
                     help="host seconds per scenario before giving up (default 120); "
                          "virtual-time deadlines are unaffected")
     ap.add_argument("--trace-dir", type=Path,
-                    help="write the executed blocks of each machine run here (coverage only)")
+                    help="write the console and the gcov dump of each machine run here "
+                         "(coverage builds only)")
     ap.add_argument("--lot", type=int, metavar="SECONDS",
                     help="run the car queue for this many virtual seconds instead")
     ap.add_argument("--cars", type=Path,
@@ -48,7 +49,6 @@ def main():
     if args.trace_dir:
         args.trace_dir.mkdir(parents=True, exist_ok=False)
         environment["PARKING_TRACE_DIR"] = str(args.trace_dir.resolve())
-        environment["PARKING_COVERAGE_MODEL"] = str(root / "models/BlockCoverage.cs")
     sys.path.insert(0, str(args.module.resolve() / "src"))
     from zvb.stdio import StdioRuntime
     from parking_web import ParkingEngine, built_config
@@ -78,6 +78,9 @@ def main():
                 if state["finished"] or state["failure"]:
                     break
                 time.sleep(0.05)
+            if args.trace_dir and state["finished"] and not state["failure"]:
+                # After the verdict: the dump cannot change it.
+                engine.runtime.request({"op": "coverage_dump"})
             record = {"name": name, "finished": state["finished"], "failure": state["failure"],
                       "elapsed": time.monotonic() - began}
             results.append(record)
