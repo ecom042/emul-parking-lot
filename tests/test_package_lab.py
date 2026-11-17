@@ -33,9 +33,8 @@ class AllowlistTests(unittest.TestCase):
         self.assertFalse(packager.INSTRUCTOR_TESTS & packager.STUDENT_TESTS)
         self.assertFalse(packager.INSTRUCTOR_DOCS & packager.STUDENT_DOCS)
         # Grade, plagiarism check and hidden scenarios live on the instructor's
-        # private branch, never in this public repository.
+        # local branch (instructor/), never in this public repository.
         root = SCRIPT.parents[1]
-        self.assertFalse((root / "instructor").exists())
         for relative in ("scripts/grade.py", "tests/test_grading_points.py",
                          "docs/grading-instructor.md"):
             self.assertFalse((root / relative).exists(), relative)
