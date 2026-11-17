@@ -469,7 +469,7 @@ sabatina.
 Cada pasta `student/tests/<suíte>/` com um `CMakeLists.txt` é uma suíte
 [ztest](https://docs.zephyrproject.org/latest/develop/test/ztest.html)
 compilada para a mesma placa e executada no Renode pelas ferramentas do curso.
-O [FFF](https://docs.zephyrproject.org/latest/develop/test/fff.html)
+O [FFF](https://docs.zephyrproject.org/4.5.0/develop/test/ztest.html#mocking-via-fff)
 (`zephyr/fff.h`) cria funções falsas que registram as chamadas e devolvem o
 valor que o teste escolher.
 
