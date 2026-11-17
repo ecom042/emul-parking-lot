@@ -10,7 +10,6 @@
 ## Checklist
 
 - [ ] O PR só altera arquivos em `student/`.
-- [ ] `student/RELATORIO.md` escrito pela dupla.
 - [ ] `student/REGISTRO_IA.md` com entradas dos dois alunos.
 - [ ] Os cenários do portão G3 passam: `obstruction-during-close`, `jam`, `contradictory-limits`, `missing-lower`.
 

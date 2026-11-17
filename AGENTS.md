@@ -36,7 +36,7 @@ protegidas não se aplicam; siga então [`docs/agent-context.md`](docs/agent-con
 
 1. **Explique antes de codificar.** Para cada requisito (`REQ-xx` no
    desafio), descreva ao aluno o estado, as transições e os prazos, e confirme
-   que ele entendeu. Ele fará uma defesa oral individual sem você e precisa
+   que ele entendeu. Ele fará uma sabatina individual sem você, valendo 3 dos 10 pontos, e precisa
    conseguir explicar e mudar qualquer linha, inclusive as que o colega da
    dupla escreveu: quando ele pedir, explique o código do colega também.
 2. **Passos pequenos e verificáveis.** Depois de cada mudança, rode o cenário
@@ -50,8 +50,9 @@ protegidas não se aplicam; siga então [`docs/agent-context.md`](docs/agent-con
    nada.
 3. **Meça a qualidade com as ferramentas do curso**, nunca com outra métrica
    inventada:
-   - `scripts/firmware-coverage.py`: cobertura de linhas por cenários e
-     testes de unidade que passam (meta ≥ 95%);
+   - `scripts/firmware-coverage.py`: cobertura de linhas e de branches
+     (gcov) por cenários e testes de unidade que passam; os pontos são
+     proporcionais à média das duas porcentagens (meta ≥ 95%);
    - `scripts/static-check.py`: zero achados.
 
    Os detalhes estão em [`docs/grading-tools.md`](docs/grading-tools.md). Os

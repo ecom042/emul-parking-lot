@@ -256,9 +256,10 @@ modelos. Os detalhes estão em [modelo físico](physical-model.md),
 
 ## Trabalho em dupla
 
-A dupla entrega **um** `student/` e um relatório, e recebe **uma** nota de
-pontos. A defesa oral é **individual**: cada um responde por todo o código,
-inclusive pela parte que o colega escreveu.
+A dupla entrega **um** `student/`, e os 70 pontos medidos sobre ele são os
+mesmos para os dois. A **sabatina** (defesa oral, 30 pontos) é **individual**:
+cada um responde por todo o código, inclusive pela parte que o colega
+escreveu.
 
 - **Um repositório privado para os dois.** Um da dupla cria o repositório e
   adiciona o colega como colaborador. Cada um faz commits com a própria
@@ -271,7 +272,7 @@ inclusive pela parte que o colega escreveu.
   aceita, pagamento confirmado, prazo esgotado). Com isso cada um testa a sua
   parte com falsos do FFF sem esperar o outro.
 - **Revisem o código um do outro.** Quem não escreveu um módulo precisa
-  conseguir explicá-lo e mudá-lo na defesa. Reservem o último dia para isso.
+  conseguir explicá-lo e mudá-lo na sabatina. Reservem o último dia para isso.
 
 Um plano possível para a semana:
 
@@ -280,7 +281,7 @@ Um plano possível para a semana:
 | 1 | Os dois instalam o ambiente e rodam o primeiro cenário; leem o desafio; combinam as interfaces e a divisão |
 | 2–3 | Implementação, com testes de unidade e cenários |
 | 4 | Integração: as duas faixas juntas, a saída com pagamento e display, todos os cenários públicos |
-| 5 | Cobertura, análise estática, relatório e cada um explica ao outro o que escreveu |
+| 5 | Cobertura, análise estática e preparo da sabatina: cada um explica ao outro o que escreveu |
 
 ## Requisitos
 
@@ -370,15 +371,11 @@ Tudo vai no PR:
 
 1. **`student/`**: código, `prj.conf`, `Kconfig`, overlays e as suas suítes
    de teste de unidade em `student/tests/`.
-2. **Relatório** em `student/RELATORIO.md`, um por dupla: máquina de estados
-   e transições, mapa de pinos e interfaces, analisadores e novas tentativas,
-   posse do ADC, exemplos de tarifa, falhas e recuperação, limitações
-   conhecidas, e quem fez cada parte.
-3. **Evidências** na descrição do PR, conforme o modelo: o resultado dos
+2. **Evidências** na descrição do PR, conforme o modelo: o resultado dos
    cenários, de `scripts/firmware-coverage.py` e de `scripts/static-check.py`,
    com IDs de execução e tempos virtuais. Mantenham as falhas; capturas de
    tela sozinhas não bastam.
-4. **`student/REGISTRO_IA.md`** preenchido pelos dois, com o autor de cada
+3. **`student/REGISTRO_IA.md`** preenchido pelos dois, com o autor de cada
    entrada (modelo no próprio arquivo).
 
 ## Avaliação
@@ -394,7 +391,6 @@ A nota tem **portões**, que precisam passar todos, e **pontos**, que somam
 | G2 Sem leituras fabricadas | Revisão do código: drivers reais, nada de escrever no estado dos modelos | não avaliado |
 | G3 Segurança | Os cenários `obstruction-during-close`, `jam`, `contradictory-limits` e `missing-lower` passam | não avaliado |
 | G4 Registro de IA | `student/REGISTRO_IA.md` com entradas dos dois alunos e atribuições de código de terceiros | não avaliado |
-| G5 Defesa oral | Individual e **sem agente**: o professor escolhe um requisito, que pode ser da parte do colega; você explica e faz uma pequena mudança ao vivo | a nota de quem falhar fica limitada a 5,0 |
 
 "Não avaliado" significa que a entrega volta para correção no próprio PR,
 conforme a regra de reenvio da disciplina.
@@ -405,12 +401,23 @@ conforme a regra de reenvio da disciplina.
 |---|---:|---|
 | Cenários públicos | 20 | proporcional aos cenários que passam |
 | Cenários ocultos | 20 | proporcional aos cenários que passam |
-| Cobertura de linhas | 30 | ≥ 95%: 30; entre 85% e 95%: linear; < 85%: 0 |
+| Cobertura de linhas e branches | 20 | 10 × linhas% + 10 × branches% (a média das duas); por exemplo, 90% e 70% dão 16 |
 | Análise estática | 10 | 10 menos 2 por achado, mínimo 0 |
-| Relatório e projeto | 20 | rubrica: estados, posse do ADC, analisadores, tarifa, falhas, limitações |
+| Sabatina (individual) | 30 | explicação do requisito sorteado: 15; mudança ao vivo: 15 |
 
-**Nota = pontos ÷ 10**, a mesma para os dois. Ela fica limitada a 5,0 só
-para quem não passar na própria defesa oral.
+**Nota = pontos ÷ 10.** Os 70 primeiros pontos são da dupla; os 30 da
+sabatina são de cada aluno.
+
+### Sabatina
+
+Individual e **sem agente**, depois da entrega. O professor sorteia um
+requisito, que pode ser da parte do colega, e pede:
+
+- **Explicação (15 pontos):** os estados, as transições e os prazos do
+  requisito, e onde eles estão no código entregue.
+- **Mudança ao vivo (15 pontos):** uma pequena alteração, como trocar um
+  prazo, um limiar ou uma regra de rearme, feita por você, sem agente. Ela
+  conta quando o cenário correspondente passa com a mudança.
 
 ### Plágio
 
@@ -433,12 +440,19 @@ privado até a entrega, sem compartilhar código, acesso nem prompts.
 
 ### O que cada métrica mede
 
-- **Cobertura de linhas** ([detalhes](grading-tools.md#firmware-line-coverage)):
-  fração das linhas executáveis de `student/src` executadas no firmware real,
-  dentro do Renode, por algum cenário **que passa** ou por alguma das suas
-  suítes de teste de unidade **que passa**. Na avaliação contam os cenários
-  públicos, os ocultos e as suas suítes. Uma linha que só um cenário ou uma
-  suíte reprovada executa não conta.
+- **Cobertura de linhas e de branches** ([detalhes](grading-tools.md#firmware-line-and-branch-coverage)),
+  medida com o **gcov** no firmware real, dentro do Renode:
+  - *linhas*: fração das linhas executáveis de `student/src` executadas;
+  - *branches*: fração dos desfechos de cada desvio (o lado verdadeiro e o
+    falso de um `if`, cada condição de um `&&`, cada `case`) que foram
+    tomados.
+
+  Conta o que algum cenário **que passa** ou alguma das suas suítes de teste
+  de unidade **que passa** executou. Na avaliação contam os cenários
+  públicos, os ocultos e as suas suítes. O que só um cenário ou uma suíte
+  reprovada executa não conta. Os branches são a medida mais exigente: um
+  `if (rc != 0)` em que o erro nunca acontece tem a linha executada, mas só
+  metade do branch.
 - **Análise estática** ([detalhes](grading-tools.md#static-check)): o GCC do
   SDK com `-fanalyzer` e um conjunto fixo de avisos. Conta cada aviso em
   `student/src`.
@@ -448,7 +462,7 @@ falhar. Os caminhos de erro (`if (rc != 0)`, `device_is_ready`, argumentos
 inválidos) se cobrem com **testes de unidade** (próxima seção). Uma linha que
 nem os modelos nem um teste conseguem alcançar pode ser excluída com
 `/* LCOV_EXCL_LINE: motivo */`, até 3% das linhas e com justificativa na
-defesa.
+sabatina.
 
 ### Testes de unidade (ztest + FFF)
 
@@ -514,7 +528,7 @@ ele.
 
 O agente pode escrever código, mas **quem é avaliado é você**:
 
-- **A defesa oral é individual e sem agente.** Você precisa explicar
+- **A sabatina é individual, sem agente, e vale 3 dos 10 pontos.** Você precisa explicar
   qualquer parte do código entregue, inclusive a do colega, e fazer uma pequena mudança ao vivo, como trocar um prazo,
   um limiar ou uma regra de rearme. Peça ao agente que explique cada decisão
   e anote o que você não entendeu.
