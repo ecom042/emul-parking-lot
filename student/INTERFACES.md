@@ -35,4 +35,6 @@ Usar o uptime virtual do Zephyr em todos os prazos. Para ztest/FFF, substituir a
 
 ## Cenário inicial
 
+O firmware original compilou no WSL com Zephyr 4.5.0, SDK 1.0.1 e tarifa de 1000 ms. O build `issue-01-west-01` gerou `zephyr/zephyr.elf` para `parking_lot_u5`.
+
 A execução oficial `build/issue-01-normal-01` saiu com código 1 e `Wrong runtime identity` antes da simulação. O Renode oficial Linux x86_64 corresponde ao SHA-256 do guia e informa `1.17.0+20260907gitf1dd1b4af`. O script exige `1.17.0+20260906gitf1dd1b4af`. A tentativa não gerou resultado de cenário nem tempo virtual medido.
