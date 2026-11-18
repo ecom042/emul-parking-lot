@@ -6,11 +6,13 @@
 #include <zephyr/sys/printk.h>
 
 #include "gate.h"
+#include "parking.h"
 
 #define GATE_GPIO(lane, name) GPIO_DT_SPEC_GET(DT_ALIAS(lane##_##name), gpios)
 #define GATE_SERVICE_MS 5
 
 struct lane {
+	enum parking_lane_id id;
 	struct gpio_dt_spec outputs[5];
 	struct gpio_dt_spec upper;
 	struct gpio_dt_spec lower;
@@ -23,7 +25,8 @@ struct lane {
 	struct gate gate;
 };
 
-#define GATE_LANE(name) {					\
+#define GATE_LANE(name, lane_id) {				\
+	.id = lane_id,						\
 	.outputs = {						\
 		[GATE_ENABLE] = GATE_GPIO(name, motor_enable),	\
 		[GATE_DIRECTION] = GATE_GPIO(name, motor_direction), \
@@ -36,7 +39,19 @@ struct lane {
 	.beam = GATE_GPIO(name, beam),				\
 }
 
-static struct lane lanes[] = { GATE_LANE(entry), GATE_LANE(exit) };
+static struct lane lanes[] = { GATE_LANE(entry, PARKING_ENTRY), GATE_LANE(exit, PARKING_EXIT) };
+
+static void service_distance(struct k_work *work);
+static K_WORK_DELAYABLE_DEFINE(distance_work, service_distance);
+
+static void service_distance(struct k_work *work)
+{
+	ARG_UNUSED(work);
+	distance_step(k_uptime_get());
+	if (!distance_faulted()) {
+		k_work_schedule(&distance_work, K_MSEC(GATE_SERVICE_MS));
+	}
+}
 
 static int write_output(void *context, enum gate_output output, bool active)
 {
@@ -67,11 +82,16 @@ static void service_gate(struct k_work *work)
 	if (upper < 0 || lower < 0 || beam < 0) {
 		gate_assist(&lane->gate, now, true);
 	}
-	gate_step(&lane->gate, (struct gate_inputs) {
+	struct gate_inputs input = {
 		.upper = upper > 0,
 		.lower = lower > 0,
-		.beam = beam > 0 || (beam_rose && lane->gate.state == GATE_CLOSING),
-	}, now);
+		.beam = beam > 0,
+	};
+	struct gate_inputs safety = input;
+
+	safety.beam |= beam_rose && lane->gate.state == GATE_CLOSING;
+	gate_step(&lane->gate, safety, now);
+	parking_step(lane->id, &lane->gate, input, beam_rose, now);
 	k_work_schedule(&lane->service, K_MSEC(GATE_SERVICE_MS));
 }
 
@@ -148,10 +168,14 @@ static int setup_lane(struct lane *lane)
 
 int main(void)
 {
+	if (distance_init() < 0) {
+		printk("Parking ADC setup failed\n");
+	}
 	for (size_t i = 0; i < ARRAY_SIZE(lanes); ++i) {
 		if (setup_lane(&lanes[i]) < 0) {
 			printk("Parking lane %zu GPIO setup failed\n", i);
 		}
 	}
+	k_work_schedule(&distance_work, K_NO_WAIT);
 	return 0;
 }

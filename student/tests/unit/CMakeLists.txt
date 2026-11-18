@@ -9,6 +9,7 @@ project(parking_student_unit)
 target_include_directories(app PRIVATE ../../src)
 target_sources(app PRIVATE src/test_exemplo.c)
 target_sources(app PRIVATE src/test_gate.c ../../src/gate.c)
+target_sources(app PRIVATE src/test_parking.c ../../src/parking.c)
 # Acrescente os módulos de student/src que esta suíte testa, por exemplo:
 # target_sources(app PRIVATE ../../src/tarifa.c)
 # Não inclua main.c: a suíte tem o próprio ponto de entrada (ztest).

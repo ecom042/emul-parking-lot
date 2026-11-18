@@ -50,6 +50,15 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Verificação:** [job ARM64 44341017271](https://github.com/anntimar/estacionamento-embarcados/actions/runs/44341017271), commit `abc3f08`. Passaram 2 de 19 cenários (`partial-startup` e `contradictory-limits`), a suíte unitária e a análise estática com zero achados. Cobertura de 82,84% das linhas e 67,42% dos branches.
 - **Falhas observadas na issue #2:** `jam` esperava uma captura aos 6,00 s virtuais (tick 600) e observou zero. `missing-lower` e `obstruction-during-close` esperavam uma transição para verde e observaram zero. Esses cenários ainda não chegaram a exercitar a falha de movimento pretendida. O artefato do job preserva o resultado dos 19 cenários.
 
+### 2026-11-18 — ADC4, presença, passagem e sessões
+
+- **Aluna:** Maria Antonia Ribeiro Ramos.
+- **Ferramenta:** Codex, versão não informada.
+- **Pedido:** implementar as issues #3 e #4, preservando as atribuições do Jackson.
+- **Proposta:** aquisição ADC4 assíncrona e controle de sessão e passagem, com adaptador para as operações de câmera e pagamento.
+- **Verificação:** validação em andamento.
+- **Aceitação e aprendizado:** a revisar pela aluna e pela dupla.
+
 ### AAAA-MM-DD — título curto
 
 - **Aluno:** quem fez esta tarefa.

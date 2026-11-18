@@ -33,6 +33,10 @@ UART e SPI podem levar tempo. O controle continua atendendo as duas faixas enqua
 
 Usar o uptime virtual do Zephyr em todos os prazos. Para ztest/FFF, substituir as operações de periféricos e verificar chamadas e transições com instantes explícitos.
 
+## Ponto de integração da dupla
+
+O adaptador de câmera e pagamento deve implementar `struct parking_equipment` de `src/parking.h` e registrar uma instância estática com `parking_set_equipment(&adapter)` durante a inicialização, antes de agendar os trabalhos. As operações devem retornar rapidamente. Use os callbacks de início para iniciar uma operação, os de consulta para devolver o resultado corrente e os de cancelamento para invalidar o identificador imediatamente. Na saída, `payment_start` recebe o instante da passagem na entrada. O módulo de pagamento desenha a placa, calcula e congela o valor nesse momento e coordena o restante com o display antes de cobrar.
+
 ## Cenário inicial
 
 O firmware original compilou no WSL com Zephyr 4.5.0, SDK 1.0.1 e tarifa de 1000 ms. O build `issue-01-west-01` gerou `zephyr/zephyr.elf` para `parking_lot_u5`.
