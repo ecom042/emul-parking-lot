@@ -21,6 +21,17 @@ entradas. Quem não usou IA escreve isso aqui.
 
 Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 
+### 2026-11-18 — Interfaces e cenário inicial (issue #1)
+
+- **Aluna:** Maria Antonia Ribeiro Ramos.
+- **Ferramenta:** Codex, versão não informada.
+- **Requisitos:** REQ-01 a REQ-13.
+- **Pedido:** iniciar a issue #1 com a proposta de interfaces e a execução do cenário inicial.
+- **Proposta:** divisão de responsabilidades, estados e prazos em `student/INTERFACES.md`.
+- **Aceitação ou revisão:** pendente pela dupla.
+- **Verificação:** a tentativa oficial `issue-01-normal-01` parou na verificação da identidade do Renode antes da simulação.
+- **Aprendizado da aluna:** a preencher após a revisão.
+
 ### AAAA-MM-DD — título curto
 
 - **Aluno:** quem fez esta tarefa.
