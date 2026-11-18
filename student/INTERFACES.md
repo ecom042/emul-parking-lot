@@ -38,3 +38,13 @@ Usar o uptime virtual do Zephyr em todos os prazos. Para ztest/FFF, substituir a
 O firmware original compilou no WSL com Zephyr 4.5.0, SDK 1.0.1 e tarifa de 1000 ms. O build `issue-01-west-01` gerou `zephyr/zephyr.elf` para `parking_lot_u5`.
 
 A execução oficial `build/issue-01-normal-01` saiu com código 1 e `Wrong runtime identity` antes da simulação. O Renode oficial Linux x86_64 corresponde ao SHA-256 do guia e informa `1.17.0+20260907gitf1dd1b4af`. O script exige `1.17.0+20260906gitf1dd1b4af`. A tentativa não gerou resultado de cenário nem tempo virtual medido.
+
+No Ubuntu 24.04 ARM64 emulado no Docker, o pacote portátil oficial passou no SHA-256 do guia e na verificação de versão do lançador. O workspace usou Python 3.12, Zephyr 4.5.0 (`41d10b59730`), Zephyr SDK 1.0.1 e ZVB `aed53b3`, conforme o manifesto. As três execuções usaram o firmware original (`2549c63`).
+
+| Execução | Resultado |
+| --- | --- |
+| `issue-01-arm64-normal-01` | Compilação excedeu o limite de 300 s de relógio do host. |
+| `issue-01-arm64-normal-02` | Compilação passou. A preparação falhou porque o `dts2repl` da venv estava fora do PATH. |
+| `issue-01-arm64-normal-03` | Com a venv ativa, compilação e preparação passaram. O runtime não respondeu ao pedido `init` no prazo. A execução terminou sem `assessment/results.json` e sem tempo virtual medido. |
+
+O guia registra validação em Ubuntu 24.04 AArch64. Falta repetir o cenário em um host ARM64 nativo ou receber da disciplina uma atualização oficial para x86_64. Nenhuma das tentativas acima constitui avaliação do firmware.
