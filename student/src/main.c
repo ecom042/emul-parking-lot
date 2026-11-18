@@ -1,73 +1,82 @@
-/* Student starter: diagnostics and safe initial outputs, not a solution.
- * Implement the controller with Zephyr GPIO, ADC, UART and SPI APIs.
- * Both lanes start with the motor disabled and the red signal on.
- * The simulator never interprets these messages as control commands.
- */
-#include <zephyr/drivers/gpio.h>
+#include <errno.h>
+
 #include <zephyr/kernel.h>
-#include <zephyr/sys/printk.h>
 
-/** Outputs of one lane, held inactive except for the red signal. */
-struct lane_outputs {
-        const char *name;
-        struct gpio_dt_spec enable;
-        struct gpio_dt_spec direction;
-        struct gpio_dt_spec red;
-        struct gpio_dt_spec green;
-        struct gpio_dt_spec buzzer;
-};
+#include "parking_hw.h"
 
-/* Every device of the parking_lot_u5 board has an alias
- * (hardware/boards/ufal/parking_lot_u5/parking_lot_u5.dts).
- */
-static const struct lane_outputs lanes[] = {
-        {
-                .name = "entry",
-                .enable = GPIO_DT_SPEC_GET(DT_ALIAS(entry_motor_enable), gpios),
-                .direction = GPIO_DT_SPEC_GET(DT_ALIAS(entry_motor_direction), gpios),
-                .red = GPIO_DT_SPEC_GET(DT_ALIAS(entry_light_red), gpios),
-                .green = GPIO_DT_SPEC_GET(DT_ALIAS(entry_light_green), gpios),
-                .buzzer = GPIO_DT_SPEC_GET(DT_ALIAS(entry_buzzer), gpios),
-        },
-        {
-                .name = "exit",
-                .enable = GPIO_DT_SPEC_GET(DT_ALIAS(exit_motor_enable), gpios),
-                .direction = GPIO_DT_SPEC_GET(DT_ALIAS(exit_motor_direction), gpios),
-                .red = GPIO_DT_SPEC_GET(DT_ALIAS(exit_light_red), gpios),
-                .green = GPIO_DT_SPEC_GET(DT_ALIAS(exit_light_green), gpios),
-                .buzzer = GPIO_DT_SPEC_GET(DT_ALIAS(exit_buzzer), gpios),
-        },
-};
+enum { INPUT_SETTLE_MS = 20, SERVICE_INTERVAL_MS = 1, REPLY_CAPACITY = 8 };
 
-/** Configure one lane's outputs inactive, then assert red. */
-static int lane_setup(const struct lane_outputs *lane)
+K_SEM_DEFINE(controller_wake, 0, 1);
+K_MSGQ_DEFINE(replies, sizeof(struct parking_reply), REPLY_CAPACITY, 1);
+
+static struct parking_lane lanes[PARKING_LANE_COUNT];
+static struct k_spinlock services_lock;
+static const struct parking_services *registered_services;
+
+int parking_register_services(const struct parking_services *services)
 {
-        const struct gpio_dt_spec *outputs[] = {
-                &lane->enable, &lane->direction, &lane->red, &lane->green, &lane->buzzer
-        };
+	if (services == NULL || services->request == NULL || services->passage == NULL ||
+	    services->cancel == NULL) {
+		return -EINVAL;
+	}
+	k_spinlock_key_t key = k_spin_lock(&services_lock);
+	int rc = registered_services == NULL ? 0 : -EALREADY;
+	if (rc == 0) {
+		registered_services = services;
+	}
+	k_spin_unlock(&services_lock, key);
+	k_sem_give(&controller_wake);
+	return rc;
+}
 
-        for (size_t i = 0; i < ARRAY_SIZE(outputs); ++i) {
-                if (!gpio_is_ready_dt(outputs[i]) ||
-                    gpio_pin_configure_dt(outputs[i], GPIO_OUTPUT_INACTIVE) < 0) {
-                        printk("PARKING_STUDENT_SETUP_FAILED: %s\n", lane->name);
-                        return -EIO;
-                }
-        }
-        return gpio_pin_set_dt(&lane->red, 1);
+int parking_post_reply(const struct parking_reply *reply)
+{
+	if (reply == NULL || (unsigned int)reply->lane >= PARKING_LANE_COUNT) {
+		return -EINVAL;
+	}
+	int rc = k_msgq_put(&replies, reply, K_NO_WAIT);
+	if (rc == 0) {
+		k_sem_give(&controller_wake);
+	}
+	return rc;
+}
+
+static void service_lanes(void)
+{
+	k_spinlock_key_t key = k_spin_lock(&services_lock);
+	const struct parking_services *services = registered_services;
+	k_spin_unlock(&services_lock, key);
+
+	/* Bound queue work per wake so a producer cannot starve the safety checks. */
+	for (int i = 0; i < REPLY_CAPACITY; i++) {
+		struct parking_reply reply;
+		if (k_msgq_get(&replies, &reply, K_NO_WAIT) != 0) {
+			break;
+		}
+		parking_lane_receive(&lanes[reply.lane], &reply);
+	}
+	for (int i = 0; i < PARKING_LANE_COUNT; i++) {
+		struct parking_inputs inputs = {0};
+
+		parking_gpio_sample(i, &inputs);
+		parking_adc_sample(i, &inputs);
+		parking_lane_step(&lanes[i], &inputs, services, k_uptime_get());
+	}
 }
 
 int main(void)
 {
-        for (size_t i = 0; i < ARRAY_SIZE(lanes); ++i) {
-                if (lane_setup(&lanes[i]) < 0) {
-                        return 0;
-                }
-        }
-        printk("PARKING_STUDENT_READY: controller not implemented (capacity %d)\n",
-               CONFIG_PARKING_CAPACITY);
-        for (;;) {
-                /* TODO: service both lanes' safety deadlines without blocking. */
-                k_sleep(K_MSEC(10));
-        }
-        return 0;
+	parking_gpio_init(&controller_wake);
+	/* The model re-drives its held input levels on the first 10 ms tick. */
+	int64_t ready_ms = k_uptime_get() + INPUT_SETTLE_MS;
+	for (int i = 0; i < PARKING_LANE_COUNT; i++) {
+		parking_lane_init(&lanes[i], i, &parking_gpio_io, ready_ms);
+	}
+	parking_adc_init(&controller_wake);
+	while (true) {
+		service_lanes();
+		/* EXTI and asynchronous replies wake the controller ahead of this tick. */
+		k_sem_take(&controller_wake, K_MSEC(SERVICE_INTERVAL_MS));
+	}
+	return 0;
 }
