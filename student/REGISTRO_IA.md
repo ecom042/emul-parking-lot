@@ -29,7 +29,7 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Pedido:** iniciar a issue #1 com a proposta de interfaces e a execução do cenário inicial.
 - **Proposta:** divisão de responsabilidades, estados e prazos em `student/INTERFACES.md`.
 - **Aceitação ou revisão:** pendente pela dupla.
-- **Verificação:** a tentativa oficial `issue-01-normal-01` parou na verificação da identidade do Renode x86_64. Em ARM64 emulado, `issue-01-arm64-normal-03` passou no build e na preparação, mas expirou ao inicializar o runtime. Os resultados intermediários estão em `student/INTERFACES.md`.
+- **Verificação:** a tentativa local x86_64 parou na verificação da versão do Renode. Em ARM64 emulado, o build e a preparação passaram, mas a inicialização expirou. A execução `issue-01-actions-normal` no GitHub Actions ARM64 nativo (job 44333386814) confirmou a falha esperada da base no tick 590, aos 5,90 s virtuais. Os resultados estão em `student/INTERFACES.md`.
 - **Aprendizado da aluna:** a preencher após a revisão.
 
 ### AAAA-MM-DD — título curto

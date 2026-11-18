@@ -47,4 +47,6 @@ No Ubuntu 24.04 ARM64 emulado no Docker, o pacote portátil oficial passou no SH
 | `issue-01-arm64-normal-02` | Compilação passou. A preparação falhou porque o `dts2repl` da venv estava fora do PATH. |
 | `issue-01-arm64-normal-03` | Com a venv ativa, compilação e preparação passaram. O runtime não respondeu ao pedido `init` no prazo. A execução terminou sem `assessment/results.json` e sem tempo virtual medido. |
 
-O guia registra validação em Ubuntu 24.04 AArch64. Falta repetir o cenário em um host ARM64 nativo ou receber da disciplina uma atualização oficial para x86_64. Nenhuma das tentativas acima constitui avaliação do firmware.
+### Validação em ARM64 nativo
+
+O [job 44333386814](https://github.com/anntimar/estacionamento-embarcados/actions/runs/44333386814) executou `scripts/lab.py --headless normal` em Ubuntu 24.04 ARM64 nativo. O build e a preparação passaram. O arquivo `assessment/results.json` da execução `issue-01-actions-normal` registrou a falha esperada do firmware original: aos **5,90 s virtuais** (tick 590), a cancela estava em **0 miligraus** e a expectativa era **90000 miligraus**. Isso valida o ambiente de referência. O cenário precisa passar depois da implementação.
