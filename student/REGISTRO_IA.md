@@ -56,7 +56,7 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Ferramenta:** Codex, versão não informada.
 - **Pedido:** implementar as issues #3 e #4, preservando as atribuições do Jackson.
 - **Proposta:** aquisição ADC4 assíncrona e controle de sessão e passagem, com adaptador para as operações de câmera e pagamento.
-- **Verificação:** validação em andamento.
+- **Verificação:** [job ARM64 44371350008](https://github.com/anntimar/estacionamento-embarcados/actions/runs/44371350008). O teste do driver ADC4 leu os dois canais no Renode; o teste `parking_flow` confirmou abandono, criação de sessão por passagem e liberação da vaga após a saída paga. Passaram as duas suítes e os cenários `partial-startup` e `contradictory-limits`. Cobertura parcial de 83,57% das linhas e 68,18% dos branches; zero achados na análise estática. Os cenários que exigem captura real, pagamento ou passagem completa aguardam o adaptador da dupla.
 - **Aceitação e aprendizado:** a revisar pela aluna e pela dupla.
 
 ### AAAA-MM-DD — título curto
