@@ -1,0 +1,11 @@
+source "Kconfig.zephyr"
+
+config PARKING_CAPACITY
+	int "Maximum number of parked cars"
+	default 4
+	range 1 8
+
+config PARKING_TARIFF_UNIT_MS
+	int "Tariff unit duration in milliseconds"
+	default 60000
+	range 1000 60000

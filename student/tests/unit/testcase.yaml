@@ -1,0 +1,4 @@
+tests:
+  student.unit:
+    tags: unit
+    platform_allow: parking_lot_u5
