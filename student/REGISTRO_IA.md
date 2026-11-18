@@ -40,7 +40,7 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Pedido:** seguir para a implementação da segurança das cancelas.
 - **Proposta:** máquina de estados testável em `gate.c`, GPIO do devicetree e EXTI com trabalho diferido em `main.c`, e testes ztest/FFF para movimentos, obstrução e assistência.
 - **Aceitação ou revisão:** a revisar pela dupla.
-- **Verificação:** validação em andamento.
+- **Verificação:** [job ARM64 44335948702](https://github.com/anntimar/estacionamento-embarcados/actions/runs/44335948702). `partial-startup` e `contradictory-limits` passaram até o checkpoint de 6,00 s virtuais (tick 600). Os oito testes `gate_safety` passaram; a cobertura parcial foi de 82,84% das linhas e 67,42% dos branches, e a análise estática teve zero achados. Os cenários `jam`, `missing-lower` e `obstruction-during-close` ainda precisam da integração com reconhecimento e passagem para acionar o movimento no firmware.
 - **Aprendizado da aluna:** a preencher após a revisão.
 
 ### AAAA-MM-DD — título curto
