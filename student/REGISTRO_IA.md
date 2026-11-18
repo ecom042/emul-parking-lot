@@ -32,6 +32,17 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Verificação:** a tentativa local x86_64 parou na verificação da versão do Renode. Em ARM64 emulado, o build e a preparação passaram, mas a inicialização expirou. A execução `issue-01-actions-normal` no GitHub Actions ARM64 nativo (job 44333386814) confirmou a falha esperada da base no tick 590, aos 5,90 s virtuais. Os resultados estão em `student/INTERFACES.md`.
 - **Aprendizado da aluna:** a preencher após a revisão.
 
+### 2026-11-18 — Segurança das cancelas (issue #2)
+
+- **Aluna:** Maria Antonia Ribeiro Ramos.
+- **Ferramenta:** Codex, versão não informada.
+- **Requisitos:** REQ-01, REQ-06, REQ-08 e REQ-09.
+- **Pedido:** seguir para a implementação da segurança das cancelas.
+- **Proposta:** máquina de estados testável em `gate.c`, GPIO do devicetree e EXTI com trabalho diferido em `main.c`, e testes ztest/FFF para movimentos, obstrução e assistência.
+- **Aceitação ou revisão:** a revisar pela dupla.
+- **Verificação:** validação em andamento.
+- **Aprendizado da aluna:** a preencher após a revisão.
+
 ### AAAA-MM-DD — título curto
 
 - **Aluno:** quem fez esta tarefa.
