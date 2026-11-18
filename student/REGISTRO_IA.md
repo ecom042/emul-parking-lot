@@ -43,6 +43,13 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Verificação:** [job ARM64 44335948702](https://github.com/anntimar/estacionamento-embarcados/actions/runs/44335948702). `partial-startup` e `contradictory-limits` passaram até o checkpoint de 6,00 s virtuais (tick 600). Os oito testes `gate_safety` passaram; a cobertura parcial foi de 82,84% das linhas e 67,42% dos branches, e a análise estática teve zero achados. Os cenários `jam`, `missing-lower` e `obstruction-during-close` ainda precisam da integração com reconhecimento e passagem para acionar o movimento no firmware.
 - **Aprendizado da aluna:** a preencher após a revisão.
 
+### 2026-11-18 — Validação de todos os cenários públicos
+
+- **Aluna:** Maria Antonia Ribeiro Ramos.
+- **Pedido:** rodar todos os cenários oficiais com o estado atual do firmware.
+- **Verificação:** [job ARM64 44341017271](https://github.com/anntimar/estacionamento-embarcados/actions/runs/44341017271), commit `abc3f08`. Passaram 2 de 19 cenários (`partial-startup` e `contradictory-limits`), a suíte unitária e a análise estática com zero achados. Cobertura de 82,84% das linhas e 67,42% dos branches.
+- **Falhas observadas na issue #2:** `jam` esperava uma captura aos 6,00 s virtuais (tick 600) e observou zero. `missing-lower` e `obstruction-during-close` esperavam uma transição para verde e observaram zero. Esses cenários ainda não chegaram a exercitar a falha de movimento pretendida. O artefato do job preserva o resultado dos 19 cenários.
+
 ### AAAA-MM-DD — título curto
 
 - **Aluno:** quem fez esta tarefa.
