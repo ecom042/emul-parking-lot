@@ -17,6 +17,8 @@
 #include <string.h>
 
 #include <zephyr/fff.h>
+DEFINE_FFF_GLOBALS;
+DEFINE_FFF_GLOBALS;
 #include <zephyr/ztest.h>
 
 #include "camera.h"

@@ -59,6 +59,19 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Verificação:** [job ARM64 44371350008](https://github.com/anntimar/estacionamento-embarcados/actions/runs/44371350008). O teste do driver ADC4 leu os dois canais no Renode; o teste `parking_flow` confirmou abandono, criação de sessão por passagem e liberação da vaga após a saída paga. Passaram as duas suítes e os cenários `partial-startup` e `contradictory-limits`. Cobertura parcial de 83,57% das linhas e 68,18% dos branches; zero achados na análise estática. Os cenários que exigem captura real, pagamento ou passagem completa aguardam o adaptador da dupla.
 - **Aceitação e aprendizado:** a revisar pela aluna e pela dupla.
 
+### 2026-11-18 — Câmeras: parser UART e captura (issue #5)
+
+- **Aluno:** Jackson Bruno.
+- **Ferramenta:** Claude (Anthropic), modelo Claude Sonnet 5.5, interface web.
+- **Requisito(s):** REQ-02, REQ-11 (parte da câmera) e a parte de câmera de REQ-03 e REQ-13.
+- **O que pedi:** a solução da issue #5, com explicação didática de cada arquivo, e o fluxo de git por branch.
+- **O que a IA propôs:** `student/src/camera_parser.{h,c}` (montagem de linhas CRLF, 128 bytes, prazo de 1000 ms, descarte até LF),
+  `camera.{h,c}` (3 tentativas, id novo, confiança >= 85, `capture_start/poll/cancel` no formato de `struct parking_equipment`),
+  `camera_hw.{h,c}` (UART por polling via alias do devicetree) e as suítes `tests/camera` e `tests/camera_hw`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei polling em vez de IRQ porque o contrato do modelo não promete transporte por interrupção, e adicionei `DEFINE_FFF_GLOBALS;` em `test_camera.c` para resolver a linkagem do ztest/FFF no Renode.
+- **Como verifiquei:** compilei e executei no ambiente oficial Linux/WSL com Zephyr v4.5.0 e Renode 1.17.0 usando `firmware-coverage.py` (`build/cov-check`): cenários `confidence-retry`, `low-confidence`, `camera-timeout` e `reset-capture` passando, além das suítes unitárias `camera` e `camera_hw` passando com 100.00% de cobertura de linhas e branches em `camera.c` e `camera_parser.c`, e 100.00% de linhas / 90.00% de branches em `camera_hw.c`.
+- **O que aprendi / o que ainda preciso entender:** compreendi o protocolo AT fragmentado da câmera, o uso do devicetree por alias (`entry-camera`/`exit-camera`) sem números de pino fixos e a separação entre lógica pura (`camera.c`) e camada fina de hardware (`camera_hw.c`) para testes com FFF.
+
 ### AAAA-MM-DD — título curto
 
 - **Aluno:** quem fez esta tarefa.
