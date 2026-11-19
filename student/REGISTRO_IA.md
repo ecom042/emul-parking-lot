@@ -72,6 +72,17 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Como verifiquei:** compilei e executei no ambiente oficial Linux/WSL com Zephyr v4.5.0 e Renode 1.17.0 usando `firmware-coverage.py` (`build/cov-check`): cenários `confidence-retry`, `low-confidence`, `camera-timeout` e `reset-capture` passando, além das suítes unitárias `camera` e `camera_hw` passando com 100.00% de cobertura de linhas e branches em `camera.c` e `camera_parser.c`, e 100.00% de linhas / 90.00% de branches em `camera_hw.c`.
 - **O que aprendi / o que ainda preciso entender:** compreendi o protocolo AT fragmentado da câmera, o uso do devicetree por alias (`entry-camera`/`exit-camera`) sem números de pino fixos e a separação entre lógica pura (`camera.c`) e camada fina de hardware (`camera_hw.c`) para testes com FFF.
 
+### 2026-11-19 — Display colorido ST7789V via SPI1 e renderização de texto (issue #7)
+
+- **Aluno:** Jackson Bruno.
+- **Ferramenta:** Claude (Anthropic), modelo Claude Sonnet 5.5, interface web.
+- **Requisito(s):** REQ-05, REQ-10, REQ-11 (parte de display SPI) e parte de exibição de REQ-03 e REQ-13.
+- **O que pedi:** a implementação do driver e renderizador do display ST7789V (240x320 RGB565 via SPI1), fonte 5x7 e suítes unitárias da issue #7.
+- **O que a IA propôs:** `student/src/font5x7.{h,c}` (mapa de caracteres ASCII 5x7), `display_render.{h,c}` (geração de buffer RGB565), `display.{h,c}` (sequência de inicialização ST7789V, janelas CASET/RASET/RAMWR e exibição de placa/valor) e `display_hw.{h,c}` (SPI1 e pinos CS, D/C e RESET via alias `payment-display`), além das suítes `tests/display` e `tests/display_hw`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei a separação entre renderização em memória, protocolo ST7789V e camada fina SPI/GPIO, e atualizei `student/CMakeLists.txt`.
+- **Como verifiquei:** revisão estrutural dos arquivos e preparação das suítes unitárias `tests/display` e `tests/display_hw`; execução no Renode (`firmware-coverage.py` e `static-check.py`) pendente para a etapa de integração junto com a issue #6 (`payment.h`).
+- **O que aprendi / o que ainda preciso entender:** compreendi a inicialização e os comandos do controlador ST7789V (COLMOD 0x55, MADCTL 0x00, janelas de escrita RAMWR) e o controle explícito dos pinos D/C, CS e RESET no Zephyr.
+
 ### AAAA-MM-DD — título curto
 
 - **Aluno:** quem fez esta tarefa.
