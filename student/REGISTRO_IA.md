@@ -72,6 +72,17 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Como verifiquei:** compilei e executei no ambiente oficial Linux/WSL com Zephyr v4.5.0 e Renode 1.17.0 usando `firmware-coverage.py` (`build/cov-check`): cenários `confidence-retry`, `low-confidence`, `camera-timeout` e `reset-capture` passando, além das suítes unitárias `camera` e `camera_hw` passando com 100.00% de cobertura de linhas e branches em `camera.c` e `camera_parser.c`, e 100.00% de linhas / 90.00% de branches em `camera_hw.c`.
 - **O que aprendi / o que ainda preciso entender:** compreendi o protocolo AT fragmentado da câmera, o uso do devicetree por alias (`entry-camera`/`exit-camera`) sem números de pino fixos e a separação entre lógica pura (`camera.c`) e camada fina de hardware (`camera_hw.c`) para testes com FFF.
 
+### 2026-11-19 — Terminal de pagamento LPUART1 e cálculo de tarifa (issue #6)
+
+- **Aluno:** Jackson Bruno.
+- **Ferramenta:** Claude (Anthropic), modelo Claude Sonnet 5.5, interface web.
+- **Requisito(s):** REQ-04, REQ-05, REQ-10, REQ-11 (parte de pagamento) e parte de pagamento de REQ-03 e REQ-13.
+- **O que pedi:** a implementação do cliente do terminal de pagamento (LPUART1), cálculo de tarifa, geração de UUID v4 de transação e suítes unitárias da issue #6.
+- **O que a IA propôs:** `student/src/tariff.{h,c}` (cálculo proporcional por unidade de tarifa com teto), `payment_uuid.{h,c}` (geração de UUID v4), `payment_parser.{h,c}` (montagem CRLF e parse de respostas do terminal), `payment.{h,c}` (máquina de estados de cobrança com retentativas e cancelamento) e `payment_hw.{h,c}` (LPUART1 via alias `payment-terminal`), além das suítes `tests/payment` e `tests/payment_hw`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei a separação entre lógica pura (`payment.c`, `tariff.c`, `payment_parser.c`) e hardware (`payment_hw.c`), atualizei `student/CMakeLists.txt` e adicionei `DEFINE_FFF_GLOBALS;` em `test_payment.c` para linkagem no Zephyr/Renode.
+- **Como verifiquei:** compilei e executei no ambiente oficial Linux/WSL com Zephyr v4.5.0 e Renode 1.17.0 usando `firmware-coverage.py` (`build/cov-issue06`): todas as 6 suítes unitárias (`unit:payment`, `unit:payment_hw`, `unit:camera`, `unit:camera_hw`, `unit:distance`, `unit:unit`) e os cenários `partial-startup` e `contradictory-limits` passaram, atingindo 100.00% de cobertura de linhas e branches em `payment.c`, `payment_parser.c`, `payment_uuid.c` e `tariff.c` (e 100.00% de linhas / 85.71% de branches em `payment_hw.c`).
+- **O que aprendi / o que ainda preciso entender:** compreendi o protocolo textual do terminal de pagamento na LPUART1, idempotência via UUID por sessão de cobrança e cálculo determinístico de tarifa por tempo decorrido.
+
 ### AAAA-MM-DD — título curto
 
 - **Aluno:** quem fez esta tarefa.
