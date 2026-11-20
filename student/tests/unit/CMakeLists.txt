@@ -19,6 +19,12 @@ target_sources(app PRIVATE
 	../../src/fsm/src/lane.c
 )
 
+# fsm/lanes: as duas faixas, suas filas e events_post().
+target_sources(app PRIVATE
+	fsm/test_lanes.c
+	../../src/fsm/src/lanes.c
+)
+
 # services/signals: luzes e buzzer. hw/indicator é falsificado pelo FFF no
 # teste; hw/lane_hw é o real (só dados do devicetree).
 target_include_directories(app PRIVATE
