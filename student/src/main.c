@@ -3,6 +3,7 @@
 #include <zephyr/kernel.h>
 
 #include "parking_hw.h"
+#include "services.h"
 
 enum { INPUT_SETTLE_MS = 20, SERVICE_INTERVAL_MS = 1, REPLY_CAPACITY = 8 };
 
@@ -73,6 +74,8 @@ int main(void)
 		parking_lane_init(&lanes[i], i, &parking_gpio_io, ready_ms);
 	}
 	parking_adc_init(&controller_wake);
+	/* Without services the lanes stay idle and never open; startup checks still run. */
+	(void)parking_services_start();
 	while (true) {
 		service_lanes();
 		/* EXTI and asynchronous replies wake the controller ahead of this tick. */

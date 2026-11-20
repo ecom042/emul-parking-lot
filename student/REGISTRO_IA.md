@@ -16,6 +16,7 @@ entradas. Quem não usou IA escreve isso aqui.
 | Aluno | Ferramenta | Modelo/versão | Período de uso |
 |---|---|---|---|
 | Pablo | Codex | GPT-6 | 18/11/2026 |
+| Matheus | Claude Code | Claude Opus 5.5 | 19/11/2026 |
 
 ## Tarefas
 
@@ -136,6 +137,60 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   é estático. A thread de controle continua sendo acordada pelo EXTI para ler
   os fins de curso e o feixe e decidir quando desligar o motor. A medição
   física dos 10 ms durante o fechamento continua pendente no cenário integrado.
+
+### 2026-11-19 — Câmera UART e reserva de vaga na entrada
+
+- **Aluno** Matheus.
+- **Requisitos** REQ-02 (captura com três tentativas), REQ-03 (entrada com
+  vaga livre, lotação e placa já estacionada) e o contrato `parking.h`
+  (`request`, `passage`, `cancel`).
+- **Pedido** Integrar a câmera UART da entrada e a reserva de vaga: novo ID
+  por tentativa, resposta fragmentada, resultado com faixa, transação e
+  tentativa corretas; reservar na autorização, confirmar em `passage()` e
+  liberar em `cancel()`. Testar fragmentação, ID antigo, confiança baixa,
+  lotação, placa duplicada e cancelamento.
+- **Proposta da IA** Separar a lógica pura da camada Zephyr:
+  `camera.[ch]` (parser CRLF limitado a 128 bytes, números canônicos, sintaxe
+  da placa, formatação de `AT+CAPTURE`), `sessions.[ch]` (tabela
+  FREE/RESERVED/ACTIVE; a reserva conta na lotação), `services.[ch]`
+  (implementa `parking.h`; os callbacks só copiam o pedido para uma fila,
+  marcam a transação corrente sob spinlock e acordam o worker; o worker
+  correlaciona o ID da câmera, reserva a vaga e reenvia a resposta em
+  `-ENOMSG` até o prazo) e `parking_uart.c` (RX por interrupção em
+  ring buffer, TX por `uart_poll_out`, thread preemptiva de prioridade 2).
+  O núcleo continua controlando tentativas e prazos. As duas câmeras usam
+  o mesmo código. A autorização de saída responde `PARKING_DENIED` até
+  existir o pagamento P1, então a saída nunca abre sem `PAID`.
+- **Alteração em arquivos do colega** `main.c` ganhou a chamada
+  `parking_services_start()` depois de `parking_adc_init()`; `CMakeLists.txt`
+  e `prj.conf` (`CONFIG_UART_INTERRUPT_DRIVEN=y`) foram atualizados.
+  `parking.h`, `lane.[ch]` e os demais módulos de Pablo não mudaram.
+  Revisão de Pablo pendente.
+- **Aceitação ou alterações** Aguardando revisão do aluno e do colega. Sem
+  commit.
+- **Ambiente** Para rodar os cenários localmente, `scripts/lab.py` foi
+  alterado só nesta máquina para aceitar também o build
+  `1.17.0+20260907gitf1dd1b4af` do Renode oficial (mesmo commit). A
+  alteração está fora de `student/`, marcada com `skip-worktree` e não
+  será versionada; aguarda esclarecimento do professor.
+- **Verificação** `lab.py --headless` aprovou `jam`, `missing-lower`,
+  `obstruction-during-close`, `contradictory-limits` e `partial-startup`.
+  `normal` passou nos checkpoints da entrada (ticks 590 e 990: abertura com
+  uma captura, passagem e fechamento) e falhou no primeiro da saída
+  (tick 1590, `payments: 1`), como esperado sem pagamento.
+  `firmware-coverage.py` com esses cinco cenários aprovou as suítes `adc`,
+  `unit` e a nova `protocols` (camera, sessions, services com FFF):
+  96,22% de linhas e 83,27% de ramos no total; `camera.c`, `services.c`,
+  `sessions.c` e `parking_uart.c` com 100% de linhas. `static-check.py`
+  apontou dois achados (`-Wcast-qual` em `sessions.c`, `-Wswitch-enum` em
+  `services.c`), corrigidos; a segunda rodada terminou com zero achados.
+- **Evidências** `build/cam-<cenário>-01/assessment/results.json`,
+  `build/cam-coverage-02/summary.json` e `build/cam-static-02/summary.json`.
+- **Para a sabatina** Explicar por que `request()` grava a transação
+  corrente e enfileira no mesmo spinlock e por que o worker checa de novo
+  antes de reservar. Explicar por que `OK` não é reconhecimento, por que um
+  ID antigo é ignorado e por que a reserva conta na lotação antes da
+  passagem.
 
 ## Código de terceiros
 
