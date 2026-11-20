@@ -8,8 +8,8 @@ entradas. Quem não usou IA escreve isso aqui.
 
 | Aluno | Matrícula | Partes que escreveu |
 |---|---|---|
-| Maria Antonia Ribeiro Ramos | A informar | Cancelas, segurança, ADC4, controle de faixa, sessões e integração. |
-| Jackson Bruno Lima Leao | A informar | Câmeras, pagamento, tarifa e display SPI. |
+| Maria Antonia Ribeiro Ramos | 21211260 | Cancelas, segurança, ADC4, controle de faixa, sessões e integração. |
+| Jackson Bruno Lima Leao | 21111301 | Câmeras, pagamento, tarifa e display SPI. |
 
 ## Ferramentas
 
