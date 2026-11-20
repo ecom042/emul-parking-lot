@@ -8,9 +8,11 @@
  *   B --GO--> C                    (C has no entry action)
  *   NOP does nothing anywhere.
  */
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <zephyr/kernel.h>
 #include <zephyr/ztest.h>
 
 #include "fsm/lane.h"
@@ -64,6 +66,10 @@ static const struct lane_def toy_def = {
 	.n_events = EV_COUNT,
 };
 
+/* Small on purpose: two posts fill it, so the "full" case is easy to reach. */
+#define TOY_QUEUE_LEN 2
+K_MSGQ_DEFINE(toy_queue, sizeof(uint8_t), TOY_QUEUE_LEN, 1);
+
 static struct lane toy;
 
 static void reset_toy(void *fixture)
@@ -74,7 +80,8 @@ static void reset_toy(void *fixture)
 	enter_a_calls = 0;
 	enter_b_calls = 0;
 	last_entered_id = 0;
-	lane_init(&toy, TOY_LANE_ID, &toy_def, ST_A);
+	k_msgq_purge(&toy_queue);
+	lane_init(&toy, TOY_LANE_ID, &toy_def, &toy_queue, ST_A);
 }
 
 ZTEST_SUITE(fsm_lane, NULL, NULL, reset_toy, NULL, NULL);
@@ -141,7 +148,48 @@ ZTEST(fsm_lane, test_event_outside_table_is_ignored)
 
 ZTEST(fsm_lane, test_state_outside_table_ignores_events)
 {
-	lane_init(&toy, TOY_LANE_ID, &toy_def, ST_COUNT);
+	lane_init(&toy, TOY_LANE_ID, &toy_def, &toy_queue, ST_COUNT);
 	zassert_false(lane_dispatch(&toy, EV_GO));
 	zassert_equal(lane_state(&toy), ST_COUNT);
+}
+
+ZTEST(fsm_lane, test_posted_event_is_applied_by_process)
+{
+	zassert_ok(lane_post(&toy, EV_GO));
+	zassert_equal(lane_state(&toy), ST_A, "posting alone changes nothing");
+	zassert_true(lane_process(&toy, K_NO_WAIT));
+	zassert_equal(lane_state(&toy), ST_B);
+	zassert_equal(enter_b_calls, 1);
+}
+
+ZTEST(fsm_lane, test_events_are_applied_in_posting_order)
+{
+	zassert_ok(lane_post(&toy, EV_GO)); /* A -> B */
+	zassert_ok(lane_post(&toy, EV_GO)); /* B -> C */
+	zassert_true(lane_process(&toy, K_NO_WAIT));
+	zassert_equal(lane_state(&toy), ST_B);
+	zassert_true(lane_process(&toy, K_NO_WAIT));
+	zassert_equal(lane_state(&toy), ST_C);
+}
+
+ZTEST(fsm_lane, test_process_with_empty_queue_does_nothing)
+{
+	zassert_false(lane_process(&toy, K_NO_WAIT));
+	zassert_equal(lane_state(&toy), ST_A);
+}
+
+ZTEST(fsm_lane, test_process_takes_event_even_if_ignored)
+{
+	zassert_ok(lane_post(&toy, EV_NOP));
+	zassert_true(lane_process(&toy, K_NO_WAIT), "the event left the queue");
+	zassert_equal(lane_state(&toy), ST_A);
+	zassert_false(lane_process(&toy, K_NO_WAIT), "queue is now empty");
+}
+
+ZTEST(fsm_lane, test_post_to_full_queue_fails)
+{
+	for (int i = 0; i < TOY_QUEUE_LEN; i++) {
+		zassert_ok(lane_post(&toy, EV_NOP));
+	}
+	zassert_equal(lane_post(&toy, EV_GO), -ENOMSG);
 }

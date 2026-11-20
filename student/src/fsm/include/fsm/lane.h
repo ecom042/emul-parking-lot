@@ -14,6 +14,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <zephyr/kernel.h>
+
 /** State 0 is reserved: in a table cell it means "no transition". */
 #define LANE_STATE_NONE 0U
 
@@ -40,19 +42,23 @@ struct lane_def {
 	uint8_t n_events;
 };
 
-/** Runtime of one lane. Later steps add the queue, deadlines and services. */
+/** Runtime of one lane. Later steps add deadlines and services. */
 struct lane {
 	const struct lane_def *def;
-	uint8_t id;    /**< which lane (entry/exit); entry actions use it */
-	uint8_t state; /**< current state */
+	struct k_msgq *queue; /**< pending events, one uint8_t each */
+	uint8_t id;           /**< which lane (entry/exit); entry actions use it */
+	uint8_t state;        /**< current state */
 };
 
 /**
- * Bind a lane to its rules and set its initial state.
+ * Bind a lane to its rules and its event queue and set its initial state.
  *
+ * The queue belongs to the caller (K_MSGQ_DEFINE with sizeof(uint8_t)
+ * messages), so each lane chooses its own queue size.
  * Runs no entry action: only lane_dispatch() changes state and runs actions.
  */
-void lane_init(struct lane *lane, uint8_t id, const struct lane_def *def, uint8_t initial);
+void lane_init(struct lane *lane, uint8_t id, const struct lane_def *def,
+	       struct k_msgq *queue, uint8_t initial);
 
 /** Current state of the lane. */
 uint8_t lane_state(const struct lane *lane);
@@ -69,5 +75,23 @@ uint8_t lane_state(const struct lane *lane);
  *         outside the table.
  */
 bool lane_dispatch(struct lane *lane, uint8_t event);
+
+/**
+ * Queue an event for the lane, without blocking.
+ *
+ * Safe to call from an interrupt handler or from another thread; the event is
+ * applied later by lane_process() in the lane's own thread.
+ *
+ * @return 0 on success; -ENOMSG if the queue is full (the event is lost).
+ */
+int lane_post(struct lane *lane, uint8_t event);
+
+/**
+ * Take one event from the queue, waiting up to `wait`, and dispatch it.
+ *
+ * @return true if an event was taken (even if the table ignored it);
+ *         false if no event arrived within `wait`.
+ */
+bool lane_process(struct lane *lane, k_timeout_t wait);
 
 #endif /* PARKING_FSM_LANE_H_ */

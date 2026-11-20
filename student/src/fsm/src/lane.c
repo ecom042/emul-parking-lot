@@ -2,9 +2,11 @@
 
 #include <stddef.h>
 
-void lane_init(struct lane *lane, uint8_t id, const struct lane_def *def, uint8_t initial)
+void lane_init(struct lane *lane, uint8_t id, const struct lane_def *def,
+	       struct k_msgq *queue, uint8_t initial)
 {
 	lane->def = def;
+	lane->queue = queue;
 	lane->id = id;
 	lane->state = initial;
 }
@@ -58,5 +60,21 @@ bool lane_dispatch(struct lane *lane, uint8_t event)
 		return false;
 	}
 	enter(lane, target);
+	return true;
+}
+
+int lane_post(struct lane *lane, uint8_t event)
+{
+	return k_msgq_put(lane->queue, &event, K_NO_WAIT);
+}
+
+bool lane_process(struct lane *lane, k_timeout_t wait)
+{
+	uint8_t event;
+
+	if (k_msgq_get(lane->queue, &event, wait) != 0) {
+		return false;
+	}
+	(void)lane_dispatch(lane, event);
 	return true;
 }
