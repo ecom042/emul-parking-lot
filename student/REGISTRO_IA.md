@@ -104,6 +104,15 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Verificação após a correção:** [job ARM64 44652563506](https://github.com/anntimar/estacionamento-embarcados/actions/runs/44652563506), firmware `6bb5b5a`. Passaram os 19 cenários públicos e os 123 testes unitários. Cobertura de 96,15% das linhas e 88,58% dos branches. Análise estática com zero achados. Os vereditos, a cobertura e os logs estão no artefato `integracao-arm64`.
 - **Revisão da dupla:** pendente.
 
+### 2026-11-19 — Preparação da entrega e partida no WSL x86_64
+
+- **Aluna:** Maria Antonia Ribeiro Ramos.
+- **Ferramenta:** Codex.
+- **Pedido:** abrir o PR de entrega e fornecer o link do Classroom.
+- **Correção:** depois de incorporar a atualização oficial `82d854b`, o build padrão x86_64 expôs uma leitura de fins de curso antes da primeira atualização de 10 ms do modelo. O firmware mantém as saídas seguras e só avalia as entradas após 15 ms de estabilização.
+- **Verificação:** `entrega-normal-x86-01` falhou no tick 590 (5,90 s virtuais). `entrega-normal-x86-02` confirmou o cenário `normal` completo no Renode oficial x86_64.
+- **Validação completa:** [job ARM64 44658985711](https://github.com/anntimar/estacionamento-embarcados/actions/runs/44658985711), firmware `bf9e724`. Passaram 19 cenários públicos e 123 testes unitários. Cobertura de 96,17% das linhas e 88,61% das ramificações. Análise estática com zero achados.
+
 ### AAAA-MM-DD — título curto
 
 - **Aluno:** quem fez esta tarefa.
