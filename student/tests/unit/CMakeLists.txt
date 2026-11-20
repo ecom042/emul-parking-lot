@@ -36,4 +36,11 @@ target_sources(app PRIVATE
 	../../src/services/src/signals.c
 	../../src/hw/src/lane_hw.c
 )
+
+# services/barrier: motor + fins de curso. hw/motor e hw/sensor são falsos do
+# FFF; events_post() é o real (fsm/lanes.c), lido pela fila da faixa.
+target_sources(app PRIVATE
+	barrier/test_barrier.c
+	../../src/services/src/barrier.c
+)
 # Não inclua main.c: a suíte tem o próprio ponto de entrada (ztest).
