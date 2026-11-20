@@ -13,6 +13,13 @@ spec.loader.exec_module(lab)
 
 
 class LabPackagingTests(unittest.TestCase):
+    def test_renode_identity_accepts_every_official_build_date(self):
+        for build in ("1.17.0+20260906gitf1dd1b4af", "1.17.0+20260907gitf1dd1b4af"):
+            self.assertTrue(lab.renode_identity_ok(f"Renode v1.17.0.0\n  build: {build}\n"))
+        for build in ("1.17.0+20260906git0123456789", "1.16.1+20260906gitf1dd1b4af",
+                      "1.17.0+2026090gitf1dd1b4af"):
+            self.assertFalse(lab.renode_identity_ok(f"build: {build}"))
+
     def test_student_launch_reuses_build_assembly_and_restricted_web(self):
         build, prepare, launch = lab.commands(Path("/module"), Path("/renode"),
                                               Path("/output"))

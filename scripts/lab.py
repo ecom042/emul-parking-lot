@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import subprocess
 import sys
 
@@ -35,6 +36,14 @@ ZEPHYR_VERSION = (4, 5, 0)
 
 # Hosts with an official Renode 1.17.0 portable build and a Zephyr SDK 1.0.1.
 SUPPORTED_HOSTS = {("Darwin", "arm64"), ("Linux", "x86_64"), ("Linux", "aarch64")}
+
+# The official 1.17.0 portable builds all come from commit f1dd1b4af, but each
+# package stamps its own build date (macOS 20260906, Linux 20260907).
+RENODE_BUILD = re.compile(r"1\.17\.0\+\d{8}gitf1dd1b4af\b")
+
+
+def renode_identity_ok(version_text):
+    return RENODE_BUILD.search(version_text) is not None
 
 
 # The lab's own board (hardware/boards/ufal/parking_lot_u5), derived from
@@ -180,7 +189,7 @@ def main():
     (output / "source.json").write_text(json.dumps(provenance, indent=2) + "\n")
     if bounded.run([str(renode), "--version"], 15, output / "renode-version.log"):
         return 2
-    if "1.17.0+20260906gitf1dd1b4af" not in (output / "renode-version.log").read_text():
+    if not renode_identity_ok((output / "renode-version.log").read_text()):
         print("Wrong runtime identity; inspect renode-version.log.", file=sys.stderr)
         return 2
     for command, timeout, name in ((build, 300, "build"), (prepare, 60, "prepare")):

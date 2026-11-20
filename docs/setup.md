@@ -30,8 +30,9 @@ Validated with the Ubuntu 24.04 packages (Python 3.12.3, CMake 3.28.3, Ninja
 fail. About 6 GB of disk (workspace and SDK) and 2 GB of RAM per parallel Renode process.
 
 Use the official [Renode 1.17.0 portable release](https://github.com/renode/renode/releases/tag/v1.17.0),
-which bundles .NET 8 and reports build `1.17.0+20260906gitf1dd1b4af`
-(`lab.py` checks it). Distribution packages (`.deb`, `.rpm`) and PATH
+which bundles .NET 8 and reports build `1.17.0+<date>gitf1dd1b4af`
+(`20260906` on macOS, `20260907` on Linux; `lab.py` checks the version and
+the commit, not the date). Distribution packages (`.deb`, `.rpm`) and PATH
 wrappers are not the selected runtime.
 
 | `uname -m` | Asset | SHA-256 |

@@ -81,8 +81,10 @@ NVIC masking write that does not cause the intended fault is not valid evidence.
 ## Tooling compatibility and provenance
 
 The supported official Renode packages are the 1.17.0 portable builds for
-macOS arm64 (.NET 8.0.21) and Linux x86_64/arm64 (.NET 8.0.16). All report
-`1.17.0+20260906gitf1dd1b4af`, which `lab.py` checks. Its Infrastructure gitlink is
+macOS arm64 (.NET 8.0.21) and Linux x86_64/arm64 (.NET 8.0.16). All come from
+commit `f1dd1b4af` but stamp their own build date (`1.17.0+20260906gitf1dd1b4af`
+on macOS, `1.17.0+20260907gitf1dd1b4af` on Linux); `lab.py` checks the
+version and the commit and accepts any date. Its Infrastructure gitlink is
 `cd4b002aac2398994c4a61a34a8b31b5700facf2`; do not infer a submodule revision
 from an unrelated retained source snapshot. The pinned STM32 HAL revision used
 for model analysis is `39130f29ae37c1db34095478ca02b6419b70dcdc`.

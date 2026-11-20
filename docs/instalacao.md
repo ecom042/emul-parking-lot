@@ -31,7 +31,9 @@ python3.12 --version
 ```
 
 Ajuste o caminho se instalou o Renode em outro lugar. Ele precisa mostrar
-`build: 1.17.0+20260906gitf1dd1b4af`.
+`build: 1.17.0+<data>gitf1dd1b4af`: a data é `20260906` no macOS e
+`20260907` no Linux e no WSL. O `lab.py` confere a versão `1.17.0` e o
+commit `f1dd1b4af`, não a data.
 
 ## 2. Espaço de trabalho
 
