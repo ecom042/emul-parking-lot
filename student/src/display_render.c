@@ -94,7 +94,9 @@ static void set_item(struct display_item *item, const char *text, size_t chars, 
 		     unsigned int y, uint16_t fg)
 {
 	memset(item, 0, sizeof(*item));
-	strncpy(item->text, text, DISPLAY_TEXT_MAX - 1U);
+	for (size_t i = 0; i < chars && i < sizeof(item->text) - 1 && text[i] != '\0'; ++i) {
+		item->text[i] = text[i];
+	}
 	item->chars = (uint8_t)chars;
 	item->scale = (uint8_t)scale;
 	item->fg = fg;

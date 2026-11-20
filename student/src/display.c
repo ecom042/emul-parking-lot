@@ -175,6 +175,13 @@ void display_service(int64_t now)
 
 /* ---- API ---- */
 
+#ifdef CONFIG_ZTEST
+void display_reset_for_test(void)
+{
+	memset(&disp, 0, sizeof(disp));
+}
+#endif
+
 int display_init(void)
 {
 	int rc;

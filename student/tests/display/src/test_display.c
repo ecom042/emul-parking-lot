@@ -269,6 +269,7 @@ static void before_each(void *fixture)
 	fail_at = 0U;
 	fail_count = 0U;
 	panel_power_on();
+	display_reset_for_test();
 }
 
 ZTEST_SUITE(display, NULL, NULL, before_each, NULL, NULL);

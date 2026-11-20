@@ -60,4 +60,8 @@ void display_cancel(void);
 /* A tabela pronta para payment_init(). */
 const struct payment_display_ops *display_ops(void);
 
+#ifdef CONFIG_ZTEST
+void display_reset_for_test(void);
+#endif
+
 #endif /* PARKING_DISPLAY_H */
