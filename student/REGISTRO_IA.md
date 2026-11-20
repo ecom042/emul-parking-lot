@@ -93,6 +93,16 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Como verifiquei:** revisão estrutural dos arquivos e preparação das suítes unitárias `tests/display` e `tests/display_hw`; execução no Renode (`firmware-coverage.py` e `static-check.py`) pendente para a etapa de integração junto com a issue #6 (`payment.h`).
 - **O que aprendi / o que ainda preciso entender:** compreendi a inicialização e os comandos do controlador ST7789V (COLMOD 0x55, MADCTL 0x00, janelas de escrita RAMWR) e o controle explícito dos pinos D/C, CS e RESET no Zephyr.
 
+### 2026-11-19 — Integração de câmera, pagamento e display
+
+- **Aluna:** Maria Antonia Ribeiro Ramos.
+- **Ferramenta:** Codex.
+- **Pedido:** integrar os módulos publicados pelo Jackson ao controlador das duas faixas e validar no Renode.
+- **Alterações:** integrar os commits das issues #6 e #7, registrar os callbacks de câmera e pagamento em `main.c` e iniciar o display SPI. Preservar as entradas dos dois autores. Isolar o estado do display entre testes e copiar os caracteres dentro dos limites do campo.
+- **Verificação inicial:** [job ARM64 44650739379](https://github.com/anntimar/estacionamento-embarcados/actions/runs/44650739379). Os 19 cenários públicos passaram. A suíte de display detectou dependência da ordem dos testes e a análise estática acusou a cópia por `strncpy`.
+- **Verificação após a correção:** [job ARM64 44652563506](https://github.com/anntimar/estacionamento-embarcados/actions/runs/44652563506), firmware `6bb5b5a`. Passaram os 19 cenários públicos e os 123 testes unitários. Cobertura de 96,15% das linhas e 88,58% dos branches. Análise estática com zero achados. Os vereditos, a cobertura e os logs estão no artefato `integracao-arm64`.
+- **Revisão da dupla:** pendente.
+
 ### AAAA-MM-DD — título curto
 
 - **Aluno:** quem fez esta tarefa.
