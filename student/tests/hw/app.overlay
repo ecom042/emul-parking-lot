@@ -1,0 +1,19 @@
+/*
+ * Only for this test suite: an emulated GPIO controller (software only, no
+ * Renode peripheral) and one pin the tests drive through hw/indicator.
+ */
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+/ {
+	test_gpio: gpio-emul {
+		compatible = "zephyr,gpio-emul";
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <8>;
+		status = "okay";
+	};
+
+	zephyr,user {
+		indicator-gpios = <&test_gpio 0 GPIO_ACTIVE_HIGH>;
+	};
+};

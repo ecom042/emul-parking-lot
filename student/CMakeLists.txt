@@ -8,3 +8,5 @@ target_sources(app PRIVATE src/main.c)
 
 # One folder per layer under src/, each with include/, src/ and CMakeLists.txt.
 add_subdirectory(src/fsm)
+add_subdirectory(src/services)
+add_subdirectory(src/hw)

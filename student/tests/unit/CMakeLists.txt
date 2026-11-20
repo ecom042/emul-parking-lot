@@ -18,4 +18,16 @@ target_sources(app PRIVATE
 	fsm/test_lane.c
 	../../src/fsm/src/lane.c
 )
+
+# services/signals: luzes e buzzer. hw/indicator é falsificado pelo FFF no
+# teste; hw/lane_hw é o real (só dados do devicetree).
+target_include_directories(app PRIVATE
+	../../src/services/include
+	../../src/hw/include
+)
+target_sources(app PRIVATE
+	signals/test_signals.c
+	../../src/services/src/signals.c
+	../../src/hw/src/lane_hw.c
+)
 # Não inclua main.c: a suíte tem o próprio ponto de entrada (ztest).
