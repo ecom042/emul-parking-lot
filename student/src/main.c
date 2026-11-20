@@ -5,8 +5,11 @@
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/printk.h>
 
+#include "camera.h"
+#include "display.h"
 #include "gate.h"
 #include "parking.h"
+#include "payment.h"
 
 #define GATE_GPIO(lane, name) GPIO_DT_SPEC_GET(DT_ALIAS(lane##_##name), gpios)
 #define GATE_SERVICE_MS 5
@@ -41,13 +44,25 @@ struct lane {
 
 static struct lane lanes[] = { GATE_LANE(entry, PARKING_ENTRY), GATE_LANE(exit, PARKING_EXIT) };
 
+static const struct parking_equipment equipment = {
+	.capture_start = camera_capture_start,
+	.capture_poll = camera_capture_poll,
+	.capture_cancel = camera_capture_cancel,
+	.payment_start = payment_start,
+	.payment_poll = payment_poll,
+	.payment_cancel = payment_cancel,
+};
+
 static void service_distance(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(distance_work, service_distance);
 
 static void service_distance(struct k_work *work)
 {
+	int64_t now = k_uptime_get();
+
 	ARG_UNUSED(work);
-	distance_step(k_uptime_get());
+	distance_step(now);
+	display_service(now);
 	if (!distance_faulted()) {
 		k_work_schedule(&distance_work, K_MSEC(GATE_SERVICE_MS));
 	}
@@ -168,6 +183,16 @@ static int setup_lane(struct lane *lane)
 
 int main(void)
 {
+	if (camera_init() < 0) {
+		printk("Parking camera setup failed\n");
+	}
+	if (display_init() < 0) {
+		printk("Parking display setup failed\n");
+	}
+	if (payment_init(display_ops()) < 0) {
+		printk("Parking terminal setup failed\n");
+	}
+	parking_set_equipment(&equipment);
 	if (distance_init() < 0) {
 		printk("Parking ADC setup failed\n");
 	}
