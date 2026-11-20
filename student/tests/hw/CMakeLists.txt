@@ -14,4 +14,16 @@ target_sources(app PRIVATE
 	indicator/test_indicator.c
 	../../src/hw/src/indicator.c
 )
+
+# hw/motor: enable + direção (reaproveita hw/indicator).
+target_sources(app PRIVATE
+	motor/test_motor.c
+	../../src/hw/src/motor.c
+)
+
+# hw/sensor: entrada com interrupção nas duas bordas.
+target_sources(app PRIVATE
+	sensor/test_sensor.c
+	../../src/hw/src/sensor.c
+)
 # Não inclua main.c: a suíte tem o próprio ponto de entrada (ztest).

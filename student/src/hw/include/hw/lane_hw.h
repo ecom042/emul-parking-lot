@@ -10,6 +10,8 @@
 
 #include <zephyr/drivers/gpio.h>
 
+#include "hw/motor.h"
+
 /** The two lanes of the parking lot. */
 enum lane_id {
 	LANE_ENTRY,
@@ -17,8 +19,12 @@ enum lane_id {
 	LANE_COUNT,
 };
 
-/** Equipment of one lane. Motor and sensors join in later steps. */
+/** Equipment of one lane. Camera and distance join in later steps. */
 struct lane_hw {
+	struct motor motor;              /**< barrier motor */
+	struct gpio_dt_spec limit_upper; /**< active exactly at 90° (open) */
+	struct gpio_dt_spec limit_lower; /**< active exactly at 0° (closed) */
+	struct gpio_dt_spec beam;        /**< active while something crosses the lane */
 	struct gpio_dt_spec red;    /**< red light */
 	struct gpio_dt_spec green;  /**< green light */
 	struct gpio_dt_spec buzzer; /**< buzzer (the model records transitions, no sound) */
