@@ -82,6 +82,16 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **O que aceitei, mudei ou rejeitei, e por quê:** aceitei a separação entre lógica pura (`payment.c`, `tariff.c`, `payment_parser.c`) e hardware (`payment_hw.c`), atualizei `student/CMakeLists.txt` e adicionei `DEFINE_FFF_GLOBALS;` em `test_payment.c` para linkagem no Zephyr/Renode.
 - **Como verifiquei:** compilei e executei no ambiente oficial Linux/WSL com Zephyr v4.5.0 e Renode 1.17.0 usando `firmware-coverage.py` (`build/cov-issue06`): todas as 6 suítes unitárias (`unit:payment`, `unit:payment_hw`, `unit:camera`, `unit:camera_hw`, `unit:distance`, `unit:unit`) e os cenários `partial-startup` e `contradictory-limits` passaram, atingindo 100.00% de cobertura de linhas e branches em `payment.c`, `payment_parser.c`, `payment_uuid.c` e `tariff.c` (e 100.00% de linhas / 85.71% de branches em `payment_hw.c`).
 - **O que aprendi / o que ainda preciso entender:** compreendi o protocolo textual do terminal de pagamento na LPUART1, idempotência via UUID por sessão de cobrança e cálculo determinístico de tarifa por tempo decorrido.
+### 2026-11-19 — Display colorido ST7789V via SPI1 e renderização de texto (issue #7)
+
+- **Aluno:** Jackson Bruno.
+- **Ferramenta:** Claude (Anthropic), modelo Claude Sonnet 5.5, interface web.
+- **Requisito(s):** REQ-05, REQ-10, REQ-11 (parte de display SPI) e parte de exibição de REQ-03 e REQ-13.
+- **O que pedi:** a implementação do driver e renderizador do display ST7789V (240x320 RGB565 via SPI1), fonte 5x7 e suítes unitárias da issue #7.
+- **O que a IA propôs:** `student/src/font5x7.{h,c}` (mapa de caracteres ASCII 5x7), `display_render.{h,c}` (geração de buffer RGB565), `display.{h,c}` (sequência de inicialização ST7789V, janelas CASET/RASET/RAMWR e exibição de placa/valor) e `display_hw.{h,c}` (SPI1 e pinos CS, D/C e RESET via alias `payment-display`), além das suítes `tests/display` e `tests/display_hw`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei a separação entre renderização em memória, protocolo ST7789V e camada fina SPI/GPIO, e atualizei `student/CMakeLists.txt`.
+- **Como verifiquei:** revisão estrutural dos arquivos e preparação das suítes unitárias `tests/display` e `tests/display_hw`; execução no Renode (`firmware-coverage.py` e `static-check.py`) pendente para a etapa de integração junto com a issue #6 (`payment.h`).
+- **O que aprendi / o que ainda preciso entender:** compreendi a inicialização e os comandos do controlador ST7789V (COLMOD 0x55, MADCTL 0x00, janelas de escrita RAMWR) e o controle explícito dos pinos D/C, CS e RESET no Zephyr.
 
 ### AAAA-MM-DD — título curto
 
