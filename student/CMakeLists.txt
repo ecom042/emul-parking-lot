@@ -5,3 +5,6 @@ list(APPEND DTS_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../hardware)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(parking_student)
 target_sources(app PRIVATE src/main.c)
+
+# One folder per layer under src/, each with include/, src/ and CMakeLists.txt.
+add_subdirectory(src/fsm)
