@@ -13,6 +13,7 @@
 
 #define GATE_GPIO(lane, name) GPIO_DT_SPEC_GET(DT_ALIAS(lane##_##name), gpios)
 #define GATE_SERVICE_MS 5
+#define GATE_STARTUP_SETTLE_MS 15
 
 struct lane {
 	enum parking_lane_id id;
@@ -25,6 +26,7 @@ struct lane {
 	struct k_work_delayable service;
 	atomic_t beam_rose;
 	atomic_t feedback_ready;
+	int64_t feedback_valid_at;
 	struct gate gate;
 };
 
@@ -86,6 +88,10 @@ static void service_gate(struct k_work *work)
 		if (lane->gate.buzzing) {
 			k_work_schedule(&lane->service, K_MSEC(GATE_SERVICE_MS));
 		}
+		return;
+	}
+	if (now < lane->feedback_valid_at) {
+		k_work_schedule(&lane->service, K_MSEC(lane->feedback_valid_at - now));
 		return;
 	}
 
@@ -176,6 +182,8 @@ static int setup_lane(struct lane *lane)
 		k_work_schedule(&lane->service, K_MSEC(GATE_BUZZER_MS));
 		return -EIO;
 	}
+	/* Models re-drive the input levels at their first 10 ms sample after reset. */
+	lane->feedback_valid_at = k_uptime_get() + GATE_STARTUP_SETTLE_MS;
 	atomic_set(&lane->feedback_ready, 1);
 	k_work_schedule(&lane->service, K_NO_WAIT);
 	return 0;

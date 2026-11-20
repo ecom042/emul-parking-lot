@@ -8,14 +8,15 @@ entradas. Quem não usou IA escreve isso aqui.
 
 | Aluno | Matrícula | Partes que escreveu |
 |---|---|---|
-| | | |
-| | | |
+| Maria Antonia Ribeiro Ramos | A informar | Cancelas, segurança, ADC4, controle de faixa, sessões e integração. |
+| Jackson Bruno Lima Leao | A informar | Câmeras, pagamento, tarifa e display SPI. |
 
 ## Ferramentas
 
 | Aluno | Ferramenta | Modelo/versão | Período de uso |
 |---|---|---|---|
-| | | | |
+| Maria Antonia Ribeiro Ramos | Codex | Versão não informada | 18–19/11/2026 |
+| Jackson Bruno Lima Leao | Claude (Anthropic) | Claude Sonnet 5.5, conforme registro do aluno | 18–19/11/2026 |
 
 ## Tarefas
 
@@ -121,4 +122,4 @@ Zephyr, fóruns), com origem e licença.
 
 | Arquivo/trecho | Origem | Licença |
 |---|---|---|
-| | | |
+| Aplicação inicial de student/ e tests/unit/src/test_exemplo.c | [Base da disciplina](https://github.com/ecom042/emul-parking-lot/tree/2549c63/student) | Apache-2.0 |
