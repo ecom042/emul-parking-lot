@@ -8,8 +8,8 @@ entradas. Quem não usou IA escreve isso aqui.
 
 | Aluno | Matrícula | Partes que escreveu |
 |---|---|---|
-| Pablo | | Núcleo das faixas, ADC4 e integração da saída |
-| Matheus | | Câmeras UART e tabela de sessões |
+| Pablo Munih Silva de Carvalho | 22210730 | Núcleo das faixas, ADC4 e integração da saída |
+| Matheus Melo dos Santos | 21212186 | Câmeras UART e tabela de sessões |
 
 ## Ferramentas
 
