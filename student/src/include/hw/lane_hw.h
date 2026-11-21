@@ -13,6 +13,7 @@
 #include <zephyr/drivers/gpio.h>
 
 #include "hw/motor.h"
+#include "hw/st7789.h"
 
 /** The two lanes of the parking lot. */
 enum lane_id {
@@ -57,5 +58,12 @@ const struct device *distance_adc_get(void);
  * @return the device, never NULL (readiness is checked by uart_line_init()).
  */
 const struct device *payment_terminal_get(void);
+
+/**
+ * @brief Payment display (ST7789V on SPI1), exit lane only.
+ *
+ * @return the display, never NULL (readiness is checked by st7789_init()).
+ */
+const struct st7789 *payment_display_get(void);
 
 #endif /* PARKING_HW_LANE_HW_H_ */

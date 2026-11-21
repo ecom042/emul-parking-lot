@@ -7,6 +7,7 @@ target_sources(app PRIVATE
 	src/distance.c
 	src/line_framer.c
 	src/p1_proto.c
+	src/screen.c
 	src/signals.c
 	src/text.c
 	src/wire.c

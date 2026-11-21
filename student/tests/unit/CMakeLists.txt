@@ -54,6 +54,13 @@ target_sources(app PRIVATE
 	../../src/services/src/distance.c
 )
 
+# services/screen: tela de cobrança. hw/st7789 é falso do FFF (não listar
+# hw/src/st7789.c); text.c e lane_hw.c são os reais (já listados).
+target_sources(app PRIVATE
+	screen/test_screen.c
+	../../src/services/src/screen.c
+)
+
 # Lógica pura dos protocolos (sem hardware, sem falsos): wire, line_framer,
 # camera_proto, p1_proto e text.
 target_sources(app PRIVATE

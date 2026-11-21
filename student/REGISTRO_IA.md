@@ -236,6 +236,23 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   total 97,17% / 87,47%; `static-check.py` com 0 achados.
 - **O que aprendi / o que ainda preciso entender:** (preencher).
 
+### Etapa 4: services/screen (Plácido, Claude Code)
+
+- **O que pedi:** implementar `services/screen` (`screen_init`,
+  `screen_show_plate`, `screen_show_amount`) sobre `hw/st7789` e `text`,
+  planejado por um Opus e implementado por um Sonnet.
+- **O que a IA fez:** `screen.c` (textos centralizados, `BRL x.xx`,
+  `SIMULATED PAYMENT`, `NOT PIX`; limpa só a área de cobrança, y 40..167;
+  entrada inválida devolve -EINVAL sem SPI), `payment_display_get()` em
+  `lane_hw` e 17 testes.
+- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). No caminho
+  -ERANGE a máquina não deve chamar `screen_show_amount` (nota no
+  `para-kaua.md`).
+- **Como verifiquei:** suítes passam; `screen.c` 100% de linhas e branches;
+  total 97,35% / 88,15%; `static-check.py` com 0 achados. Pixels só serão
+  vistos quando o `main.c` chamar o serviço.
+- **O que aprendi / o que ainda preciso entender:** (preencher).
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

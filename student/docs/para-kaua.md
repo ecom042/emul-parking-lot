@@ -153,6 +153,15 @@ int screen_show_amount(uint32_t cents);
 Até lá cada um testa sozinho: você com FFF no lugar de `camera_*`, `distance`,
 `payment_*`, `screen_*`; eu com `events_post` e emuladores do Zephyr.
 
+## 6b. Tela de cobrança (`screen`)
+
+- Ordem na saída: `screen_show_plate` -> tarifa -> `screen_show_amount` ->
+  `payment_start`.
+- `screen_init()` roda em `main()` antes das threads (bloqueia ~400 ms); depois
+  só a thread da saída desenha.
+- No caminho `-ERANGE` **não** chame `screen_show_amount`: `screen_show_plate`
+  já apagou o valor antigo, e a tela fica só com a placa.
+
 ## 7. Verificação
 
 ```sh

@@ -27,3 +27,12 @@ ZTEST(lane_hw, test_distance_adc_is_adc4)
 {
 	zassert_equal(distance_adc_get(), DEVICE_DT_GET(DT_NODELABEL(adc4)));
 }
+
+ZTEST(lane_hw, test_payment_display_is_spi1_with_dc_pd15_and_reset_pe0)
+{
+	const struct st7789 *lcd = payment_display_get();
+
+	zassert_equal_ptr(lcd->spi.bus, DEVICE_DT_GET(DT_BUS(DT_ALIAS(payment_display))));
+	zassert_equal(lcd->dc.pin, 15);
+	zassert_equal(lcd->reset.pin, 0);
+}

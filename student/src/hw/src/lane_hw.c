@@ -46,6 +46,13 @@ const struct device *payment_terminal_get(void)
 	return DEVICE_DT_GET(DT_ALIAS(payment_terminal));
 }
 
+static const struct st7789 display = ST7789_DT_GET(DT_ALIAS(payment_display));
+
+const struct st7789 *payment_display_get(void)
+{
+	return &display;
+}
+
 /* Both distance channels must sit on the same ADC, or one device is not enough. */
 BUILD_ASSERT(DT_SAME_NODE(DT_PARENT(DT_ALIAS(entry_distance)), DT_PARENT(DT_ALIAS(exit_distance))),
 	     "entry and exit distance channels must share one ADC");
