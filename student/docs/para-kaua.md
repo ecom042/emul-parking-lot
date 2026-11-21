@@ -107,7 +107,7 @@ só acrescente no fim. Conflito em `CMakeLists.txt`: manter as duas linhas.
 | `services/p1_proto.h` | formatar CHARGE/CANCEL e interpretar a resposta P1 (só sintaxe). |
 | `services/text.h` | formato `BRL r.cc` e fonte 5x7 desenhada linha a linha. |
 
-**Entrego depois** (assinaturas do contrato, com a mudança de `payment_start`):
+**Já entregues nos branches `feat/camera`, `feat/distance`, `feat/screen` e `feat/payment`** (assinaturas finais, com a mudança de `payment_start`):
 
 ```c
 int camera_init(enum lane_id id);
@@ -140,6 +140,35 @@ int screen_show_amount(uint32_t cents);
   no portão.
 - O listener roda no contexto de quem publica (o work do `distance`): tem de
   ser curto e só postar eventos.
+
+### camera: como usar
+
+- `camera_start(id)` só arma a captura (devolve `-EBUSY` se já houver uma) e
+  **não escreve na UART**: o `AT+CAPTURE` sai no próximo `camera_poll`. Por isso
+  o poll tem de rodar a cada volta da thread da faixa.
+- Resultado por evento na faixa: `EV_PLATE_READ` (aí `camera_plate` devolve a
+  placa) ou `EV_CAPTURE_FAILED` (3 tentativas, ID novo em cada uma, 1000 ms
+  cada; confiança < 85 já parte para a próxima na hora). Antes de uma leitura,
+  `camera_plate` devolve `-ENOENT`; `camera_start` apaga a placa anterior.
+- `camera_abandon(id)` cancela sem evento (use ao sair do estado de captura);
+  respostas atrasadas são ignoradas.
+- O estado é coerente antes do evento sair, então a ação que reage pode chamar
+  `camera_start` de novo.
+
+### payment: como usar
+
+- `payment_init()` no `main`. `payment_start(plate, cents)` devolve `-EBUSY` se
+  já houver cobrança e `-EINVAL` para placa fora do formato ou valor fora de
+  1..1000000; não escreve na UART: o `P1 CHARGE` sai no próximo `payment_poll`.
+- O UUID é gerado uma vez por cobrança e os reenvios (3 envios, 1000 ms) e o
+  CANCEL reusam o mesmo.
+- Eventos na faixa de **saída**: `EV_PAID` (só PAID com o UUID e o valor
+  atuais) ou `EV_PAYMENT_FAILED` (3 prazos, já com o CANCEL enviado; ou o
+  terminal respondeu CANCELLED). `P1 ERROR` é ignorado e o prazo resolve.
+- `payment_cancel()` não posta evento: chame ao sair do estado de cobrança por
+  outro motivo (envia CANCEL só se o CHARGE já foi enviado).
+- `camera_poll` e `payment_poll` leem no máximo 32 bytes por chamada (uma
+  linha PAID tem ~60 B e leva 2 polls), então chame-os a cada ~1 ms.
 
 ## 6. Marcos
 
