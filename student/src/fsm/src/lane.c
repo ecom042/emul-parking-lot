@@ -9,6 +9,7 @@ void lane_init(struct lane *lane, uint8_t id, const struct lane_def *def,
 	lane->queue = queue;
 	lane->id = id;
 	lane->state = initial;
+	lane->deadline_armed = false;
 }
 
 uint8_t lane_state(const struct lane *lane)
@@ -36,11 +37,32 @@ static uint8_t choose_target(const struct lane *lane, const struct lane_transiti
 	return cell->otherwise;
 }
 
+static uint16_t deadline_budget_ms(const struct lane_def *def, uint8_t state)
+{
+	if (def->deadline_ms == NULL) {
+		return LANE_DEADLINE_NONE;
+	}
+	return def->deadline_ms[state];
+}
+
+/* Armed before the entry action runs, so the budget includes the action. */
+static void set_deadline(struct lane *lane, uint8_t state)
+{
+	uint16_t budget_ms = deadline_budget_ms(lane->def, state);
+
+	if (budget_ms == LANE_DEADLINE_KEEP) {
+		return;
+	}
+	lane->deadline_armed = (budget_ms != LANE_DEADLINE_NONE);
+	lane->deadline_at_ms = k_uptime_get() + budget_ms;
+}
+
 static void enter(struct lane *lane, uint8_t state)
 {
 	lane_enter_fn action = lane->def->on_enter[state];
 
 	lane->state = state;
+	set_deadline(lane, state);
 	if (action != NULL) {
 		action(lane);
 	}
@@ -76,5 +98,14 @@ bool lane_process(struct lane *lane, k_timeout_t wait)
 		return false;
 	}
 	(void)lane_dispatch(lane, event);
+	return true;
+}
+
+bool lane_deadline_expired(struct lane *lane, int64_t now_ms)
+{
+	if (!lane->deadline_armed || now_ms < lane->deadline_at_ms) {
+		return false;
+	}
+	lane->deadline_armed = false;
 	return true;
 }

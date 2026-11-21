@@ -16,7 +16,10 @@ static bool is_uuid_str(const char *s)
 
 static int finish(int n, size_t size)
 {
-	return (n < 0 || (size_t)n >= size) ? -ENOSPC : n;
+	/* A negative n (encoding error) becomes a huge size_t, so this one
+	 * comparison also reports it as -ENOSPC.
+	 */
+	return ((size_t)n >= size) ? -ENOSPC : n;
 }
 
 void p1_uuid_format(uint32_t seq, char out[UUID_LEN + 1])

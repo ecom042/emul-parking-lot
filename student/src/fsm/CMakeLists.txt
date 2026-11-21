@@ -4,4 +4,6 @@
 target_sources(app PRIVATE
 	src/lane.c
 	src/lanes.c
+	src/runner.c
+	src/states.c
 )

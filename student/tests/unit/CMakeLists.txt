@@ -68,6 +68,31 @@ target_sources(app PRIVATE
 	../../src/services/src/payment.c
 )
 
+# services/presence: histerese 683/1024 sobre chan_distance e o feixe.
+# hw/sensor é falso do FFF (definido em barrier/test_barrier.c); o canal é o
+# real de distance.c (já listado); events_post() é o real.
+target_sources(app PRIVATE
+	presence/test_presence.c
+	../../src/services/src/presence.c
+)
+
+# services/sessions: tabela de vagas compartilhada pelas duas faixas (sem
+# falsos: só o mutex do kernel).
+target_sources(app PRIVATE
+	sessions/test_sessions.c
+	../../src/services/src/sessions.c
+)
+
+# services/tariff: valor da cobrança (lógica pura, sem falsos).
+target_sources(app PRIVATE
+	tariff/test_tariff.c
+	../../src/services/src/tariff.c
+)
+
+# Erros de programação (id de faixa inválido) disparam o __ASSERT do módulo;
+# o hook do ztest transforma o assert esperado no fim do teste.
+target_sources(app PRIVATE asserts/test_asserts.c)
+
 # Lógica pura dos protocolos (sem hardware, sem falsos): wire, line_framer,
 # camera_proto, p1_proto e text.
 target_sources(app PRIVATE

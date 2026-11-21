@@ -43,4 +43,7 @@ target_sources(app PRIVATE
 	st7789/test_st7789.c
 	../../src/hw/src/st7789.c
 )
+# Caminhos de erro que os emuladores não produzem: dispositivo não pronto
+# (um dispositivo de teste cujo init falha) e o __ASSERT do sensor.
+target_sources(app PRIVATE errors/test_errors.c)
 # Não inclua main.c: a suíte tem o próprio ponto de entrada (ztest).

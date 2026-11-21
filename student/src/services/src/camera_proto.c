@@ -13,7 +13,10 @@ int camera_proto_format_capture(uint32_t id, char *out, size_t size)
 	}
 	int n = snprintf(out, size, "AT+CAPTURE=%u\r\n", (unsigned int)id);
 
-	return (n < 0 || (size_t)n >= size) ? -ENOSPC : n;
+	/* A negative n (encoding error) becomes a huge size_t, so this one
+	 * comparison also reports it as -ENOSPC.
+	 */
+	return ((size_t)n >= size) ? -ENOSPC : n;
 }
 
 /* Parse <id>,"<plate>",<confidence> (the text after "+PLATE:"). */

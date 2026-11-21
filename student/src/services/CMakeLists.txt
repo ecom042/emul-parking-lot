@@ -8,8 +8,11 @@ target_sources(app PRIVATE
 	src/line_framer.c
 	src/p1_proto.c
 	src/payment.c
+	src/presence.c
 	src/screen.c
+	src/sessions.c
 	src/signals.c
+	src/tariff.c
 	src/text.c
 	src/wire.c
 )

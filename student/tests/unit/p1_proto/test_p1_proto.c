@@ -122,6 +122,8 @@ ZTEST(p1_proto, test_malformed_replies_are_invalid)
 		"", "P1", "P1 ", "P2 ERROR FRAME", "P1 ERROR", "P1 ERROR XYZ",
 		"P1 ERROR frame", "P1 ERROR FRAME ", "P1  ERROR FRAME", " P1 ERROR FRAME",
 		"P1 ERROR FRAME EXTRA", "P1 HELLO",
+		"P1 FAILED FRAME",                   /* 3 fields, not ERROR */
+		"P1 REPORT " UUID " PAID 300 BRL",   /* 6 fields, not RESULT */
 		"P1 RESULT " UUID " paid 300 BRL",
 		"P1 RESULT " UUID " REFUND 300 BRL",
 		"P1 RESULT " UUID " PAID 300 brl",

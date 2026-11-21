@@ -61,6 +61,24 @@ ZTEST(wire, test_plate_rejects_every_other_shape)
 	}
 }
 
+/* One plate wrong at each position: every condition of the check can fail. */
+ZTEST(wire, test_plate_rejects_a_wrong_character_at_each_position)
+{
+	const char *wrong_at[PLATE_LEN] = {
+		"1BC1D23", /* 0: letter */
+		"A1C1D23", /* 1: letter */
+		"AB1CD23", /* 2: letter */
+		"ABCAD23", /* 3: digit */
+		"ABC1_23", /* 4: letter or digit */
+		"ABC1DA3", /* 5: digit */
+		"ABC1D2A", /* 6: digit */
+	};
+
+	for (size_t i = 0; i < ARRAY_SIZE(wrong_at); i++) {
+		zassert_false(wire_is_plate(wrong_at[i], PLATE_LEN), "position %u", i);
+	}
+}
+
 ZTEST(wire, test_uuid_accepts_lowercase_8_4_4_4_12)
 {
 	const char *uuid = "123e4567-e89b-12d3-a456-426614174000";
