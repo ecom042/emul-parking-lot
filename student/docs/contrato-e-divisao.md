@@ -80,14 +80,19 @@ enum lane_event {
 
 	/* payment (colega), exit lane only */
 	EV_PAID,            /**< exact PAID for the current UUID and amount */
-	EV_PAYMENT_FAILED,  /**< no PAID after 3 sends, CANCELLED, or tariff > 9999 units */
+	EV_PAYMENT_FAILED,  /**< no PAID after 3 sends or CANCELLED; the UUID is already cancelled */
 
 	/* fsm (Kauã) */
 	EV_TIMEOUT,         /**< the current state's deadline expired */
+	EV_TARIFF_OUT_OF_RANGE, /**< tariff_cents() said -ERANGE (> 9999 units); no charge was sent */
 
 	EV_COUNT,
 };
 ```
+
+`EV_TARIFF_OUT_OF_RANGE` é publicado pela própria máquina da saída (ação de
+entrada do estado de cobrança, via `events_post` na sua faixa), não por um
+serviço. Leva à assistência, como `EV_PAYMENT_FAILED`.
 
 Regra: um serviço publica um evento **depois** de deixar o seu próprio estado
 coerente (como o `barrier`, que para o motor antes de avisar).
@@ -214,17 +219,27 @@ int tariff_cents(int64_t parked_ms, uint32_t *cents);
 
 ### 4.5 `services/payment.h` e `services/screen.h` (colega), só na saída
 
+**Quem cobra é a máquina** (decidido): a ação de entrada do estado de cobrança
+da saída chama, em ordem, `screen_show_plate(plate)`, `tariff_cents(parked_ms,
+&cents)`, `screen_show_amount(cents)` e `payment_start(plate, cents)`. Se
+`tariff_cents` devolver `-ERANGE`, não chama `payment_start` e faz
+`events_post(LANE_EXIT, EV_TARIFF_OUT_OF_RANGE)`. A tarifa congelada é o
+argumento `cents`: reenvios nunca recalculam. O `payment` só conhece o
+protocolo P1 e não depende de `tariff` nem de `screen`.
+
 ```c
 /** LPUART1 setup. Before the exit lane thread starts. */
 int payment_init(void);
 
 /**
- * Exit charge, in the order the contract asks: draw the plate, freeze the
- * tariff, draw amount and status, send CHARGE with a fresh UUID. Retries the
- * same charge up to 3 sends, 1000 ms each. Ends with EV_PAID or
- * EV_PAYMENT_FAILED on LANE_EXIT (also on a tariff above 9999 units).
+ * Send P1 CHARGE for a charge the machine already froze: new UUID (counter
+ * inside this service, see p1_uuid_format), then up to 3 sends of the same
+ * frame, 1000 ms each, same UUID and same amount. Ends with EV_PAID or
+ * EV_PAYMENT_FAILED on LANE_EXIT. Never calls screen_* or tariff_cents.
+ *
+ * @param cents amount in centavos, already frozen by the machine (1..1000000).
  */
-int payment_start(const char *plate, int64_t parked_ms);
+int payment_start(const char *plate, uint32_t cents);
 
 /** Invalidate the current UUID, then send P1 CANCEL (car left / give up). */
 void payment_cancel(void);
@@ -259,12 +274,18 @@ A `fsm/lanes.c` cria as threads. Em cada volta (`lane_process(lane, K_MSEC(1))`)
 
 ---
 
-## 6. Pontos para decidirem juntos
+## 6. Pontos que estavam em aberto (decididos)
 
-1. `camera_poll`/`payment_poll` chamados pela thread da faixa (proposta acima)
-   ou um `k_work` próprio de cada serviço?
-2. `payment_start` faz tarifa e tela internamente (proposta) ou a máquina
-   chama `screen_*` e `tariff_cents` e só depois `payment_start`?
-3. `EV_PAYMENT_FAILED` cobre também "tarifa acima de 9999 unidades", ou um
-   evento separado?
-4. (Resolvido: diagramas em `student/docs/diagrams/`.)
+1. `camera_poll`/`payment_poll` são chamados **pela thread da faixa**, a cada
+   volta (~1 ms), como na seção 5. Cada faixa tem a sua thread e a sua UART,
+   então uma faixa travada não atrasa a outra; sem mutex.
+2. **A máquina cobra** (seção 4.5): `payment_start(plate, cents)`.
+3. Tarifa acima de 9999 unidades tem **evento próprio**,
+   `EV_TARIFF_OUT_OF_RANGE` (seção 2): nenhum CHARGE foi enviado, então não se
+   mistura com `EV_PAYMENT_FAILED`.
+4. Recepção da UART por **polling** (`uart_poll_in`), sem interrupção. Se um
+   cenário mostrar bytes perdidos, encurtar o período antes de pensar em IRQ.
+5. O **UUID** é um contador determinístico dentro do `payment`
+   (`p1_uuid_format`), gerado uma vez por cobrança; reenvios e CANCEL reusam a
+   string. A placa não tem fonte de entropia.
+6. Diagramas em `student/docs/diagrams/`; headers em `student/src/include/`.
