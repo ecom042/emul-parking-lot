@@ -24,8 +24,8 @@ K_MSGQ_DEFINE(test_queue, sizeof(uint8_t), 4, 1);
 
 /* States in which the latching faults must work (all but the latched one). */
 static const uint8_t running_states[] = {
-	STATE_INIT, STATE_IDLE,    STATE_IDENTIFYING, STATE_OPENING,
-	STATE_OPEN, STATE_PASSING, STATE_ASSIST,
+	STATE_INIT,    STATE_IDLE,    STATE_IDENTIFYING, STATE_OPENING, STATE_OPEN,
+	STATE_PASSING, STATE_CLOSING, STATE_ASSIST,
 };
 
 #define READ_PLATE "ABC1D23"
@@ -33,6 +33,7 @@ static const uint8_t running_states[] = {
 /* Deadline checks bound the arming instant, as in tests/unit/fsm. */
 #define OPENING_BUDGET_MS 2500
 #define PASSAGE_BUDGET_MS 10000
+#define CLOSING_BUDGET_MS 2500
 #define FAR_FUTURE_MS     (INT64_MAX / 2)
 
 /*
@@ -46,6 +47,17 @@ static bool record_asked_plate(const char *plate)
 {
 	strncpy(asked_plate, plate, PLATE_LEN);
 	return may_enter_answer;
+}
+
+/* sessions_create fake: copies the plate (FFF keeps only the pointer). */
+static char created_plate[PLATE_LEN + 1];
+static int64_t created_entry_ms;
+
+static int record_created_session(const char *plate, int64_t entry_ms)
+{
+	strncpy(created_plate, plate, PLATE_LEN);
+	created_entry_ms = entry_ms;
+	return 0;
 }
 
 /* camera_plate fake: the camera read READ_PLATE. */
@@ -436,4 +448,145 @@ ZTEST(fsm_states, test_identifying_has_no_lane_deadline)
 
 	zassert_false(lane_deadline_expired(&lane, FAR_FUTURE_MS),
 		      "the camera keeps its own deadlines");
+}
+
+/* ---- Passage completion and closing (REQ-07, REQ-08) ---- */
+
+/* Beam active then clear, car far: the passage that closes the barrier. */
+static void complete_passage_on(uint8_t last_edge)
+{
+	start_in(STATE_PASSING);
+	camera_plate_fake.custom_fake = plate_was_read;
+	sessions_create_fake.custom_fake = record_created_session;
+	memset(created_plate, 0, sizeof(created_plate));
+	presence_beam_active_fake.return_val = false;
+	presence_car_far_fake.return_val = true;
+
+	zassert_true(lane_dispatch(&lane, last_edge));
+	zassert_equal(lane_state(&lane), STATE_CLOSING);
+}
+
+ZTEST(fsm_states, test_beam_clearing_with_car_far_completes_the_passage)
+{
+	complete_passage_on(EV_BEAM_OFF);
+}
+
+ZTEST(fsm_states, test_car_leaving_with_beam_clear_completes_the_passage)
+{
+	complete_passage_on(EV_CAR_LEFT);
+}
+
+ZTEST(fsm_states, test_beam_clearing_with_car_near_is_no_passage_yet)
+{
+	start_in(STATE_PASSING);
+	presence_car_far_fake.return_val = false;
+
+	zassert_false(lane_dispatch(&lane, EV_BEAM_OFF));
+
+	zassert_equal(lane_state(&lane), STATE_PASSING);
+	zassert_equal(sessions_create_fake.call_count, 0);
+}
+
+ZTEST(fsm_states, test_car_far_with_beam_still_active_is_no_passage_yet)
+{
+	start_in(STATE_PASSING);
+	presence_beam_active_fake.return_val = true;
+	presence_car_far_fake.return_val = true;
+
+	zassert_false(lane_dispatch(&lane, EV_CAR_LEFT));
+
+	zassert_equal(lane_state(&lane), STATE_PASSING);
+}
+
+/* REQ-07: only the completed passage creates the session. */
+ZTEST(fsm_states, test_completed_passage_creates_the_session)
+{
+	int64_t before_ms = k_uptime_get();
+
+	complete_passage_on(EV_BEAM_OFF);
+
+	zassert_equal(sessions_create_fake.call_count, 1);
+	zassert_str_equal(created_plate, READ_PLATE);
+	zassert_true(created_entry_ms >= before_ms, "virtual time of the passage");
+	zassert_true(created_entry_ms <= k_uptime_get());
+}
+
+/* REQ-08: green off and red on before the motor starts closing. */
+ZTEST(fsm_states, test_closing_shows_stop_before_the_motor_moves)
+{
+	complete_passage_on(EV_BEAM_OFF);
+
+	zassert_equal(barrier_close_fake.call_count, 1);
+	zassert_equal(barrier_close_fake.arg0_val, LANE_ENTRY);
+	zassert_true(call_position(signals_stop) < call_position(barrier_close),
+		     "red before the motor");
+}
+
+ZTEST(fsm_states, test_closing_without_plate_still_closes)
+{
+	start_in(STATE_PASSING);
+	camera_plate_fake.return_val = -ENOENT;
+	presence_car_far_fake.return_val = true;
+
+	zassert_true(lane_dispatch(&lane, EV_BEAM_OFF));
+
+	zassert_equal(sessions_create_fake.call_count, 0);
+	zassert_equal(barrier_close_fake.call_count, 1);
+}
+
+ZTEST(fsm_states, test_closing_arms_the_motion_budget)
+{
+	int64_t before_ms = k_uptime_get();
+
+	complete_passage_on(EV_BEAM_OFF);
+	int64_t after_ms = k_uptime_get();
+
+	zassert_false(lane_deadline_expired(&lane, before_ms + CLOSING_BUDGET_MS - 1));
+	zassert_true(lane_deadline_expired(&lane, after_ms + CLOSING_BUDGET_MS));
+}
+
+ZTEST(fsm_states, test_lower_limit_without_a_car_waits_in_idle)
+{
+	start_in(STATE_CLOSING);
+	presence_car_near_fake.return_val = false;
+
+	zassert_true(lane_dispatch(&lane, EV_LOWER_REACHED));
+
+	zassert_equal(lane_state(&lane), STATE_IDLE);
+	zassert_equal(camera_start_fake.call_count, 0);
+}
+
+ZTEST(fsm_states, test_lower_limit_with_the_next_car_near_identifies_it)
+{
+	start_in(STATE_CLOSING);
+	presence_car_near_fake.return_val = true;
+
+	zassert_true(lane_dispatch(&lane, EV_LOWER_REACHED));
+
+	zassert_equal(lane_state(&lane), STATE_IDENTIFYING);
+	zassert_equal(camera_start_fake.call_count, 1);
+}
+
+/* REQ-08: obstruction stops the motor, without reversing or restarting. */
+ZTEST(fsm_states, test_obstruction_while_closing_stops_and_latches)
+{
+	start_in(STATE_CLOSING);
+
+	zassert_true(lane_dispatch(&lane, EV_BEAM_ON));
+	zassert_false(lane_dispatch(&lane, EV_BEAM_OFF), "beam clearing changes nothing");
+
+	zassert_equal(lane_state(&lane), STATE_ASSIST_LOCKED);
+	assert_assisted_once();
+	zassert_equal(barrier_open_fake.call_count, 0, "never reverses");
+	zassert_equal(barrier_close_fake.call_count, 0, "never restarts");
+}
+
+ZTEST(fsm_states, test_closing_timeout_latches_assistance)
+{
+	start_in(STATE_CLOSING);
+
+	zassert_true(lane_dispatch(&lane, EV_TIMEOUT));
+
+	zassert_equal(lane_state(&lane), STATE_ASSIST_LOCKED);
+	assert_assisted_once();
 }

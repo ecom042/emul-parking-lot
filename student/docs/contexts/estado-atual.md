@@ -1,26 +1,26 @@
 # Estado atual do projeto
 
-Atualizado em 2026-11-21 (fim da sessão do Plácido, o "colega"). Atualize este
+Atualizado em 2026-11-21 (fim do branch `feat/entry-lane` do Kauã, marco M2). Atualize este
 arquivo ao fim de cada sessão de trabalho. O registro de cada sessão fica em
 [`sessoes/`](sessoes/). Para retomar o trabalho do Plácido numa sessão nova,
 leia [`proxima-sessao.md`](proxima-sessao.md).
 
 ## Onde estamos
 
-- **Branches:** `feat/protocols` (blocos de protocolo e drivers finos, já no
-  remoto) e `feat/contract-headers` (etapa 1, M0: headers do contrato), a
-  partir do `solucao`.
-- **O firmware ainda se comporta como o ponto de partida:** os módulos
-  existem e estão testados, mas o `main.c` ainda não os chama. Por isso os 19
-  cenários do Renode reprovam. É esperado.
+- **Branch:** `feat/entry-lane` (Kauã), a partir do `solucao`, com M1 e M2:
+  a faixa de entrada funciona de ponta a ponta no Renode.
+- **Cenários: 13 de 19 passam, incluindo os 4 do G3** (`obstruction-during-close`,
+  `jam`, `contradictory-limits`, `missing-lower`). Os 6 que faltam são de
+  saída e pagamento (M3): `normal`, `payment-delayed`, `payment-duplicate`,
+  `payment-missing`, `payment-stale` e `reset-payment`.
+- **A saída** só configura o equipamento e mantém as saídas seguras (motor
+  parado, vermelho): ainda não tem regras nem thread.
 - **Pastas:** todos os headers ficam em `student/src/include/<camada>/`; os
   `.c` em `student/src/<camada>/src/`; um `CMakeLists.txt` por camada.
 - **Pontos do contrato decididos** (ver seção 6 do contrato): `poll` na
   thread da faixa; a máquina cobra (`payment_start(plate, cents)`);
-  `EV_TARIFF_OUT_OF_RANGE`; UART por polling; UUID por contador no `payment`.
-- **Kauã:** passo 5 (`fsm/states.c`, thread da entrada, `main.c`). Instruções
-  para ele em [`../para-kaua.md`](../para-kaua.md).
-- **Plácido:** etapas 2 a 5 (ver abaixo).
+  `EV_TARIFF_OUT_OF_RANGE`; UART por polling; UUID por contador no `payment`;
+  sessões com `k_mutex`, não zbus (decidido pelo Kauã no passo 5).
 
 ## Arquitetura (decidida)
 
@@ -43,8 +43,17 @@ camadas.
 - **Eventos:** `services/events.h` é a lista única. Os serviços publicam com
   `events_post(lane, event)`; a `fsm/lanes.c` é dona das duas faixas e
   implementa `events_post()`.
-- **zbus** para o ADC compartilhado (`chan_distance`, publicar e assinar) e
-  para a tabela de sessões (`chan_sessions`, `claim`/`finish`).
+- **zbus** para o ADC compartilhado (`chan_distance`: o `distance` publica e o
+  `presence` assina). A **tabela de sessões** usa um `k_mutex` com funções
+  diretas (`services/sessions.h`), não o `chan_sessions` previsto no
+  diagrama 06: as faixas só consultam quando precisam e ninguém precisa ser
+  avisado de mudanças.
+- **Partida:** `main.c` só chama `runner_init()` e `runner_start()`
+  (`fsm/runner`). Uma faixa com falha de inicialização fica em assistência,
+  sem `EV_BOOT`; a falha do ADC deixa as duas faixas em assistência.
+- **Prazos por estado** na tabela (`lane_def.deadline_ms`): 0 = sem prazo,
+  um orçamento em ms, ou `LANE_DEADLINE_KEEP` (o PASSING mantém os 10000 ms
+  do OPEN). `runner_step()` aplica `EV_TIMEOUT` direto, sem passar pela fila.
 - **Interrupções só publicam:** o handler de um sensor faz `k_work_submit()`
   ou `events_post()`; trabalho de GPIO fica fora da ISR.
 - **`CONFIG_ASSERT=y`** no firmware: erro de programação (id inválido) para
@@ -54,30 +63,50 @@ camadas.
 
 ## O que está pronto
 
+Máquina da entrada (`fsm/states.c`):
+
+```text
+INIT ─BOOT─► IDLE (cancela fechada) | ASSIST_LOCKED
+IDLE ─CAR_ARRIVED─► IDENTIFYING (fechada) | ASSIST_LOCKED
+IDENTIFYING ─PLATE_READ─► OPENING (pode entrar) | ASSIST
+            ─CAPTURE_FAILED─► ASSIST ; ─CAR_LEFT─► IDLE
+OPENING (2500 ms) ─UPPER_REACHED─► OPEN ; ─TIMEOUT─► ASSIST_LOCKED
+OPEN (10000 ms) ─BEAM_ON─► PASSING ; ─TIMEOUT─► ASSIST_LOCKED
+PASSING (mantém) ─BEAM_OFF/CAR_LEFT + feixe livre e carro longe─► CLOSING
+CLOSING (2500 ms, cria a sessão) ─LOWER_REACHED─► IDENTIFYING (carro perto) | IDLE
+        ─BEAM_ON / TIMEOUT─► ASSIST_LOCKED
+ASSIST ─CAR_LEFT/BEAM_OFF + carro longe e feixe livre─► IDLE
+todos ─LIMITS_CONFLICT / ADC_FAULT─► ASSIST_LOCKED (só sai com reset)
+```
+
 | Camada | Módulo | Testes |
 |---|---|---|
-| `fsm/` | `lane` (tabela, guarda, `otherwise`, fila: `lane_post`, `lane_process`) | `tests/unit/fsm/test_lane.c` (14) |
-| `fsm/` | `lanes` (as duas faixas, filas estáticas, `events_post`) | `tests/unit/fsm/test_lanes.c` (3) |
-| `services/` | `events.h` (`EV_BOOT`, `EV_UPPER_REACHED`, `EV_LOWER_REACHED`, `EV_LIMITS_CONFLICT`) | — |
-| `services/` | `signals` (stop, go, assist com pulso de 100 ms) | `tests/unit/signals/` (10) |
-| `services/` | `barrier` (motor + fins de curso; para o motor e depois publica) | `tests/unit/barrier/` (9) |
-| `services/` | `camera` (3 tentativas, 1000 ms, confiança >= 85) | `tests/unit/camera/` (20) |
-| `services/` | `distance` (ADC4 17/18, prazo 100 ms, `chan_distance`) | `tests/unit/distance/` (15) |
-| `services/` | `screen` (placa, `BRL x.xx`, rótulos) | `tests/unit/screen/` (17) |
-| `services/` | `payment` (P1, UUID por contador, 3 envios, CANCEL) | `tests/unit/payment/` (23) |
-| `hw/` | `lane_hw`, `indicator`, `motor`, `sensor` | `tests/hw/` (1 + 4 + 4, sobre `gpio-emul`) |
+| `fsm/` | `lane` (tabela, guarda, `otherwise`, fila, prazos por estado) | `tests/unit/fsm/test_lane.c` |
+| `fsm/` | `lanes` (as duas faixas, filas estáticas, `events_post`) | `tests/unit/fsm/test_lanes.c` |
+| `fsm/` | `states` (regras da entrada) | `tests/fsm/states/` |
+| `fsm/` | `runner` (partida, thread da entrada, `runner_step`) | `tests/fsm/runner/` |
+| `services/` | `events.h` (lista completa) | — |
+| `services/` | `signals`, `barrier`, `camera`, `distance`, `screen`, `payment` | `tests/unit/<módulo>/` |
+| `services/` | `presence` (histerese 683/1024 sobre `chan_distance`, feixe) | `tests/unit/presence/` |
+| `services/` | `sessions` (tabela de vagas com `k_mutex`) | `tests/unit/sessions/` |
+| `services/` | `wire`, `line_framer`, `camera_proto`, `p1_proto`, `text` | `tests/unit/<módulo>/` |
+| `hw/` | `lane_hw`, `indicator`, `motor`, `sensor`, `uart_line`, `adc4`, `st7789` | `tests/hw/` (emuladores do Zephyr) |
 
 **Suítes de teste:**
 - `tests/unit/`: lógica, com FFF no lugar de `hw/`. É uma suíte só, com uma
   subpasta por módulo. O curso só encontra suítes no primeiro nível de
   `student/tests/`.
-- `tests/hw/`: módulos de `hw/` sobre drivers emulados do Zephyr
-  (`zephyr,gpio-emul` no `app.overlay`). Fica separada porque os falsos do FFF
-  de `tests/unit/` colidiriam com o `hw/` real.
+- `tests/hw/`: módulos de `hw/` sobre drivers emulados do Zephyr. Fica
+  separada porque os falsos do FFF de `tests/unit/` colidiriam com o `hw/`
+  real.
+- `tests/fsm/`: `fsm/states` e `fsm/runner` com FFF no lugar de todos os
+  serviços (`fakes/service_fakes.{h,c}`). Fica separada porque em
+  `tests/unit/` os serviços são compilados de verdade.
 
-**Última medição** (`firmware-coverage.py`): todas as suítes passam; 97,61% de
-linhas e 88,84% de branches em `student/src`. `static-check.py`: 0 achados.
-Os 19 cenários reprovam (esperado: o `main.c` não chama nada).
+**Última medição** (`firmware-coverage.py`): todas as suítes passam; 99,89% de
+linhas e 92,37% de branches em `student/src`. `static-check.py`: 0 achados.
+Os branches que faltam são de módulos anteriores ao `feat/entry-lane`
+(17 no `st7789.c`, o resto em caminhos de erro de `hw/` e dos protocolos).
 
 ## O que falta e quem faz
 
@@ -89,9 +118,13 @@ Contrato em [`../contrato-e-divisao.md`](../contrato-e-divisao.md).
   `distance.h`, `payment.h`, `screen.h`.
 - **Plácido, etapas seguintes:** etapas 2 a 5 (`camera`, `distance`, `screen`, `payment`) prontas; falta só
   integrar com o `main.c` do Kauã.
-- **Kauã:** passo 5; prazos (`EV_TIMEOUT`); `presence`; estados do ciclo da
-  entrada; `sessions`; `tariff`; `exit_table`; headers `presence.h`,
-  `sessions.h`, `tariff.h`.
+- **Kauã, M3:** `services/tariff` (`tariff_cents`, `-ERANGE` acima de 9999
+  unidades), tabela e thread da saída (sessão existente, cobrança na ordem
+  `screen_show_plate` → `tariff_cents` → `screen_show_amount` →
+  `payment_start`, `EV_TARIFF_OUT_OF_RANGE`, `payment_poll` na volta da
+  thread, `payment_cancel` ao desistir, `sessions_remove` na passagem).
+- **Cobertura de branches:** subir de 92% para ≥ 95%, com testes dos
+  caminhos de erro de `hw/` e do `st7789`.
 
 ## Como trabalhar (combinado com o Kauã)
 
@@ -99,7 +132,8 @@ Contrato em [`../contrato-e-divisao.md`](../contrato-e-divisao.md).
    arquivos alterados, funções) e espera a confirmação.
 2. Passos pequenos: um módulo ou um comportamento por vez.
 3. Commits: o Plácido autorizou o agente a commitar e dar push nos branches
-   dele (2026-11-21), depois de verificar; nunca `push --force`, nunca no
+   dele (2026-11-21), depois de verificar. O Kauã faz os próprios commits; o
+   agente só sugere a mensagem. Nunca `push --force`, nunca no
    `main`/`solucao`, e só com arquivos de `student/`.
 4. Verificação pelas ferramentas do curso (`firmware-coverage.py`,
    `static-check.py`, cenários com `lab.py`); não apagar a pasta de saída de

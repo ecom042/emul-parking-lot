@@ -35,6 +35,9 @@ DECLARE_FAKE_VALUE_FUNC(int, camera_plate, enum lane_id, char *);
 DECLARE_FAKE_VALUE_FUNC(bool, sessions_can_enter, const char *);
 DECLARE_FAKE_VALUE_FUNC(bool, presence_car_far, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(bool, presence_beam_active, enum lane_id);
+DECLARE_FAKE_VALUE_FUNC(bool, presence_car_near, enum lane_id);
+DECLARE_FAKE_VALUE_FUNC(int, barrier_close, enum lane_id);
+DECLARE_FAKE_VALUE_FUNC(int, sessions_create, const char *, int64_t);
 
 /** Reset every fake above and the shared call history. */
 void service_fakes_reset(void);

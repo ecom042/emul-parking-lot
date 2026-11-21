@@ -559,6 +559,43 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   - Prazo de passagem vencido trava a assistência, porque a cancela está
     aberta, fora da posição fechada.
 
+### 2026-11-21 — Conclusão da passagem e fechamento (fsm/states), marco M2
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** REQ-06 (prazo de fechamento), REQ-07 (sessão só na
+  passagem completa), REQ-08 (fechamento e obstrução)
+- **O que pedi:** o fechamento, com um resumo curto antes (objetivo,
+  arquivos, o que muda em cada um).
+- **O que a IA propôs:**
+  - PASSING → CLOSING pela guarda `passage_complete` (feixe livre e carro
+    longe), testada nas duas bordas (`EV_BEAM_OFF`, `EV_CAR_LEFT`);
+  - a ação `close_after_passage` cria a sessão (placa ainda na câmera,
+    instante `k_uptime_get()`), acende o vermelho e só então fecha;
+  - CLOSING: prazo de 2500 ms. `EV_LOWER_REACHED` leva a IDENTIFYING se
+    `presence_car_near` (próximo carro já no portão), senão a IDLE.
+    `EV_BEAM_ON` e `EV_TIMEOUT` levam a ASSIST_LOCKED.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei.
+- **Como verifiquei:**
+  - Passam agora `missing-lower` e `obstruction-during-close`: **13 de 19,
+    incluindo os 4 do G3** (`obstruction-during-close`, `jam`,
+    `contradictory-limits`, `missing-lower`). Os 6 que faltam são de saída e
+    pagamento (M3).
+  - `firmware-coverage.py`: todas as suítes passam (12 testes novos);
+    `states.c` com 100% de linhas e de branches; total de 99,89% de linhas e
+    92,37% de branches. `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:**
+  - A sessão nasce na passagem completa, não na leitura da placa. A placa é
+    lida de novo da câmera, que a mantém até a próxima captura.
+  - O vermelho acende antes de o motor começar a fechar, e a guarda já
+    garantiu o feixe livre.
+  - Obstrução durante o fechamento: o feixe gera interrupção, o evento vai
+    para a fila, a thread da faixa acorda na hora e a assistência para o
+    motor, bem dentro dos 10 ms. Como o estado é travado, o motor não
+    reverte nem religa quando o feixe libera.
+  - Um carro que chega durante o fechamento tem o `EV_CAR_ARRIVED`
+    ignorado, então a cancela fechada consulta o nível
+    (`presence_car_near`) para não deixá-lo esperando para sempre.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do
