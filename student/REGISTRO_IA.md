@@ -174,6 +174,23 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   voltar do `k_work` à faixa; por que parar o motor antes de publicar
   (REQ-06).
 
+### Blocos de protocolo e drivers finos (Plácido, Claude Code)
+
+- **O que pedi:** implementar o plano `docs/plano-protocolos.md`: a parte do
+  colega que não depende dos pontos em aberto do contrato.
+- **O que a IA propôs e fez:** `services/wire`, `line_framer`, `camera_proto`,
+  `p1_proto`, `text` (lógica pura) e `hw/uart_line`, `hw/adc4`, `hw/st7789`,
+  cada um com testes. O passo 0 do plano (experimento de perda de bytes por
+  polling no Renode) **não foi feito**: `uart_line` usa `uart_poll_in`, e isso
+  precisa ser validado na fase de testes com a câmera real.
+- **Acréscimo:** adicionado `p1_uuid_format` (UUID determinístico por contador de cobrança) em `p1_proto`, com testes.
+- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher na revisão).
+- **Como verifiquei:** `firmware-coverage.py`: todas as suítes passam; 96,4% de
+  linhas e 86,3% de branches em `student/src` (cenários ainda reprovam);
+  `static-check.py`: 0 achados. O `st7789` só tem teste dos argumentos e do
+  caminho pela placa; os pixels dependem do cenário `normal`.
+- **O que aprendi / o que ainda preciso entender:** (preencher).
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

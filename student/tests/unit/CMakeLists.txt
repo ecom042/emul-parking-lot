@@ -13,7 +13,7 @@ project(parking_student_unit)
 target_sources(app PRIVATE src/test_exemplo.c)
 
 # fsm/lane: motor genérico da máquina de estados.
-target_include_directories(app PRIVATE ../../src/fsm/include)
+target_include_directories(app PRIVATE ../../src/include)
 target_sources(app PRIVATE
 	fsm/test_lane.c
 	../../src/fsm/src/lane.c
@@ -27,10 +27,6 @@ target_sources(app PRIVATE
 
 # services/signals: luzes e buzzer. hw/indicator é falsificado pelo FFF no
 # teste; hw/lane_hw é o real (só dados do devicetree).
-target_include_directories(app PRIVATE
-	../../src/services/include
-	../../src/hw/include
-)
 target_sources(app PRIVATE
 	signals/test_signals.c
 	../../src/services/src/signals.c
@@ -42,5 +38,20 @@ target_sources(app PRIVATE
 target_sources(app PRIVATE
 	barrier/test_barrier.c
 	../../src/services/src/barrier.c
+)
+
+# Lógica pura dos protocolos (sem hardware, sem falsos): wire, line_framer,
+# camera_proto, p1_proto e text.
+target_sources(app PRIVATE
+	wire/test_wire.c
+	line_framer/test_line_framer.c
+	camera_proto/test_camera_proto.c
+	p1_proto/test_p1_proto.c
+	text/test_text.c
+	../../src/services/src/wire.c
+	../../src/services/src/line_framer.c
+	../../src/services/src/camera_proto.c
+	../../src/services/src/p1_proto.c
+	../../src/services/src/text.c
 )
 # Não inclua main.c: a suíte tem o próprio ponto de entrada (ztest).

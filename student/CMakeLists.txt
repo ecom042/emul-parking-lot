@@ -6,6 +6,9 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(parking_student)
 target_sources(app PRIVATE src/main.c)
 
+# Every header lives under src/include/<layer>/ (#include "services/x.h").
+target_include_directories(app PRIVATE src/include)
+
 # One folder per layer under src/, each with include/, src/ and CMakeLists.txt.
 add_subdirectory(src/fsm)
 add_subdirectory(src/services)

@@ -1,7 +1,11 @@
 # services/: parking rules or a combination of hardware components; they use
 # hw/. Sources join the `app` target, like fsm/.
-target_include_directories(app PRIVATE include)
 target_sources(app PRIVATE
 	src/barrier.c
+	src/camera_proto.c
+	src/line_framer.c
+	src/p1_proto.c
 	src/signals.c
+	src/text.c
+	src/wire.c
 )
