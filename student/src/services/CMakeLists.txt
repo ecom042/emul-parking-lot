@@ -2,6 +2,7 @@
 # hw/. Sources join the `app` target, like fsm/.
 target_sources(app PRIVATE
 	src/barrier.c
+	src/camera.c
 	src/camera_proto.c
 	src/line_framer.c
 	src/p1_proto.c

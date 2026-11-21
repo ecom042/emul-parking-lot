@@ -206,6 +206,20 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   `static-check.py` com 0 achados.
 - **O que aprendi / o que ainda preciso entender:** (preencher).
 
+### Etapa 2: services/camera (Plácido, Claude Code)
+
+- **O que pedi:** implementar `services/camera` (3 tentativas com ID novo,
+  1000 ms cada, confiança >= 85), planejado por um Opus e implementado por um
+  Sonnet.
+- **O que a IA fez:** `camera.c` (máquina IDLE/SEND/WAITING, envio no primeiro
+  `poll` depois do `start`, prazo `>= 1000 ms`, placa limpa no `start`) e 20
+  testes ztest+FFF em `tests/unit/camera/`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). Os 2 branches
+  dos `__ASSERT` ficaram sem exclusão; decisão pendente.
+- **Como verifiquei:** suítes passam; `camera.c` 100% de linhas e 92,86% de
+  branches; total 96,85% / 86,81%; `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:** (preencher).
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

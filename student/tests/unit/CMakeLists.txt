@@ -40,6 +40,13 @@ target_sources(app PRIVATE
 	../../src/services/src/barrier.c
 )
 
+# services/camera: reconhecimento de placa. hw/uart_line é falso do FFF (não
+# listar hw/src/uart_line.c); events_post() é o real, lido pela fila da faixa.
+target_sources(app PRIVATE
+	camera/test_camera.c
+	../../src/services/src/camera.c
+)
+
 # Lógica pura dos protocolos (sem hardware, sem falsos): wire, line_framer,
 # camera_proto, p1_proto e text.
 target_sources(app PRIVATE
