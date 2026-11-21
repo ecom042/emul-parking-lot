@@ -1,19 +1,26 @@
 # Estado atual do projeto
 
-Atualizado em 2026-11-20 (fim da sessão do Kauã). Atualize este arquivo ao
-fim de cada sessão de trabalho. O registro de cada sessão fica em
-[`sessoes/`](sessoes/).
+Atualizado em 2026-11-21 (fim da sessão do Plácido, o "colega"). Atualize este
+arquivo ao fim de cada sessão de trabalho. O registro de cada sessão fica em
+[`sessoes/`](sessoes/). Para retomar o trabalho do Plácido numa sessão nova,
+leia [`proxima-sessao.md`](proxima-sessao.md).
 
 ## Onde estamos
 
-- **Branch:** `feat/entry-lane-base` (renomeado de `feat/fsm`), a partir do
-  `solucao`. PR interno para o `solucao` pendente.
+- **Branches:** `feat/protocols` (blocos de protocolo e drivers finos, já no
+  remoto) e `feat/contract-headers` (etapa 1, M0: headers do contrato), a
+  partir do `solucao`.
 - **O firmware ainda se comporta como o ponto de partida:** os módulos
   existem e estão testados, mas o `main.c` ainda não os chama. Por isso os 19
   cenários do Renode reprovam. É esperado.
-- **Próximo passo:** passo 5, os estados `INIT`, `IDLE` e `ASSIST_LOCKED` em
-  `fsm/states.c`, a thread da faixa de entrada e o `main.c`. Alvo:
-  `contradictory-limits` (portão G3) e `partial-startup`.
+- **Pastas:** todos os headers ficam em `student/src/include/<camada>/`; os
+  `.c` em `student/src/<camada>/src/`; um `CMakeLists.txt` por camada.
+- **Pontos do contrato decididos** (ver seção 6 do contrato): `poll` na
+  thread da faixa; a máquina cobra (`payment_start(plate, cents)`);
+  `EV_TARIFF_OUT_OF_RANGE`; UART por polling; UUID por contador no `payment`.
+- **Kauã:** passo 5 (`fsm/states.c`, thread da entrada, `main.c`). Instruções
+  para ele em [`../para-kaua.md`](../para-kaua.md).
+- **Plácido:** etapas 2 a 5 (ver abaixo).
 
 ## Arquitetura (decidida)
 
@@ -54,6 +61,10 @@ camadas.
 | `services/` | `events.h` (`EV_BOOT`, `EV_UPPER_REACHED`, `EV_LOWER_REACHED`, `EV_LIMITS_CONFLICT`) | — |
 | `services/` | `signals` (stop, go, assist com pulso de 100 ms) | `tests/unit/signals/` (10) |
 | `services/` | `barrier` (motor + fins de curso; para o motor e depois publica) | `tests/unit/barrier/` (9) |
+| `services/` | `camera` (3 tentativas, 1000 ms, confiança >= 85) | `tests/unit/camera/` (20) |
+| `services/` | `distance` (ADC4 17/18, prazo 100 ms, `chan_distance`) | `tests/unit/distance/` (15) |
+| `services/` | `screen` (placa, `BRL x.xx`, rótulos) | `tests/unit/screen/` (17) |
+| `services/` | `payment` (P1, UUID por contador, 3 envios, CANCEL) | `tests/unit/payment/` (23) |
 | `hw/` | `lane_hw`, `indicator`, `motor`, `sensor` | `tests/hw/` (1 + 4 + 4, sobre `gpio-emul`) |
 
 **Suítes de teste:**
@@ -64,34 +75,32 @@ camadas.
   (`zephyr,gpio-emul` no `app.overlay`). Fica separada porque os falsos do FFF
   de `tests/unit/` colidiriam com o `hw/` real.
 
-**Última medição** (`firmware-coverage.py`, `build/cov-p4b2-01`): todas as
-suítes passam; 90,5% de linhas e 74,3% de branches em `student/src`.
-
-**Branches sem cobertura** (para o passo de qualidade):
-- o lado "falhou" dos `__ASSERT` em `lane_hw_get()` e `lanes_get()`;
-- `!gpio_is_ready_dt()` em `indicator.c` e `sensor.c`;
-- erros de driver em `motor.c` (cobríveis com FFF) e em `sensor.c`;
-- `main.c`.
-
-**Ainda não rodado:** `scripts/static-check.py`.
+**Última medição** (`firmware-coverage.py`): todas as suítes passam; 97,61% de
+linhas e 88,84% de branches em `student/src`. `static-check.py`: 0 achados.
+Os 19 cenários reprovam (esperado: o `main.c` não chama nada).
 
 ## O que falta e quem faz
 
-Ver [`../contrato-e-divisao.md`](../contrato-e-divisao.md) (rascunho, revisar
-em dupla antes de seguir).
+Contrato em [`../contrato-e-divisao.md`](../contrato-e-divisao.md).
 
+- **Pronto (Plácido):** `wire`, `line_framer`, `camera_proto`, `p1_proto`
+  (com `p1_uuid_format`), `text`, `hw/uart_line`, `hw/adc4`, `hw/st7789`;
+  etapa 1 (M0): `events.h` completo, campos de `lane_hw`, headers `camera.h`,
+  `distance.h`, `payment.h`, `screen.h`.
+- **Plácido, etapas seguintes:** etapas 2 a 5 (`camera`, `distance`, `screen`, `payment`) prontas; falta só
+  integrar com o `main.c` do Kauã.
 - **Kauã:** passo 5; prazos (`EV_TIMEOUT`); `presence`; estados do ciclo da
-  entrada; `sessions`; `tariff`; `exit_table`.
-- **Colega:** `uart_line` + `camera`; `adc4` + `distance`; `payment`,
-  `st7789`, `screen`.
+  entrada; `sessions`; `tariff`; `exit_table`; headers `presence.h`,
+  `sessions.h`, `tariff.h`.
 
 ## Como trabalhar (combinado com o Kauã)
 
 1. Antes de implementar, o agente mostra um resumo curto (arquivos novos,
    arquivos alterados, funções) e espera a confirmação.
 2. Passos pequenos: um módulo ou um comportamento por vez.
-3. A cada marco, o agente sugere uma mensagem de commit; **o aluno faz o
-   commit**, nunca o agente.
+3. Commits: o Plácido autorizou o agente a commitar e dar push nos branches
+   dele (2026-11-21), depois de verificar; nunca `push --force`, nunca no
+   `main`/`solucao`, e só com arquivos de `student/`.
 4. Verificação pelas ferramentas do curso (`firmware-coverage.py`,
    `static-check.py`, cenários com `lab.py`); não apagar a pasta de saída de
    uma medição em andamento.

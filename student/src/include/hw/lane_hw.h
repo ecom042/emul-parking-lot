@@ -8,9 +8,12 @@
  * firmware asks for a lane and gets its equipment by name (red, buzzer...).
  */
 
+#include <zephyr/device.h>
+#include <zephyr/drivers/adc.h>
 #include <zephyr/drivers/gpio.h>
 
 #include "hw/motor.h"
+#include "hw/st7789.h"
 
 /** The two lanes of the parking lot. */
 enum lane_id {
@@ -19,7 +22,7 @@ enum lane_id {
 	LANE_COUNT,
 };
 
-/** Equipment of one lane. Camera and distance join in later steps. */
+/** Equipment of one lane. */
 struct lane_hw {
 	struct motor motor;              /**< barrier motor */
 	struct gpio_dt_spec limit_upper; /**< active exactly at 90° (open) */
@@ -28,6 +31,8 @@ struct lane_hw {
 	struct gpio_dt_spec red;    /**< red light */
 	struct gpio_dt_spec green;  /**< green light */
 	struct gpio_dt_spec buzzer; /**< buzzer (the model records transitions, no sound) */
+	const struct device *camera;         /**< camera UART: USART3 (entry) / USART2 (exit) */
+	struct adc_channel_cfg distance_cfg; /**< ADC4 channel 17 (entry) / 18 (exit) */
 };
 
 /**
@@ -37,5 +42,28 @@ struct lane_hw {
  * @return the lane's equipment, never NULL.
  */
 const struct lane_hw *lane_hw_get(enum lane_id id);
+
+/**
+ * @brief ADC4, shared by both distance channels.
+ *
+ * @return the device, never NULL (readiness is checked by adc4_init()).
+ */
+const struct device *distance_adc_get(void);
+
+/**
+ * @brief UART of the payment terminal (LPUART1).
+ *
+ * Exit lane only, so it is not part of struct lane_hw.
+ *
+ * @return the device, never NULL (readiness is checked by uart_line_init()).
+ */
+const struct device *payment_terminal_get(void);
+
+/**
+ * @brief Payment display (ST7789V on SPI1), exit lane only.
+ *
+ * @return the display, never NULL (readiness is checked by st7789_init()).
+ */
+const struct st7789 *payment_display_get(void);
 
 #endif /* PARKING_HW_LANE_HW_H_ */

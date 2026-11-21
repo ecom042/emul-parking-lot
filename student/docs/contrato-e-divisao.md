@@ -127,7 +127,7 @@ um **evento**, nunca bloqueando quem chamou.
 ### 4.1 `services/camera.h` (colega)
 
 ```c
-#define PLATE_LEN 7 /**< "ABC1D23": [A-Z]{3}[0-9][A-Z0-9][0-9]{2} */
+/* PLATE_LEN (7) comes from services/wire.h. */
 
 /** UART setup for the lane's camera. Before the lane thread starts. */
 int camera_init(enum lane_id id);

@@ -191,6 +191,84 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   caminho pela placa; os pixels dependem do cenário `normal`.
 - **O que aprendi / o que ainda preciso entender:** (preencher).
 
+### Etapa 1 (M0): headers do contrato (Plácido, Claude Code)
+
+- **O que pedi:** a etapa 1 das 5 (declarações compartilhadas), planejada por
+  um subagente e implementada em seguida.
+- **O que a IA fez:** `events.h` completo (com `EV_TARIFF_OUT_OF_RANGE`),
+  campos `camera` e `distance_cfg` e `payment_terminal_get()` em `lane_hw`,
+  headers `camera.h`, `distance.h`, `payment.h`, `screen.h`, `CONFIG_ZBUS=y`
+  e `tests/unit/lane_hw`. Nenhum serviço implementado.
+- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). Os headers
+  `presence.h`, `sessions.h` e `tariff.h` ficam com o Kauã.
+- **Como verifiquei:** os 4 headers compilados num `main.c` temporário
+  (revertido); suítes passam, 96,4% de linhas e 86,3% de branches;
+  `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:** (preencher).
+
+### Etapa 2: services/camera (Plácido, Claude Code)
+
+- **O que pedi:** implementar `services/camera` (3 tentativas com ID novo,
+  1000 ms cada, confiança >= 85), planejado por um Opus e implementado por um
+  Sonnet.
+- **O que a IA fez:** `camera.c` (máquina IDLE/SEND/WAITING, envio no primeiro
+  `poll` depois do `start`, prazo `>= 1000 ms`, placa limpa no `start`) e 20
+  testes ztest+FFF em `tests/unit/camera/`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). Os 2 branches
+  dos `__ASSERT` ficaram sem exclusão; decisão pendente.
+- **Como verifiquei:** suítes passam; `camera.c` 100% de linhas e 92,86% de
+  branches; total 96,85% / 86,81%; `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:** (preencher).
+
+### Etapa 3: services/distance (Plácido, Claude Code)
+
+- **O que pedi:** implementar `services/distance` (ADC4 alternando os canais
+  17/18, uma conversão por vez, prazo de 100 ms, `chan_distance` no zbus, falha
+  trava e posta `EV_ADC_FAULT`), planejado por um Opus e implementado por um
+  Sonnet.
+- **O que a IA fez:** `distance.c` (IDLE/PENDING/LATCHED, `k_work_delayable` de
+  5 ms, conclusão em 100 ms ou mais conta como falha), `distance_adc_get()` em
+  `lane_hw`, `distance_start()`/`distance_poll()` no header e 16 testes.
+- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). Aceitei
+  separar `init`/`start`/`poll` (muda o contrato: o `main.c` chama
+  `distance_start()`); falha de `init` trava e devolve o erro sem postar.
+- **Como verifiquei:** suítes passam; `distance.c` 100% de linhas e branches;
+  total 97,17% / 87,47%; `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:** (preencher).
+
+### Etapa 4: services/screen (Plácido, Claude Code)
+
+- **O que pedi:** implementar `services/screen` (`screen_init`,
+  `screen_show_plate`, `screen_show_amount`) sobre `hw/st7789` e `text`,
+  planejado por um Opus e implementado por um Sonnet.
+- **O que a IA fez:** `screen.c` (textos centralizados, `BRL x.xx`,
+  `SIMULATED PAYMENT`, `NOT PIX`; limpa só a área de cobrança, y 40..167;
+  entrada inválida devolve -EINVAL sem SPI), `payment_display_get()` em
+  `lane_hw` e 17 testes.
+- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). No caminho
+  -ERANGE a máquina não deve chamar `screen_show_amount` (nota no
+  `para-kaua.md`).
+- **Como verifiquei:** suítes passam; `screen.c` 100% de linhas e branches;
+  total 97,35% / 88,15%; `static-check.py` com 0 achados. Pixels só serão
+  vistos quando o `main.c` chamar o serviço.
+- **O que aprendi / o que ainda preciso entender:** (preencher).
+
+### Etapa 5: services/payment (Plácido, Claude Code)
+
+- **O que pedi:** implementar `services/payment` (UUID por contador, 3 envios
+  de 1000 ms, só PAID exato, CANCEL no fim), planejado por um Opus e
+  implementado por um Sonnet.
+- **O que a IA fez:** `payment.c` (IDLE/SEND/WAITING; PAID e CANCELLED só
+  valem com o UUID e o valor da cobrança atual; no 3º prazo invalida, envia
+  CANCEL e só então posta `EV_PAYMENT_FAILED`) e 23 testes.
+- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). CANCELLED atual
+  posta FAILED sem reenviar CANCEL; ERROR do terminal é ignorado e o prazo
+  resolve.
+- **Como verifiquei:** suítes passam; `payment.c` 100% de linhas e 97,06% de
+  branches (falta só o `__ASSERT` do CANCEL); total 97,61% / 88,84%;
+  `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:** (preencher).
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

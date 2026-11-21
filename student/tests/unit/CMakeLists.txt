@@ -40,6 +40,34 @@ target_sources(app PRIVATE
 	../../src/services/src/barrier.c
 )
 
+# services/camera: reconhecimento de placa. hw/uart_line é falso do FFF (não
+# listar hw/src/uart_line.c); events_post() é o real, lido pela fila da faixa.
+target_sources(app PRIVATE
+	camera/test_camera.c
+	../../src/services/src/camera.c
+)
+
+# services/distance: aquisição do ADC4. hw/adc4 é falso do FFF (não listar
+# hw/src/adc4.c); events_post() é o real, lido pela fila da faixa.
+target_sources(app PRIVATE
+	distance/test_distance.c
+	../../src/services/src/distance.c
+)
+
+# services/screen: tela de cobrança. hw/st7789 é falso do FFF (não listar
+# hw/src/st7789.c); text.c e lane_hw.c são os reais (já listados).
+target_sources(app PRIVATE
+	screen/test_screen.c
+	../../src/services/src/screen.c
+)
+
+# services/payment: cobrança no terminal P1. hw/uart_line é falso do FFF (não
+# listar hw/src/uart_line.c); events_post() é o real, lido pela fila da faixa.
+target_sources(app PRIVATE
+	payment/test_payment.c
+	../../src/services/src/payment.c
+)
+
 # Lógica pura dos protocolos (sem hardware, sem falsos): wire, line_framer,
 # camera_proto, p1_proto e text.
 target_sources(app PRIVATE
@@ -54,4 +82,7 @@ target_sources(app PRIVATE
 	../../src/services/src/p1_proto.c
 	../../src/services/src/text.c
 )
+# hw/lane_hw: equipamento de cada faixa vindo do devicetree (lane_hw.c já está
+# na lista do signals acima).
+target_sources(app PRIVATE lane_hw/test_lane_hw.c)
 # Não inclua main.c: a suíte tem o próprio ponto de entrada (ztest).
