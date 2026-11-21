@@ -191,6 +191,21 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   caminho pela placa; os pixels dependem do cenário `normal`.
 - **O que aprendi / o que ainda preciso entender:** (preencher).
 
+### Etapa 1 (M0): headers do contrato (Plácido, Claude Code)
+
+- **O que pedi:** a etapa 1 das 5 (declarações compartilhadas), planejada por
+  um subagente e implementada em seguida.
+- **O que a IA fez:** `events.h` completo (com `EV_TARIFF_OUT_OF_RANGE`),
+  campos `camera` e `distance_cfg` e `payment_terminal_get()` em `lane_hw`,
+  headers `camera.h`, `distance.h`, `payment.h`, `screen.h`, `CONFIG_ZBUS=y`
+  e `tests/unit/lane_hw`. Nenhum serviço implementado.
+- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). Os headers
+  `presence.h`, `sessions.h` e `tariff.h` ficam com o Kauã.
+- **Como verifiquei:** os 4 headers compilados num `main.c` temporário
+  (revertido); suítes passam, 96,4% de linhas e 86,3% de branches;
+  `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:** (preencher).
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

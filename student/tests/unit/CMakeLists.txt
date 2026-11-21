@@ -54,4 +54,7 @@ target_sources(app PRIVATE
 	../../src/services/src/p1_proto.c
 	../../src/services/src/text.c
 )
+# hw/lane_hw: equipamento de cada faixa vindo do devicetree (lane_hw.c já está
+# na lista do signals acima).
+target_sources(app PRIVATE lane_hw/test_lane_hw.c)
 # Não inclua main.c: a suíte tem o próprio ponto de entrada (ztest).
