@@ -16,7 +16,7 @@ entradas. Quem não usou IA escreve isso aqui.
 | Aluno | Ferramenta | Modelo/versão | Período de uso |
 |---|---|---|---|
 | Pablo | Codex | GPT-6 | 18/11/2026 |
-| Matheus | Claude Code | Claude Opus 5.5 | 19/11/2026 |
+| Matheus | Claude Code | Claude Opus 5.5 | 19/11/2026 a 21/11/2026 |
 
 ## Tarefas
 
@@ -166,8 +166,10 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   e `prj.conf` (`CONFIG_UART_INTERRUPT_DRIVEN=y`) foram atualizados.
   `parking.h`, `lane.[ch]` e os demais módulos de Pablo não mudaram.
   Revisão de Pablo pendente.
-- **Aceitação ou alterações** Aguardando revisão do aluno e do colega. Sem
-  commit.
+- **Aceitação ou alterações** Matheus revisou e aceitou após validação
+  manual em 20/11/2026 e fez o commit `8148f3f` no branch
+  `feat/protocolos`, enviado como PR #1. Pablo revisou o diff em 21/11
+  (ver "Conferência de atualizações") e integrou o commit em `solucao`.
 - **Ambiente** Para rodar os cenários localmente, `scripts/lab.py` foi
   alterado só nesta máquina para aceitar também o build
   `1.17.0+20260907gitf1dd1b4af` do Renode oficial (mesmo commit). A
@@ -184,8 +186,18 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   `sessions.c` e `parking_uart.c` com 100% de linhas. `static-check.py`
   apontou dois achados (`-Wcast-qual` em `sessions.c`, `-Wswitch-enum` em
   `services.c`), corrigidos; a segunda rodada terminou com zero achados.
+  Na validação manual de 20/11/2026 passaram também `confidence-retry`,
+  `low-confidence`, `camera-timeout`, `reset-capture`, `stationary`,
+  `noisy-threshold`, `missing-upper` e `obstruction-before-close`.
+  `normal` e `payment-*` continuaram reprovando na saída, como esperado
+  sem P1. Cobertura: 96,22% de linhas e 83,46% de ramos. A primeira
+  análise estática quebrou o build por um texto digitado sem querer em
+  `camera.c` (`ccc`). Matheus o removeu e a nova rodada terminou com zero
+  achados.
 - **Evidências** `build/cam-<cenário>-01/assessment/results.json`,
-  `build/cam-coverage-02/summary.json` e `build/cam-static-02/summary.json`.
+  `build/cam-coverage-02/summary.json`, `build/cam-static-02/summary.json`
+  e, da validação de 20/11, `build/val-<cenário>/`, `build/val-coverage/`
+  e `build/val-static-02/`.
 - **Para a sabatina** Explicar por que `request()` grava a transação
   corrente e enfileira no mesmo spinlock e por que o worker checa de novo
   antes de reservar. Explicar por que `OK` não é reconhecimento, por que um
@@ -285,6 +297,82 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   receber um LF, por que a thread de controle pode continuar enquanto
   o display trabalha e como transação corrente, UUID e sessão ativa
   impedem que um pagamento atrasado abra uma saída nova.
+
+### 2026-11-21 — Validação final e conferência com o plano da dupla
+
+- **Aluno** Matheus.
+- **Ferramenta** Claude Code (Claude Opus 5.5).
+- **Pedido** Retomar a sessão anterior e rodar a validação completa no
+  commit `04edb60`. Conferir se o resultado corresponde ao plano da dupla
+  (divisão de tarefas, cronograma, Git e contratos técnicos). Atualizar
+  este registro e gerar um roteiro de estudo para a sabatina.
+- **Proposta e execução** Rodar o script local de validação (19 cenários,
+  `firmware-coverage.py` e `static-check.py`) e comparar o código e o
+  histórico Git com o plano. Nenhuma alteração de firmware.
+- **Verificação** Os 19 cenários públicos passaram, incluindo os quatro
+  do G3. `firmware-coverage.py` aprovou as 8 suítes (129 testes) e mediu
+  967/986 linhas (98,07%) e 679/734 ramos (92,51%), média 95,29%, sem
+  exclusões. `static-check.py` terminou com zero achados. Os números
+  coincidem com a validação de Pablo na v1.0.1 oficial. Também foram
+  conferidos no código os contratos citados no plano: tarifa, limite de
+  9999 unidades, UUID fixo nos três envios, textos do display e sessão
+  ativa só depois da passagem.
+- **Divergências em relação ao plano**
+  - O plano atribuía a Matheus o pagamento P1, a tarifa e o display. Na
+    prática, Pablo implementou essas partes no commit `49845cd`, que
+    também alterou `services.c`, `camera.c` e `parking_uart.c`. Matheus
+    escreveu câmera UART e sessões.
+  - O commit `49845cd` entrou direto em `solucao`, sem PR. A revisão
+    cruzada de Matheus sobre essa parte, exigida pelo plano, está pendente.
+  - O firmware completo ficou pronto em 21/11, e não em 20/11. O sábado,
+    reservado ao estudo, foi usado para a integração.
+  - Este checkout não contém a v1.0.1 oficial (`82d854b`) nem o remote
+    `upstream`. A validação local depende da alteração local de
+    `scripts/lab.py` (`skip-worktree`, não versionada).
+- **Aceitação ou alterações** As conclusões aguardam revisão de Matheus e
+  Pablo. Próximos passos: Matheus revisar o commit `49845cd` e estudar a
+  parte da saída; alinhar o checkout com a v1.0.1 e descartar a alteração
+  local de `scripts/lab.py`.
+- **Evidências** `build/val-1121-190130/` (`<cenário>/assessment/results.json`,
+  `coverage/summary.json` e `static/summary.json`).
+
+### 2026-11-21 — Testes de unidade de `main.c` e `parking_exit.c`
+
+- **Aluno** Matheus.
+- **Ferramenta** Claude Code (Claude Opus 5.5).
+- **Pedido** Cobrir os ramos de `main.c` (62,50%) e `parking_exit.c`
+  (60,00%), os mais fracos da validação final, e validar de novo.
+- **Proposta da IA** Os ramos que faltavam eram caminhos de erro que os
+  cenários não alcançam. Em vez de excluir linhas, a IA criou duas suítes
+  ztest/FFF no padrão de `tests/uart_hw`: incluem o `.c` de produção e
+  trocam drivers, lógica das faixas e criação de threads por falsos.
+  Nenhum arquivo de `student/src` mudou.
+  - `tests/main` (7 testes) renomeia o `main()` do firmware com
+    `#define main parking_main`, porque o ztest tem o seu próprio `main()`.
+    Verifica: tabela de serviços nula ou incompleta (`-EINVAL`) e registro
+    repetido (`-EALREADY`, mantendo a primeira); resposta nula ou de faixa
+    inexistente; fila de respostas cheia (`-ENOMSG`, sem bloquear);
+    respostas entregues em ordem FIFO à faixa certa; limite de 8 respostas
+    por passada; as duas faixas avançam mesmo sem serviços registrados.
+  - `tests/exit` (6 testes) verifica: falha ao abrir o terminal impede
+    serviços e thread; ligação de `services_exit_io` e prioridade
+    preemptiva do worker; placa recusada quando o display falhou na
+    inicialização; perda de bytes (`-EOVERFLOW`) ressincroniza o parser
+    antes do próximo byte e preserva o horário de chegada; limite de 256
+    bytes por passada.
+- **Aceitação ou alterações** Matheus pediu a mudança, a validação e o
+  commit.
+- **Verificação** `validar.sh` aprovou os 19 cenários públicos.
+  `firmware-coverage.py` aprovou 13 suítes ztest (142 testes, 0 falhas):
+  `main.c` e `parking_exit.c` com 100% de linhas e de ramos. O total foi de
+  968/986 linhas (98,17%) e 692/734 ramos (94,28%), média de 96,22%
+  (antes 95,29%), sem exclusões. `static-check.py` terminou com zero
+  achados.
+- **Evidências** `build/cov-glue-01/` (suítes com `partial-startup`) e
+  `build/val-1121-201055/` (validação completa).
+- **Para a sabatina** Explicar a técnica de incluir o `.c` com `#define`
+  para redirecionar chamadas e por que os limites de 8 respostas e de 256
+  bytes por passada protegem a segurança e os prazos do pagamento.
 
 ## Código de terceiros
 
