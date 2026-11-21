@@ -115,6 +115,13 @@ ZTEST(hw_adc4, test_a_driver_error_is_reported_and_releases_the_request)
 	zassert_false(adc4_busy());
 }
 
+ZTEST(hw_adc4, test_a_read_refused_by_the_driver_is_reported_at_once)
+{
+	/* Beyond the emulator's 8 channels: adc_read_async() refuses it. */
+	zassert_true(adc4_start(20) != 0);
+	zassert_false(adc4_busy(), "a refused read owns nothing");
+}
+
 ZTEST(hw_adc4, test_init_reports_a_channel_setup_error)
 {
 	const struct adc_channel_cfg bad = {

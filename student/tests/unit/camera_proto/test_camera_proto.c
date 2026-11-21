@@ -67,6 +67,7 @@ ZTEST(camera_proto, test_malformed_replies_are_invalid)
 		"+PLATE:1,ABC1D23,93",              /* no quotes */
 		"+PLATE:1,\"ABC 1D2\",93",
 		"+PLATE:1,\"ABC1D23\",93,",         /* trailing text */
+		"+PLATE:1,\"ABC1D23\";93",          /* no comma after the plate */
 		"+PLATE:1,\"ABC1D23\"",
 		"+PLATE:1,\"ABC1D2\",93",           /* short plate */
 		"+PLATE:1 \"ABC1D23\",93",

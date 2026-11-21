@@ -51,7 +51,10 @@ int text_format_brl(uint32_t cents, char *out, size_t size)
 	int n = snprintf(out, size, "BRL %u.%02u", (unsigned int)(cents / 100),
 			 (unsigned int)(cents % 100));
 
-	return (n < 0 || (size_t)n >= size) ? -ENOSPC : n;
+	/* A negative n (encoding error) becomes a huge size_t, so this one
+	 * comparison also reports it as -ENOSPC.
+	 */
+	return ((size_t)n >= size) ? -ENOSPC : n;
 }
 
 int text_width(const char *s, unsigned int scale)

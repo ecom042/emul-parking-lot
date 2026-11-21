@@ -104,9 +104,9 @@ todos ─LIMITS_CONFLICT / ADC_FAULT─► ASSIST_LOCKED (só sai com reset)
   `tests/unit/` os serviços são compilados de verdade.
 
 **Última medição** (`firmware-coverage.py`): todas as suítes passam; 99,89% de
-linhas e 92,37% de branches em `student/src`. `static-check.py`: 0 achados.
-Os branches que faltam são de módulos anteriores ao `feat/entry-lane`
-(17 no `st7789.c`, o resto em caminhos de erro de `hw/` e dos protocolos).
+linhas e 95,64% de branches em `student/src`. `static-check.py`: 0 achados.
+Os 22 branches que faltam estão justificados na última entrada do
+`REGISTRO_IA.md` (17 no `st7789.c`).
 
 ## O que falta e quem faz
 
@@ -123,8 +123,8 @@ Contrato em [`../contrato-e-divisao.md`](../contrato-e-divisao.md).
   `screen_show_plate` → `tariff_cents` → `screen_show_amount` →
   `payment_start`, `EV_TARIFF_OUT_OF_RANGE`, `payment_poll` na volta da
   thread, `payment_cancel` ao desistir, `sessions_remove` na passagem).
-- **Cobertura de branches:** subir de 92% para ≥ 95%, com testes dos
-  caminhos de erro de `hw/` e do `st7789`.
+- **Cobertura de branches:** 95,64%. Folga possível: um driver SPI falso
+  para os 17 branches do `st7789.c` (combinar com o Plácido).
 
 ## Como trabalhar (combinado com o Kauã)
 

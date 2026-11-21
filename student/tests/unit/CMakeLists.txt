@@ -83,6 +83,10 @@ target_sources(app PRIVATE
 	../../src/services/src/sessions.c
 )
 
+# Erros de programação (id de faixa inválido) disparam o __ASSERT do módulo;
+# o hook do ztest transforma o assert esperado no fim do teste.
+target_sources(app PRIVATE asserts/test_asserts.c)
+
 # Lógica pura dos protocolos (sem hardware, sem falsos): wire, line_framer,
 # camera_proto, p1_proto e text.
 target_sources(app PRIVATE

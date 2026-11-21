@@ -596,6 +596,55 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
     ignorado, então a cancela fechada consulta o nível
     (`presence_car_near`) para não deixá-lo esperando para sempre.
 
+### 2026-11-21 — Cobertura de branches de 92% para 95% (testes, sem exclusões)
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** métrica de cobertura (desafio, "Pontos")
+- **O que pedi:** um plano para subir os branches e a execução dos grupos 1
+  a 3 (validações dos protocolos, asserts, checagens mortas).
+- **O que a IA propôs:**
+  - **Protocolos:** testes com uma placa errada em cada posição
+    (`wire_is_plate`), um `+PLATE` sem a vírgula depois da placa e linhas
+    P1 com o número certo de campos mas o verbo errado (`P1 FAILED ...`,
+    `P1 REPORT ...`).
+  - **Asserts:** `CONFIG_ZTEST_ASSERT_HOOK` em `tests/unit` e `tests/hw`.
+    Testes chamam `lanes_get`, `lane_hw_get` e `camera_start` com uma faixa
+    inválida, e `sensor_init` sem handler; o assert esperado encerra a
+    thread do teste, e chegar ao fim do teste é falha.
+  - **Checagem morta:** tirei o `n < 0 ||` depois do `snprintf` em
+    `camera_proto.c`, `p1_proto.c` e `text.c` (código do Plácido). Um `n`
+    negativo convertido para `size_t` vira um número enorme, então a
+    comparação `>= size` já devolve `-ENOSPC`. Um comentário explica.
+  - **Extra, para passar de 95%:** um dispositivo de teste cujo init falha
+    (`DEVICE_DEFINE` em `tests/hw/errors`) faz `indicator`, `sensor`,
+    `uart_line` e `adc4` devolverem `-ENODEV`. Também um canal do ADC fora
+    da faixa do emulador, que o driver recusa na hora.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei; nenhuma
+  exclusão `LCOV_EXCL`. O Plácido precisa revisar a mudança nos arquivos
+  dele.
+- **Como verifiquei:** `firmware-coverage.py`: todas as suítes passam;
+  **95,64% de branches** (483/505) e 99,89% de linhas; os 13 cenários
+  continuam passando. `static-check.py` com 0 achados.
+- **O que ainda não está coberto (22 branches) e por quê:**
+  - `st7789.c` (17): a cadeia de erros da inicialização SPI; precisaria de
+    um driver SPI falso. É código do Plácido, a combinar com ele.
+  - `motor.c` e `sensor.c` (4): erros de configuração de um pino num
+    controlador pronto, que o `gpio-emul` nunca devolve.
+  - `adc4.c:69` (1): amostra acima de 4095. O emulador e o modelo do
+    Renode limitam a 4095; é uma defesa contra um driver com defeito.
+  - `camera.c:54` e `payment.c:57` (2): `__ASSERT(len > 0)` depois de
+    formatar um comando num buffer interno que sempre cabe; não há entrada
+    pela API que o faça falhar.
+- **O que aprendi / o que ainda preciso entender:**
+  - Um `__ASSERT` gera um branch, e o lado da falha pode ser testado com o
+    hook do ztest em vez de ser excluído.
+  - O dispositivo "não pronto" se produz de verdade: um dispositivo cujo
+    init falha é marcado pelo kernel como não pronto, sem driver falso
+    para cada API.
+  - Uma checagem redundante (`n < 0` antes de `(size_t)n >= size`) é um
+    branch que nada alcança: removê-la, com o motivo escrito no código, é
+    melhor do que escondê-la com uma exclusão.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do
