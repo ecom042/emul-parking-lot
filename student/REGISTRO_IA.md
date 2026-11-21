@@ -269,6 +269,84 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   `static-check.py` com 0 achados.
 - **O que aprendi / o que ainda preciso entender:** (preencher).
 
+### 2026-11-21 — Estados de partida e assistência (fsm/states)
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** REQ-01, REQ-09
+- **O que pedi:** planejar o PR da faixa de entrada (M1 + M2) em passos
+  curtos e implementar o passo 1, com a skill `clean-c-zephyr`.
+- **O que a IA propôs:** `fsm/states.{h,c}` com os estados INIT, IDLE,
+  ASSIST e ASSIST_LOCKED, a tabela da entrada (`EV_BOOT` só leva a IDLE com
+  a cancela fechada; conflito de fins de curso e falha do ADC travam a
+  assistência a partir de qualquer estado) e as ações `show_stop` e
+  `request_assistance` (motor parado antes dos sinais). Suíte nova
+  `tests/fsm/`, separada de `tests/unit` porque lá os serviços são
+  compilados de verdade e os falsos do FFF colidiriam.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei os dois tipos de
+  assistência (rearmável com a cancela fechada e travada até o reset).
+- **Como verifiquei:** `firmware-coverage.py` com 7 testes novos passando
+  (um teste errado meu foi corrigido: a guarda aparece antes no histórico de
+  chamadas do FFF); `states.c` com 100% das linhas e sem branches; total de
+  97,65% de linhas e 88,84% de branches (os branches não mudaram, a falta
+  é anterior). `static-check.py` com 0 achados. Nenhum cenário muda ainda,
+  porque o `main.c` só chama a máquina no passo 2.
+- **O que aprendi / o que ainda preciso entender:**
+  - Há dois tipos de assistência. A de cancela fechada (ASSIST) rearma
+    quando o carro sai com o feixe livre. A de falha de posição, fins de
+    curso contraditórios ou ADC (ASSIST_LOCKED) só sai com o reset.
+  - A partida nunca fecha a cancela sozinha. `EV_BOOT` só leva a IDLE se
+    `barrier_is_closed()`, e com os dois fins de curso ativos essa guarda
+    dá falso. Por isso o conflito trava mesmo que o evento chegue antes do
+    `EV_BOOT`.
+  - O buzzer toca uma vez só porque a ação de entrada só roda quando há
+    transição, e a linha do ASSIST_LOCKED na tabela é vazia.
+  - A macro `LATCHING_FAULTS` repete as falhas que travam em todas as
+    linhas, para que um estado novo não as esqueça.
+  - Uma suíte de testes separada (`tests/fsm`) é necessária porque os
+    falsos do FFF colidiriam com os serviços reais de `tests/unit`. No
+    histórico de chamadas do FFF, a guarda aparece antes das ações.
+
+### 2026-11-21 — Partida e thread da entrada (fsm/runner, main.c), marco M1
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** REQ-01, REQ-04 (uma faixa não segura a outra), REQ-09
+- **O que pedi:** a thread da entrada e o `main.c`; se a inicialização de uma
+  faixa falhar, tentar a assistência.
+- **O que a IA propôs:** `fsm/runner.{h,c}`:
+  - `runner_init()` configura o equipamento das duas faixas; uma faixa que
+    falha recebe a assistência possível (motor parado, vermelho, buzzer) e
+    não recebe `EV_BOOT`;
+  - `runner_start()` cria a thread da entrada (prioridade 5);
+  - `runner_step()` é uma volta da thread: um evento (espera de até 1 ms)
+    e depois `camera_poll`.
+
+  A saída só segura as saídas seguras até ganhar as regras dela (M3).
+  O `main.c` só chama as duas funções, sem nenhum branch. Os falsos da suíte
+  `tests/fsm` foram para `fakes/service_fakes.{h,c}`, porque cada falso só
+  pode ser definido uma vez por binário.
+- **O que aceitei, mudei ou rejeitei, e por quê:** escolhi a assistência em
+  caso de falha de inicialização, em vez de só imprimir o erro.
+- **Como verifiquei:** os cenários `partial-startup` e `contradictory-limits`
+  passam. `firmware-coverage.py`: todas as suítes passam (9 testes novos);
+  `runner.c`, `states.c` e `main.c` com 100% de linhas e de branches; total
+  de 99,87% de linhas e 91,16% de branches (os 39 branches que faltam são de
+  módulos anteriores, 17 deles no `st7789.c`). `static-check.py` com 0
+  achados.
+- **O que aprendi / o que ainda preciso entender:**
+  - A partida é dividida em `runner_init()` e `runner_start()` para que os
+    caminhos de erro sejam testados com o FFF sem criar uma thread de
+    verdade dentro do binário de teste. A thread chamaria os falsos durante
+    os outros testes.
+  - Uma faixa que falha na inicialização fica em assistência e não recebe
+    `EV_BOOT`. A outra faixa continua (REQ-04).
+  - O `main.c` não tem branches: um `if` de erro nele nunca seria executado
+    por um cenário e baixaria a cobertura de branches.
+  - A thread espera no máximo 1 ms por um evento para que `camera_poll`
+    rode cerca de uma vez por milissegundo, porque a câmera manda pedaços
+    de 8 bytes a cada 10 ms.
+  - `EV_BOOT` pode ser postado antes de a thread existir, porque a fila é
+    estática e o evento espera nela.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do
