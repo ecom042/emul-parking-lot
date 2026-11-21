@@ -11,19 +11,21 @@
 #include "fsm/lane.h"
 
 /**
- * @brief Set up both lanes and queue EV_BOOT for each lane that has rules.
+ * @brief Set up both lanes and the shared distance acquisition, then queue
+ *        EV_BOOT for each lane that has rules.
  * A lane whose setup fails gets a best-effort assistance (motor stop, red,
- * buzzer pulse) and no EV_BOOT. Run once, from main(), before runner_start().
+ * buzzer pulse) and no EV_BOOT; a distance (ADC4) failure does that to both
+ * lanes. Run once, from main(), before runner_start().
  * Until the exit lane has its rules (M3) it only holds its safe outputs.
  * @retval 0 every lane is ready.
- * @retval -errno the first setup error (entry lane first); already reported
- *         on the console.
+ * @retval -errno the first setup error (entry lane, exit lane, then
+ *         distance); already reported on the console.
  */
 int runner_init(void);
 
 /**
- * @brief Start the thread of every lane that runner_init() made ready.
- * The entry lane gets the higher priority.
+ * @brief Start the thread of every lane that runner_init() made ready, then
+ *        the distance acquisition. The entry lane gets the higher priority.
  */
 void runner_start(void);
 

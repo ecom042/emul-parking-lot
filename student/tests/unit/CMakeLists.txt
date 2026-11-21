@@ -68,6 +68,14 @@ target_sources(app PRIVATE
 	../../src/services/src/payment.c
 )
 
+# services/presence: histerese 683/1024 sobre chan_distance e o feixe.
+# hw/sensor é falso do FFF (definido em barrier/test_barrier.c); o canal é o
+# real de distance.c (já listado); events_post() é o real.
+target_sources(app PRIVATE
+	presence/test_presence.c
+	../../src/services/src/presence.c
+)
+
 # Lógica pura dos protocolos (sem hardware, sem falsos): wire, line_framer,
 # camera_proto, p1_proto e text.
 target_sources(app PRIVATE

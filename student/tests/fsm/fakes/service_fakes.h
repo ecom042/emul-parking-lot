@@ -22,6 +22,9 @@ DECLARE_FAKE_VALUE_FUNC(int, signals_stop, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(int, signals_assist, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(int, camera_init, enum lane_id);
 DECLARE_FAKE_VOID_FUNC(camera_poll, enum lane_id, int64_t);
+DECLARE_FAKE_VALUE_FUNC(int, presence_init, enum lane_id);
+DECLARE_FAKE_VALUE_FUNC(int, distance_init);
+DECLARE_FAKE_VOID_FUNC(distance_start);
 
 /** Reset every fake above and the shared call history. */
 void service_fakes_reset(void);

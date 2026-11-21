@@ -9,7 +9,9 @@
 #include "fsm/states.h"
 #include "services/barrier.h"
 #include "services/camera.h"
+#include "services/distance.h"
 #include "services/events.h"
+#include "services/presence.h"
 #include "services/signals.h"
 
 /*
@@ -30,6 +32,7 @@ K_THREAD_STACK_DEFINE(entry_stack, LANE_STACK_SIZE);
 static struct {
 	struct k_thread entry_thread; /**< runs the entry lane */
 	bool entry_ready;             /**< entry set up and EV_BOOT queued */
+	bool distance_ready;          /**< shared ADC4 set up: acquisition may start */
 } self;
 
 static int init_services(enum lane_id id)
@@ -40,6 +43,10 @@ static int init_services(enum lane_id id)
 		return err;
 	}
 	err = signals_init(id);
+	if (err != 0) {
+		return err;
+	}
+	err = presence_init(id);
 	if (err != 0) {
 		return err;
 	}
@@ -66,6 +73,37 @@ static int init_lane_equipment(enum lane_id id)
 	return err;
 }
 
+/*
+ * The ADC4 is shared, so its failure is a fault of both lanes, latched until
+ * reset (REQ-10). A lane that already failed its own setup was assisted then.
+ */
+static int init_distance(const int lane_err[LANE_COUNT])
+{
+	int err = distance_init();
+
+	if (err == 0) {
+		return 0;
+	}
+	printk("PARKING_INIT_FAILED: distance: %d\n", err);
+	for (int id = 0; id < LANE_COUNT; id++) {
+		if (lane_err[id] == 0) {
+			fall_back_to_assistance(id);
+		}
+	}
+	return err;
+}
+
+/* Reported in setup order: entry lane, exit lane, then distance. */
+static int first_error(const int lane_err[LANE_COUNT], int distance_err)
+{
+	for (int id = 0; id < LANE_COUNT; id++) {
+		if (lane_err[id] != 0) {
+			return lane_err[id];
+		}
+	}
+	return distance_err;
+}
+
 /* The queue is static, so EV_BOOT simply waits for the thread to start. */
 static void prepare_lane(enum lane_id id, const struct lane_def *rules)
 {
@@ -77,14 +115,20 @@ static void prepare_lane(enum lane_id id, const struct lane_def *rules)
 
 int runner_init(void)
 {
-	int entry_err = init_lane_equipment(LANE_ENTRY);
-	int exit_err = init_lane_equipment(LANE_EXIT);
+	int lane_err[LANE_COUNT];
 
-	self.entry_ready = (entry_err == 0);
+	/* Lanes first: the distance fallback needs their signals configured. */
+	for (int id = 0; id < LANE_COUNT; id++) {
+		lane_err[id] = init_lane_equipment(id);
+	}
+	int distance_err = init_distance(lane_err);
+
+	self.distance_ready = (distance_err == 0);
+	self.entry_ready = self.distance_ready && (lane_err[LANE_ENTRY] == 0);
 	if (self.entry_ready) {
 		prepare_lane(LANE_ENTRY, states_entry_def());
 	}
-	return (entry_err != 0) ? entry_err : exit_err;
+	return first_error(lane_err, distance_err);
 }
 
 void runner_step(struct lane *lane)
@@ -109,14 +153,24 @@ static void run_lane(void *lane, void *unused1, void *unused2)
 	}
 }
 
-void runner_start(void)
+static void start_entry_thread(void)
 {
-	if (!self.entry_ready) {
-		return;
-	}
 	(void)k_thread_create(&self.entry_thread, entry_stack,
 			      K_THREAD_STACK_SIZEOF(entry_stack), run_lane,
 			      lanes_get(LANE_ENTRY), NULL, NULL,
 			      K_PRIO_PREEMPT(ENTRY_THREAD_PRIORITY), 0, K_NO_WAIT);
 	k_thread_name_set(&self.entry_thread, "lane_entry");
+}
+
+/* EV_BOOT is already queued, so each lane leaves INIT before its first
+ * distance event arrives.
+ */
+void runner_start(void)
+{
+	if (self.entry_ready) {
+		start_entry_thread();
+	}
+	if (self.distance_ready) {
+		distance_start();
+	}
 }

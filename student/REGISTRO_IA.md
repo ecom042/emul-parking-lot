@@ -384,6 +384,50 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   - Os testes não dormem: limitam o instante em que o prazo foi armado pelo
     relógio lido antes e depois da transição, então não ficam instáveis.
 
+### 2026-11-21 — Presença: distância com histerese e feixe (services/presence)
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** REQ-02, REQ-03, REQ-07 (feixe), REQ-10 (falha do ADC na
+  partida)
+- **O que pedi:** o serviço de presença, com a skill `clean-c-zephyr`.
+- **O que a IA propôs:**
+  - `services/presence.{h,c}`: um listener do zbus em `chan_distance` com
+    histerese (`ARRIVED_BELOW_CODE 683`, `LEFT_ABOVE_CODE 1024`), estado
+    inicial desconhecido e `atomic_t` entre o work do `distance` e a thread
+    da faixa;
+  - o feixe por `hw/sensor`, que posta `EV_BEAM_ON` e `EV_BEAM_OFF` na
+    interrupção;
+  - as consultas `presence_car_near`, `presence_car_far` e
+    `presence_beam_active`;
+  - no `runner`: `presence_init` por faixa, `distance_init` uma vez (se
+    falhar, as duas faixas ficam em assistência, sem `EV_BOOT`) e
+    `distance_start` no `runner_start`, depois do `EV_BOOT`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei. Perguntei por que
+  o estado começa em desconhecido (resposta abaixo).
+- **Como verifiquei:** `firmware-coverage.py`: todas as suítes passam (15
+  testes novos do `presence`, 5 novos do `runner`); `presence.c` e
+  `runner.c` com 100% de linhas e de branches; total de 99,88% de linhas e
+  91,89% de branches. `partial-startup` e `contradictory-limits` continuam
+  passando. `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:**
+  - Histerese: abaixo de 683 é chegada, acima de 1024 é saída, e a faixa do
+    meio não muda nada. Por isso o ruído de ±64 em torno de 682 gera uma
+    chegada só (`noisy-threshold`), e um carro parado também
+    (`stationary`).
+  - O estado começa em desconhecido porque, antes da primeira amostra,
+    `presence_car_far()` não pode dizer "sim": as guardas de passagem e de
+    rearme dependem dessa resposta, e uma transição que depende da
+    distância só vale com uma leitura de verdade. O valor inicial 0 do canal
+    nunca é usado.
+  - O estado muda antes de o evento ser postado, para que a máquina, ao
+    receber `EV_CAR_LEFT`, já veja `presence_car_far()` verdadeiro.
+  - A falha do ADC compartilhado é uma falha das duas faixas. A partida
+    configura as faixas antes do ADC, porque a assistência precisa dos
+    sinais configurados.
+  - Em C, a ordem em que as expressões de uma lista de inicialização são
+    avaliadas não é garantida. Por isso a configuração das faixas é feita
+    num `for`, e não dentro do inicializador do vetor.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do
