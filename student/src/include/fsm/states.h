@@ -17,7 +17,8 @@ enum lane_state {
 	STATE_OPENING,       /**< plate accepted, motor opening (2500 ms budget) */
 	STATE_OPEN,          /**< upper limit, motor off, green on: waiting for the beam */
 	STATE_PASSING,       /**< beam seen: waiting for it to clear with the car far */
-	STATE_CLOSING,       /**< passage done, session created, motor closing (2500 ms) */
+	STATE_CLOSING,       /**< passage done, session updated, motor closing (2500 ms) */
+	STATE_CHARGING,      /**< exit only: amount shown and charged, waiting for PAID */
 	STATE_ASSIST,        /**< assistance at a closed barrier: rearms when the car leaves */
 	STATE_ASSIST_LOCKED, /**< assistance until reset: position, limits or ADC fault */
 	STATE_COUNT,
@@ -29,5 +30,13 @@ enum lane_state {
  * @return the rules, never NULL; they live for the whole run.
  */
 const struct lane_def *states_entry_def(void);
+
+/**
+ * @brief Rules of the exit lane: only a plate with a session goes on, and it
+ *        pays before the barrier opens.
+ * Start the lane in STATE_INIT and post EV_BOOT when the firmware is ready.
+ * @return the rules, never NULL; they live for the whole run.
+ */
+const struct lane_def *states_exit_def(void);
 
 #endif /* PARKING_FSM_STATES_H_ */

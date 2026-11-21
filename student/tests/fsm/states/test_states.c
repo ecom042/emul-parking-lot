@@ -14,6 +14,7 @@
 
 #include "../fakes/service_fakes.h"
 #include "fsm/lane.h"
+#include "fsm/lanes.h"
 #include "fsm/states.h"
 #include "services/barrier.h"
 #include "services/events.h"
@@ -75,10 +76,24 @@ static void start_in(uint8_t state)
 	lane_init(&lane, LANE_ENTRY, states_entry_def(), &test_queue, state);
 }
 
+/* The exit lane rules, on the same test lane object. */
+static void start_exit_in(uint8_t state)
+{
+	lane_init(&lane, LANE_EXIT, states_exit_def(), &test_queue, state);
+}
+
+/* Events a lane posts to itself go to its real queue (fsm/lanes.c). */
+static struct k_msgq *own_queue(enum lane_id id)
+{
+	return lanes_get(id)->queue;
+}
+
 static void reset_fakes(void *fixture)
 {
 	ARG_UNUSED(fixture);
 	service_fakes_reset();
+	k_msgq_purge(own_queue(LANE_ENTRY));
+	k_msgq_purge(own_queue(LANE_EXIT));
 	start_in(STATE_INIT);
 }
 
@@ -589,4 +604,161 @@ ZTEST(fsm_states, test_closing_timeout_latches_assistance)
 
 	zassert_equal(lane_state(&lane), STATE_ASSIST_LOCKED);
 	assert_assisted_once();
+}
+
+/* ---- Rearm when the car is already gone (REQ-09) ---- */
+
+ZTEST(fsm_states, test_assistance_with_car_already_gone_rearms_by_itself)
+{
+	uint8_t event;
+
+	start_in(STATE_IDENTIFYING);
+	presence_car_far_fake.return_val = true;
+	presence_beam_active_fake.return_val = false;
+
+	zassert_true(lane_dispatch(&lane, EV_CAPTURE_FAILED));
+
+	zassert_equal(lane_state(&lane), STATE_ASSIST);
+	zassert_ok(k_msgq_get(own_queue(LANE_ENTRY), &event, K_NO_WAIT), "no self event");
+	zassert_equal(event, EV_CAR_LEFT);
+	zassert_true(lane_dispatch(&lane, event));
+	zassert_equal(lane_state(&lane), STATE_IDLE);
+}
+
+ZTEST(fsm_states, test_assistance_with_car_gone_but_beam_active_waits)
+{
+	start_in(STATE_IDENTIFYING);
+	presence_car_far_fake.return_val = true;
+	presence_beam_active_fake.return_val = true;
+
+	zassert_true(lane_dispatch(&lane, EV_CAPTURE_FAILED));
+
+	zassert_equal(k_msgq_num_used_get(own_queue(LANE_ENTRY)), 0, "waits for EV_BEAM_OFF");
+}
+
+ZTEST(fsm_states, test_latched_assistance_never_rearms_by_itself)
+{
+	start_in(STATE_OPENING);
+	presence_car_far_fake.return_val = true;
+	presence_beam_active_fake.return_val = false;
+
+	zassert_true(lane_dispatch(&lane, EV_TIMEOUT));
+
+	zassert_equal(lane_state(&lane), STATE_ASSIST_LOCKED);
+	zassert_equal(k_msgq_num_used_get(own_queue(LANE_ENTRY)), 0);
+}
+
+ZTEST(fsm_states, test_entry_assistance_never_touches_the_payment)
+{
+	start_in(STATE_IDENTIFYING);
+
+	zassert_true(lane_dispatch(&lane, EV_CAPTURE_FAILED));
+
+	zassert_equal(payment_cancel_fake.call_count, 0, "the terminal belongs to the exit");
+}
+
+/* ---- Exit lane: identification (REQ-04) ---- */
+
+static const uint8_t exit_running_states[] = {
+	STATE_INIT, STATE_IDLE, STATE_IDENTIFYING, STATE_CHARGING, STATE_ASSIST,
+};
+
+ZTEST(fsm_states, test_exit_boot_and_arrival_start_a_recognition)
+{
+	start_exit_in(STATE_INIT);
+	barrier_is_closed_fake.return_val = true;
+
+	zassert_true(lane_dispatch(&lane, EV_BOOT));
+	zassert_true(lane_dispatch(&lane, EV_CAR_ARRIVED));
+
+	zassert_equal(lane_state(&lane), STATE_IDENTIFYING);
+	zassert_equal(camera_start_fake.arg0_val, LANE_EXIT);
+}
+
+ZTEST(fsm_states, test_exit_plate_with_session_goes_to_charging)
+{
+	start_exit_in(STATE_IDENTIFYING);
+	camera_plate_fake.custom_fake = plate_was_read;
+	sessions_entry_time_fake.return_val = 0;
+
+	zassert_true(lane_dispatch(&lane, EV_PLATE_READ));
+
+	zassert_equal(lane_state(&lane), STATE_CHARGING);
+	zassert_equal(camera_plate_fake.arg0_val, LANE_EXIT);
+	zassert_equal(sessions_entry_time_fake.call_count, 1);
+}
+
+ZTEST(fsm_states, test_exit_plate_without_session_asks_for_assistance)
+{
+	start_exit_in(STATE_IDENTIFYING);
+	camera_plate_fake.custom_fake = plate_was_read;
+	sessions_entry_time_fake.return_val = -ENOENT;
+
+	zassert_true(lane_dispatch(&lane, EV_PLATE_READ));
+
+	zassert_equal(lane_state(&lane), STATE_ASSIST);
+	zassert_equal(barrier_open_fake.call_count, 0, "never opens");
+}
+
+ZTEST(fsm_states, test_exit_plate_read_without_plate_asks_for_assistance)
+{
+	start_exit_in(STATE_IDENTIFYING);
+	camera_plate_fake.return_val = -ENOENT;
+
+	zassert_true(lane_dispatch(&lane, EV_PLATE_READ));
+
+	zassert_equal(lane_state(&lane), STATE_ASSIST);
+	zassert_equal(sessions_entry_time_fake.call_count, 0);
+}
+
+ZTEST(fsm_states, test_exit_car_leaving_during_recognition_goes_idle)
+{
+	start_exit_in(STATE_IDENTIFYING);
+
+	zassert_true(lane_dispatch(&lane, EV_CAR_LEFT));
+
+	zassert_equal(lane_state(&lane), STATE_IDLE);
+	zassert_equal(camera_abandon_fake.arg0_val, LANE_EXIT);
+}
+
+/* Spec: invalidate the charge (P1 CANCEL) first, then request assistance. */
+ZTEST(fsm_states, test_exit_assistance_cancels_the_charge_first)
+{
+	start_exit_in(STATE_IDENTIFYING);
+
+	zassert_true(lane_dispatch(&lane, EV_CAPTURE_FAILED));
+
+	zassert_equal(lane_state(&lane), STATE_ASSIST);
+	zassert_equal(payment_cancel_fake.call_count, 1);
+	zassert_true(call_position(payment_cancel) < call_position(signals_assist),
+		     "cancel before the buzzer");
+	zassert_equal(signals_assist_fake.arg0_val, LANE_EXIT);
+}
+
+ZTEST(fsm_states, test_exit_faults_latch_and_cancel_the_charge)
+{
+	for (size_t i = 0; i < ARRAY_SIZE(exit_running_states); i++) {
+		reset_fakes(NULL);
+		start_exit_in(exit_running_states[i]);
+
+		zassert_true(lane_dispatch(&lane, EV_LIMITS_CONFLICT));
+
+		zassert_equal(lane_state(&lane), STATE_ASSIST_LOCKED, "from %u",
+			      exit_running_states[i]);
+		zassert_equal(payment_cancel_fake.call_count, 1);
+		zassert_equal(barrier_stop_fake.arg0_val, LANE_EXIT);
+	}
+}
+
+ZTEST(fsm_states, test_exit_assistance_with_car_already_gone_rearms_by_itself)
+{
+	uint8_t event;
+
+	start_exit_in(STATE_IDENTIFYING);
+	presence_car_far_fake.return_val = true;
+
+	zassert_true(lane_dispatch(&lane, EV_CAPTURE_FAILED));
+
+	zassert_ok(k_msgq_get(own_queue(LANE_EXIT), &event, K_NO_WAIT));
+	zassert_equal(event, EV_CAR_LEFT);
 }

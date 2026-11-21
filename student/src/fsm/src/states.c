@@ -5,6 +5,7 @@
 #include "services/barrier.h"
 #include "services/camera.h"
 #include "services/events.h"
+#include "services/payment.h"
 #include "services/presence.h"
 #include "services/sessions.h"
 #include "services/signals.h"
@@ -41,6 +42,18 @@ static enum lane_id lane_id_of(const struct lane *lane)
 static bool barrier_closed(const struct lane *lane)
 {
 	return barrier_is_closed(lane_id_of(lane));
+}
+
+/* REQ-04, exit: only a plate with an active session may pay and leave. */
+static bool plate_has_session(const struct lane *lane)
+{
+	char plate[PLATE_LEN + 1];
+	int64_t entry_ms;
+
+	if (camera_plate(lane_id_of(lane), plate) != 0) {
+		return false;
+	}
+	return sessions_entry_time(plate, &entry_ms) == 0;
 }
 
 /* REQ-04: the plate just read has no session and a spot is free. */
@@ -146,32 +159,86 @@ static void close_after_passage(struct lane *lane)
 }
 
 /* REQ-09: motor off first, then red on, green off and one buzzer pulse. */
-static void request_assistance(struct lane *lane)
+static void assist(enum lane_id id)
 {
-	(void)barrier_stop(lane_id_of(lane));
-	camera_abandon(lane_id_of(lane));
-	(void)signals_assist(lane_id_of(lane));
+	(void)barrier_stop(id);
+	camera_abandon(id);
+	(void)signals_assist(id);
 }
 
-/* ---- Entry lane rules ---- */
+/*
+ * The rearm edges (EV_CAR_LEFT, EV_BEAM_OFF) may already be past: a car that
+ * left during payment is far before the lane gets here. Then the lane tells
+ * itself, so it does not wait for an edge that will never come.
+ */
+static void rearm_if_car_already_gone(enum lane_id id)
+{
+	if (presence_car_far(id) && !presence_beam_active(id)) {
+		(void)events_post(id, EV_CAR_LEFT);
+	}
+}
+
+static void request_assistance(struct lane *lane)
+{
+	assist(lane_id_of(lane));
+}
+
+static void request_rearmable_assistance(struct lane *lane)
+{
+	assist(lane_id_of(lane));
+	rearm_if_car_already_gone(lane_id_of(lane));
+}
+
+/* Exit: invalidate any charge (P1 CANCEL if one was sent) before
+ * requesting assistance; harmless when nothing is being charged.
+ */
+static void request_exit_assistance(struct lane *lane)
+{
+	payment_cancel();
+	request_assistance(lane);
+}
+
+static void request_rearmable_exit_assistance(struct lane *lane)
+{
+	payment_cancel();
+	request_rearmable_assistance(lane);
+}
+
+/* ---- Rows shared by both lanes ---- */
 
 /*
  * REQ-01: boot goes to IDLE only with the barrier closed; any other position
  * asks for assistance instead of closing by itself (no automatic homing).
- * REQ-09: STATE_ASSIST rearms when the car is far AND the beam is clear;
- * either may come last, so both edges ask for the other condition.
- * STATE_ASSIST_LOCKED has an empty row: only a reset leaves it.
  */
+#define ROW_INIT                                                               \
+	{                                                                      \
+		LATCHING_FAULTS,                                               \
+		[EV_BOOT] = GO_IF(barrier_closed, STATE_IDLE, STATE_ASSIST_LOCKED), \
+	}
+
+#define ROW_IDLE                                                               \
+	{                                                                      \
+		LATCHING_FAULTS,                                               \
+		[EV_CAR_ARRIVED] = GO_IF(barrier_closed, STATE_IDENTIFYING,    \
+					 STATE_ASSIST_LOCKED),                 \
+	}
+
+/* REQ-09: rearms when the car is far AND the beam is clear; either may come
+ * last, so both edges ask for the other condition.
+ */
+#define ROW_ASSIST                                                             \
+	{                                                                      \
+		LATCHING_FAULTS,                                               \
+		[EV_CAR_LEFT] = GO_IF(beam_clear, STATE_IDLE, LANE_STATE_NONE), \
+		[EV_BEAM_OFF] = GO_IF(car_far, STATE_IDLE, LANE_STATE_NONE),   \
+	}
+
+/* ---- Entry lane rules ---- */
+
+/* STATE_ASSIST_LOCKED has an empty row in both lanes: only a reset leaves it. */
 static const struct lane_transition entry_table[STATE_COUNT][EV_COUNT] = {
-	[STATE_INIT] = {
-		LATCHING_FAULTS,
-		[EV_BOOT] = GO_IF(barrier_closed, STATE_IDLE, STATE_ASSIST_LOCKED),
-	},
-	[STATE_IDLE] = {
-		LATCHING_FAULTS,
-		[EV_CAR_ARRIVED] = GO_IF(barrier_closed, STATE_IDENTIFYING,
-					 STATE_ASSIST_LOCKED),
-	},
+	[STATE_INIT] = ROW_INIT,
+	[STATE_IDLE] = ROW_IDLE,
 	[STATE_IDENTIFYING] = {
 		LATCHING_FAULTS,
 		[EV_PLATE_READ] = GO_IF(plate_may_enter, STATE_OPENING, STATE_ASSIST),
@@ -207,11 +274,7 @@ static const struct lane_transition entry_table[STATE_COUNT][EV_COUNT] = {
 		[EV_BEAM_ON] = GO(STATE_ASSIST_LOCKED),
 		[EV_TIMEOUT] = GO(STATE_ASSIST_LOCKED), /* arm stopped halfway */
 	},
-	[STATE_ASSIST] = {
-		LATCHING_FAULTS,
-		[EV_CAR_LEFT] = GO_IF(beam_clear, STATE_IDLE, LANE_STATE_NONE),
-		[EV_BEAM_OFF] = GO_IF(car_far, STATE_IDLE, LANE_STATE_NONE),
-	},
+	[STATE_ASSIST] = ROW_ASSIST,
 };
 
 static const lane_enter_fn entry_actions[STATE_COUNT] = {
@@ -220,7 +283,7 @@ static const lane_enter_fn entry_actions[STATE_COUNT] = {
 	[STATE_OPENING] = open_barrier,
 	[STATE_OPEN] = let_car_through,
 	[STATE_CLOSING] = close_after_passage,
-	[STATE_ASSIST] = request_assistance,
+	[STATE_ASSIST] = request_rearmable_assistance,
 	[STATE_ASSIST_LOCKED] = request_assistance,
 };
 
@@ -240,7 +303,46 @@ static const struct lane_def entry_def = {
 	.n_events = EV_COUNT,
 };
 
+/* ---- Exit lane rules ---- */
+
+/* REQ-04: a plate without a session (camera misread, never entered) asks
+ * for assistance, never another car's payment.
+ */
+static const struct lane_transition exit_table[STATE_COUNT][EV_COUNT] = {
+	[STATE_INIT] = ROW_INIT,
+	[STATE_IDLE] = ROW_IDLE,
+	[STATE_IDENTIFYING] = {
+		LATCHING_FAULTS,
+		[EV_PLATE_READ] = GO_IF(plate_has_session, STATE_CHARGING, STATE_ASSIST),
+		[EV_CAPTURE_FAILED] = GO(STATE_ASSIST),
+		[EV_CAR_LEFT] = GO(STATE_IDLE), /* REQ-03: gave up, no assistance */
+	},
+	[STATE_CHARGING] = {
+		LATCHING_FAULTS,
+	},
+	[STATE_ASSIST] = ROW_ASSIST,
+};
+
+static const lane_enter_fn exit_actions[STATE_COUNT] = {
+	[STATE_IDLE] = wait_for_car,
+	[STATE_IDENTIFYING] = start_recognition,
+	[STATE_ASSIST] = request_rearmable_exit_assistance,
+	[STATE_ASSIST_LOCKED] = request_exit_assistance,
+};
+
+static const struct lane_def exit_def = {
+	.table = &exit_table[0][0],
+	.on_enter = exit_actions,
+	.n_states = STATE_COUNT,
+	.n_events = EV_COUNT,
+};
+
 const struct lane_def *states_entry_def(void)
 {
 	return &entry_def;
+}
+
+const struct lane_def *states_exit_def(void)
+{
+	return &exit_def;
 }

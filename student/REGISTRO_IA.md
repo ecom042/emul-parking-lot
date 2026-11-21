@@ -678,6 +678,77 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   - `(ms + unit − 1) / unit` pode estourar o `int64_t`; dividir e somar 1
     quando sobra resto dá o mesmo resultado sem esse risco.
 
+### 2026-11-21 — Regras e thread da saída até a identificação (fsm/states, fsm/runner)
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** REQ-04 (só placa com sessão sai), REQ-09 (rearme),
+  REQ-04 (uma faixa não segura a outra)
+- **O que pedi:** a saída com máquina e thread próprias, identificando
+  carros com sessão, ainda sem cobrar.
+- **O que a IA propôs:**
+  - `states_exit_def()`: INIT, IDLE, IDENTIFYING (guarda
+    `plate_has_session`), CHARGING (por enquanto só as falhas), ASSIST e
+    ASSIST_LOCKED. As linhas iguais nas duas faixas viraram macros
+    (`ROW_INIT`, `ROW_IDLE`, `ROW_ASSIST`).
+  - A assistência da saída chama `payment_cancel()` antes do buzzer.
+  - **Rearme na entrada do ASSIST, nas duas faixas:** se o carro já está
+    longe e o feixe livre, a faixa posta `EV_CAR_LEFT` para si mesma, porque
+    a borda que rearmaria já passou.
+  - **`runner`:** uma tabela `setups[]` por faixa (regras, `extra_init` =
+    `payment_init`, `blocking_init` = `screen_init`, `extra_poll` =
+    `payment_poll`, prioridade); thread da saída com prioridade 6.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei.
+- **Problema encontrado e corrigido:**
+  - **Sintoma:** com o `screen_init` chamado pela `main`, 11 dos 13
+    cenários de entrada passaram a reprovar.
+  - **Causa:** a `main` tem prioridade 0, mais alta que a da entrada (5), e
+    o desenho inicial do display é um envio longo por SPI que ocupa a CPU,
+    então a entrada ficava sem rodar.
+  - **Correção:** o init lento da saída roda no começo da própria thread da
+    saída, com prioridade 6. Se falhar, a saída fica em assistência e a
+    thread termina.
+  - **Como achei:** experimentos ligando e desligando cada mudança, e a
+    leitura do console de um build de cobertura com `printk` temporários
+    (já removidos).
+- **Segundo problema, anterior a este passo (corrigido):**
+  - **Engano da IA:** eu (IA) disse que o `lab.py --headless` dava "falso
+    negativo". Estava errado, e o Kauã corrigiu: o `lab.py` é ferramenta do
+    curso e usa o mesmo `assess.py` do `firmware-coverage.py`. A diferença é
+    o build: o do `lab.py` é otimizado e rápido; o de cobertura (gcov, sem
+    otimização) é lento.
+  - **Causa:** no build rápido, o `EV_BOOT` era decidido nos primeiros
+    milissegundos, antes de o modelo aplicar o nível do fim de curso
+    inferior no pino (as entradas são atualizadas a cada tick de 10 ms).
+    `barrier_is_closed()` lia falso, e a entrada ia para ASSIST_LOCKED no
+    tick 0. O build de cobertura escondia o problema; ele já existia no
+    branch `feat/entry-lane`.
+  - **Correção:** `INPUT_SETTLE_MS` (20 ms, dois ticks) no `runner_init()`,
+    com as saídas já no estado seguro, antes de postar o `EV_BOOT`. Um teste
+    confere a espera.
+- **Como verifiquei:** os 19 cenários **nos dois builds**:
+  - build normal (`lab.py --prepare-only` e `assess.py` por cenário):
+    13/19;
+  - `firmware-coverage.py`: 13/19, todas as suítes passam (cerca de 17
+    testes novos em `tests/fsm`), `states.c` e `runner.c` com 100% de
+    linhas e de branches, total de 99,90% de linhas e 95,84% de branches;
+  - os 6 que faltam são os da cobrança. `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:**
+  - Prioridade importa: um trabalho longo e sem pausas numa thread de
+    prioridade alta segura as outras, mesmo que o código delas esteja certo.
+    O init lento fica na thread menos urgente.
+  - A assistência que rearma precisa olhar a situação na hora em que é
+    acionada, e não só esperar bordas: o carro que desiste no pagamento já
+    está longe quando a faixa entra no ASSIST.
+  - O cancelamento do pagamento vem antes do buzzer, como pede o protocolo:
+    "invalidate the active UUID before sending CANCEL, then request
+    assistance".
+  - Um cenário que passa num build e reprova no outro indica um problema
+    de tempo no firmware, não na ferramenta. A partir de agora, cada passo
+    é verificado nos dois builds.
+  - Logo depois do reset, as entradas podem ainda não mostrar o nível real;
+    esperar a primeira atualização (dois ticks) antes de decidir pela
+    posição da cancela é a forma segura.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

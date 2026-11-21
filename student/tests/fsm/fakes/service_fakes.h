@@ -38,6 +38,11 @@ DECLARE_FAKE_VALUE_FUNC(bool, presence_beam_active, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(bool, presence_car_near, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(int, barrier_close, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(int, sessions_create, const char *, int64_t);
+DECLARE_FAKE_VALUE_FUNC(int, sessions_entry_time, const char *, int64_t *);
+DECLARE_FAKE_VALUE_FUNC(int, payment_init);
+DECLARE_FAKE_VOID_FUNC(payment_cancel);
+DECLARE_FAKE_VOID_FUNC(payment_poll, int64_t);
+DECLARE_FAKE_VALUE_FUNC(int, screen_init);
 
 /** Reset every fake above and the shared call history. */
 void service_fakes_reset(void);
