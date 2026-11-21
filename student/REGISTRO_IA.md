@@ -468,6 +468,60 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   - O instante gravado é o início da tarifa (M3), e o reset começa com o
     lote vazio.
 
+### 2026-11-21 — Identificação e abertura da entrada (fsm/states)
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** REQ-01 (IDLE sem fim de curso inferior), REQ-02,
+  REQ-03, REQ-04, REQ-06 (prazo de abertura), REQ-09 (rearme)
+- **O que pedi:** o estado IDENTIFYING e o rearme da assistência. Aceitei a
+  proposta de trazer também o OPENING, para que a placa aceita tenha um
+  destino e para que `jam` e `missing-upper` já passem.
+- **O que a IA propôs:**
+  - IDLE → IDENTIFYING na chegada, se a cancela está fechada (senão
+    ASSIST_LOCKED);
+  - IDENTIFYING → OPENING se `plate_may_enter` (placa lida e
+    `sessions_can_enter`), senão ASSIST; `EV_CAPTURE_FAILED` → ASSIST; o carro
+    saindo → IDLE;
+  - OPENING com prazo de 2500 ms (`BARRIER_MOTION_BUDGET_MS`) e
+    `EV_TIMEOUT` → ASSIST_LOCKED;
+  - ASSIST rearma com `EV_CAR_LEFT` se o feixe está livre, ou `EV_BEAM_OFF`
+    se o carro está longe;
+  - `camera_abandon` nas ações de entrada de IDLE e das assistências, porque
+    o motor da máquina não tem ação de saída.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei. Uma mudança em
+  relação ao resumo: o OPENING não guarda a placa. A câmera a mantém até o
+  próximo `camera_start`, que só acontece depois do IDLE, então o fechamento
+  (passo 8) pode lê-la de novo.
+- **Como verifiquei:**
+  - Cenários que passam agora: `low-confidence`, `camera-timeout`, `jam`
+    (G3), `missing-upper` e `reset-capture`, além de `partial-startup` e
+    `contradictory-limits` (7 de 19). `payment-stale` termina em `error`
+    (um comando agendado do cenário falha porque a passagem ainda não
+    existe), não em aprovação.
+  - `firmware-coverage.py`: todas as suítes passam (14 testes novos em
+    `tests/fsm`); `states.c` com 100% de linhas e de branches; total de
+    99,89% de linhas e 92,28% de branches. `static-check.py` com 0 achados.
+  - Um teste falhou na primeira rodada por erro do próprio teste: o FFF
+    guarda só o ponteiro do argumento, e o ponteiro passado a
+    `sessions_can_enter` aponta para um buffer local da guarda, que já não
+    existe quando o teste o lê. Corrigi com um falso que copia a placa no
+    momento da chamada.
+- **O que aprendi / o que ainda preciso entender:**
+  - O rearme exige duas condições ao mesmo tempo (carro longe e feixe
+    livre). Qualquer uma pode ser a última, então as duas bordas viram
+    eventos, e cada uma confere a outra condição pelo nível atual, numa
+    guarda sem `otherwise`.
+  - Sem ação de saída, a limpeza vai na ação de entrada dos estados de
+    destino: todo caminho para fora do IDENTIFYING sem resultado passa por
+    IDLE ou por uma assistência, e os dois chamam `camera_abandon`.
+  - Prazo de abertura vencido trava a assistência, porque o braço pode ter
+    parado no meio (`jam` em 0°, `missing-upper` em 90°). Só a assistência
+    com a cancela fechada rearma.
+  - Placa recusada (lotado ou já estacionada) leva à assistência que
+    rearma: a cancela continua fechada.
+  - O FFF guarda ponteiros, não o conteúdo: para verificar uma string
+    passada como argumento, é preciso copiá-la num falso próprio.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

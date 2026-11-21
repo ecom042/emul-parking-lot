@@ -14,6 +14,13 @@ DEFINE_FAKE_VALUE_FUNC(int, presence_init, enum lane_id);
 DEFINE_FAKE_VALUE_FUNC(int, distance_init);
 DEFINE_FAKE_VOID_FUNC(distance_start);
 DEFINE_FAKE_VOID_FUNC(sessions_clear);
+DEFINE_FAKE_VALUE_FUNC(int, barrier_open, enum lane_id);
+DEFINE_FAKE_VALUE_FUNC(int, camera_start, enum lane_id);
+DEFINE_FAKE_VOID_FUNC(camera_abandon, enum lane_id);
+DEFINE_FAKE_VALUE_FUNC(int, camera_plate, enum lane_id, char *);
+DEFINE_FAKE_VALUE_FUNC(bool, sessions_can_enter, const char *);
+DEFINE_FAKE_VALUE_FUNC(bool, presence_car_far, enum lane_id);
+DEFINE_FAKE_VALUE_FUNC(bool, presence_beam_active, enum lane_id);
 
 void service_fakes_reset(void)
 {
@@ -29,5 +36,12 @@ void service_fakes_reset(void)
 	RESET_FAKE(distance_init);
 	RESET_FAKE(distance_start);
 	RESET_FAKE(sessions_clear);
+	RESET_FAKE(barrier_open);
+	RESET_FAKE(camera_start);
+	RESET_FAKE(camera_abandon);
+	RESET_FAKE(camera_plate);
+	RESET_FAKE(sessions_can_enter);
+	RESET_FAKE(presence_car_far);
+	RESET_FAKE(presence_beam_active);
 	FFF_RESET_HISTORY();
 }

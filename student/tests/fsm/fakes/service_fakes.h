@@ -13,6 +13,7 @@
 #include <zephyr/fff.h>
 
 #include "hw/lane_hw.h"
+#include "services/wire.h" /* PLATE_LEN */
 
 DECLARE_FAKE_VALUE_FUNC(int, barrier_init, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(bool, barrier_is_closed, enum lane_id);
@@ -26,6 +27,13 @@ DECLARE_FAKE_VALUE_FUNC(int, presence_init, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(int, distance_init);
 DECLARE_FAKE_VOID_FUNC(distance_start);
 DECLARE_FAKE_VOID_FUNC(sessions_clear);
+DECLARE_FAKE_VALUE_FUNC(int, barrier_open, enum lane_id);
+DECLARE_FAKE_VALUE_FUNC(int, camera_start, enum lane_id);
+DECLARE_FAKE_VOID_FUNC(camera_abandon, enum lane_id);
+DECLARE_FAKE_VALUE_FUNC(int, camera_plate, enum lane_id, char *);
+DECLARE_FAKE_VALUE_FUNC(bool, sessions_can_enter, const char *);
+DECLARE_FAKE_VALUE_FUNC(bool, presence_car_far, enum lane_id);
+DECLARE_FAKE_VALUE_FUNC(bool, presence_beam_active, enum lane_id);
 
 /** Reset every fake above and the shared call history. */
 void service_fakes_reset(void);

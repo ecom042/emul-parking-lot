@@ -13,6 +13,8 @@
 enum lane_state {
 	STATE_INIT = 1,      /**< booting: outputs safe, waiting for EV_BOOT */
 	STATE_IDLE,          /**< barrier closed, red on, waiting for a car */
+	STATE_IDENTIFYING,   /**< camera recognition running (up to 3 attempts) */
+	STATE_OPENING,       /**< plate accepted, motor opening (2500 ms budget) */
 	STATE_ASSIST,        /**< assistance at a closed barrier: rearms when the car leaves */
 	STATE_ASSIST_LOCKED, /**< assistance until reset: position, limits or ADC fault */
 	STATE_COUNT,
