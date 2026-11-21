@@ -64,6 +64,7 @@ camadas.
 | `services/` | `camera` (3 tentativas, 1000 ms, confiança >= 85) | `tests/unit/camera/` (20) |
 | `services/` | `distance` (ADC4 17/18, prazo 100 ms, `chan_distance`) | `tests/unit/distance/` (15) |
 | `services/` | `screen` (placa, `BRL x.xx`, rótulos) | `tests/unit/screen/` (17) |
+| `services/` | `payment` (P1, UUID por contador, 3 envios, CANCEL) | `tests/unit/payment/` (23) |
 | `hw/` | `lane_hw`, `indicator`, `motor`, `sensor` | `tests/hw/` (1 + 4 + 4, sobre `gpio-emul`) |
 
 **Suítes de teste:**
@@ -74,8 +75,8 @@ camadas.
   (`zephyr,gpio-emul` no `app.overlay`). Fica separada porque os falsos do FFF
   de `tests/unit/` colidiriam com o `hw/` real.
 
-**Última medição** (`firmware-coverage.py`): todas as suítes passam; 97,35% de
-linhas e 88,15% de branches em `student/src`. `static-check.py`: 0 achados.
+**Última medição** (`firmware-coverage.py`): todas as suítes passam; 97,61% de
+linhas e 88,84% de branches em `student/src`. `static-check.py`: 0 achados.
 Os 19 cenários reprovam (esperado: o `main.c` não chama nada).
 
 ## O que falta e quem faz
@@ -86,8 +87,8 @@ Contrato em [`../contrato-e-divisao.md`](../contrato-e-divisao.md).
   (com `p1_uuid_format`), `text`, `hw/uart_line`, `hw/adc4`, `hw/st7789`;
   etapa 1 (M0): `events.h` completo, campos de `lane_hw`, headers `camera.h`,
   `distance.h`, `payment.h`, `screen.h`.
-- **Plácido, etapas seguintes:** (2 `camera`, 3 `distance` e 4 `screen` prontas); 
-  5 `services/payment`.
+- **Plácido, etapas seguintes:** etapas 2 a 5 (`camera`, `distance`, `screen`, `payment`) prontas; falta só
+  integrar com o `main.c` do Kauã.
 - **Kauã:** passo 5; prazos (`EV_TIMEOUT`); `presence`; estados do ciclo da
   entrada; `sessions`; `tariff`; `exit_table`; headers `presence.h`,
   `sessions.h`, `tariff.h`.

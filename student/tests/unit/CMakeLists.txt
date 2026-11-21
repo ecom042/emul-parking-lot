@@ -61,6 +61,13 @@ target_sources(app PRIVATE
 	../../src/services/src/screen.c
 )
 
+# services/payment: cobrança no terminal P1. hw/uart_line é falso do FFF (não
+# listar hw/src/uart_line.c); events_post() é o real, lido pela fila da faixa.
+target_sources(app PRIVATE
+	payment/test_payment.c
+	../../src/services/src/payment.c
+)
+
 # Lógica pura dos protocolos (sem hardware, sem falsos): wire, line_framer,
 # camera_proto, p1_proto e text.
 target_sources(app PRIVATE

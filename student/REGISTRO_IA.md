@@ -253,6 +253,22 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   vistos quando o `main.c` chamar o serviço.
 - **O que aprendi / o que ainda preciso entender:** (preencher).
 
+### Etapa 5: services/payment (Plácido, Claude Code)
+
+- **O que pedi:** implementar `services/payment` (UUID por contador, 3 envios
+  de 1000 ms, só PAID exato, CANCEL no fim), planejado por um Opus e
+  implementado por um Sonnet.
+- **O que a IA fez:** `payment.c` (IDLE/SEND/WAITING; PAID e CANCELLED só
+  valem com o UUID e o valor da cobrança atual; no 3º prazo invalida, envia
+  CANCEL e só então posta `EV_PAYMENT_FAILED`) e 23 testes.
+- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). CANCELLED atual
+  posta FAILED sem reenviar CANCEL; ERROR do terminal é ignorado e o prazo
+  resolve.
+- **Como verifiquei:** suítes passam; `payment.c` 100% de linhas e 97,06% de
+  branches (falta só o `__ASSERT` do CANCEL); total 97,61% / 88,84%;
+  `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:** (preencher).
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do
