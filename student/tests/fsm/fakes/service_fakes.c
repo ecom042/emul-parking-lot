@@ -13,6 +13,7 @@ DEFINE_FAKE_VOID_FUNC(camera_poll, enum lane_id, int64_t);
 DEFINE_FAKE_VALUE_FUNC(int, presence_init, enum lane_id);
 DEFINE_FAKE_VALUE_FUNC(int, distance_init);
 DEFINE_FAKE_VOID_FUNC(distance_start);
+DEFINE_FAKE_VOID_FUNC(sessions_clear);
 
 void service_fakes_reset(void)
 {
@@ -27,5 +28,6 @@ void service_fakes_reset(void)
 	RESET_FAKE(presence_init);
 	RESET_FAKE(distance_init);
 	RESET_FAKE(distance_start);
+	RESET_FAKE(sessions_clear);
 	FFF_RESET_HISTORY();
 }

@@ -10,6 +10,7 @@ target_sources(app PRIVATE
 	src/payment.c
 	src/presence.c
 	src/screen.c
+	src/sessions.c
 	src/signals.c
 	src/text.c
 	src/wire.c

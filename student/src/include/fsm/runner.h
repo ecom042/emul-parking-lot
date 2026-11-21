@@ -11,8 +11,8 @@
 #include "fsm/lane.h"
 
 /**
- * @brief Set up both lanes and the shared distance acquisition, then queue
- *        EV_BOOT for each lane that has rules.
+ * @brief Empty the lot, set up both lanes and the shared distance
+ *        acquisition, then queue EV_BOOT for each lane that has rules.
  * A lane whose setup fails gets a best-effort assistance (motor stop, red,
  * buzzer pulse) and no EV_BOOT; a distance (ADC4) failure does that to both
  * lanes. Run once, from main(), before runner_start().

@@ -428,6 +428,46 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
     avaliadas não é garantida. Por isso a configuração das faixas é feita
     num `for`, e não dentro do inicializador do vetor.
 
+### 2026-11-21 — Tabela de sessões (services/sessions)
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** REQ-04, REQ-07 (sessão só na passagem completa), REQ-13
+- **O que pedi:** a tabela de vagas, com a skill `clean-c-zephyr`.
+- **O que a IA propôs:**
+  - `services/sessions.{h,c}` conforme a seção 4.4 do contrato:
+    `sessions_can_enter`, `sessions_create` (`-EEXIST`, `-ENOSPC`),
+    `sessions_entry_time` e `sessions_remove` (`-ENOENT`), mais
+    `sessions_clear`;
+  - a tabela tem `CONFIG_PARKING_CAPACITY` posições e um `k_mutex`. Cada
+    função pública trava, chama um helper `*_locked` e destrava;
+  - `runner_init` chama `sessions_clear()`.
+- **O que aceitei, mudei ou rejeitei, e por quê:**
+  - Escolhi o `k_mutex` no lugar do `chan_sessions` por zbus do diagrama
+    06: são duas threads que só consultam quando precisam, e ninguém
+    precisa ser avisado de mudanças na tabela.
+  - Sem `__ASSERT` para placa `NULL`: o contrato no header diz que a placa
+    nunca é `NULL`, e um assert criaria um branch que nada exercita.
+- **Como verifiquei:**
+  - `firmware-coverage.py`: todas as suítes passam (11 testes novos);
+    `sessions.c` com 100% de linhas e de branches; total de 99,89% de linhas
+    e 92,25% de branches. `static-check.py` com 0 achados.
+  - Na primeira rodada, dois testes falharam por erro no próprio teste: as
+    placas de preenchimento (`ABC1D20`..`ABC1D23`) incluíam a placa
+    testada, e o módulo respondeu `-EEXIST`, o que está certo. Troquei o
+    prefixo das placas de preenchimento.
+  - Lição: uma suíte com um teste reprovado não conta nada na cobertura (o
+    total caiu para 52% nessa rodada).
+- **O que aprendi / o que ainda preciso entender:**
+  - A placa é consultada quando é lida (`sessions_can_enter`) e a sessão só
+    é criada quando a passagem termina (`sessions_create`). Isso é seguro
+    porque só a entrada cria sessões: a saída só libera vagas.
+  - `sessions_create` confere de novo e devolve erro; um módulo não depende
+    de ser bem chamado para ficar coerente.
+  - O mutex protege só a busca e a escrita na tabela (decide dentro da
+    trava, age fora), então nenhuma faixa fica esperando a outra.
+  - O instante gravado é o início da tarifa (M3), e o reset começa com o
+    lote vazio.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

@@ -12,6 +12,7 @@
 #include "services/distance.h"
 #include "services/events.h"
 #include "services/presence.h"
+#include "services/sessions.h"
 #include "services/signals.h"
 
 /*
@@ -116,6 +117,8 @@ static void prepare_lane(enum lane_id id, const struct lane_def *rules)
 int runner_init(void)
 {
 	int lane_err[LANE_COUNT];
+
+	sessions_clear(); /* REQ-13: every run starts with an empty lot */
 
 	/* Lanes first: the distance fallback needs their signals configured. */
 	for (int id = 0; id < LANE_COUNT; id++) {

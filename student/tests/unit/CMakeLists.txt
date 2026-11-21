@@ -76,6 +76,13 @@ target_sources(app PRIVATE
 	../../src/services/src/presence.c
 )
 
+# services/sessions: tabela de vagas compartilhada pelas duas faixas (sem
+# falsos: só o mutex do kernel).
+target_sources(app PRIVATE
+	sessions/test_sessions.c
+	../../src/services/src/sessions.c
+)
+
 # Lógica pura dos protocolos (sem hardware, sem falsos): wire, line_framer,
 # camera_proto, p1_proto e text.
 target_sources(app PRIVATE

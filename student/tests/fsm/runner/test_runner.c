@@ -71,6 +71,7 @@ ZTEST(fsm_runner, test_init_sets_up_both_lanes_and_boots_entry)
 	zassert_equal(presence_init_fake.call_count, 2, "both lanes");
 	zassert_equal(camera_init_fake.call_count, 2, "both lanes");
 	zassert_equal(distance_init_fake.call_count, 1, "one shared ADC4");
+	zassert_equal(sessions_clear_fake.call_count, 1, "empty lot");
 	zassert_equal(entry->def, states_entry_def());
 	zassert_equal(lane_state(entry), STATE_INIT);
 	assert_queue_holds_only(LANE_ENTRY, EV_BOOT);
