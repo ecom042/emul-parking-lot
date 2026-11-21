@@ -135,10 +135,10 @@ static void let_car_through(struct lane *lane)
 }
 
 /*
- * REQ-07: only a completed passage creates the session. The camera still
- * holds the accepted plate: the next recognition starts after IDLE.
- * Creation cannot be refused here: sessions_can_enter() said yes when the
- * plate was read, and only this lane creates sessions.
+ * REQ-07: only a completed passage changes the sessions: the entry creates
+ * one, the paid exit removes it. The camera still holds the plate: the next
+ * recognition starts after IDLE. Neither can be refused here: the guard into
+ * the cycle checked it, and each lane is the only one doing its change.
  */
 static void record_entry(enum lane_id id)
 {
@@ -150,16 +150,35 @@ static void record_entry(enum lane_id id)
 	(void)sessions_create(plate, k_uptime_get());
 }
 
-/* REQ-08: green off and red on before the motor moves; the guard into
- * this state already checked that the beam is clear.
- */
-static void close_after_passage(struct lane *lane)
+static void record_exit(enum lane_id id)
 {
-	enum lane_id id = lane_id_of(lane);
+	char plate[PLATE_LEN + 1];
 
-	record_entry(id);
+	if (camera_plate(id, plate) != 0) {
+		return;
+	}
+	(void)sessions_remove(plate);
+}
+
+/* REQ-08: green off and red on before the motor moves; the guard into
+ * CLOSING already checked that the beam is clear.
+ */
+static void close_barrier(enum lane_id id)
+{
 	(void)signals_stop(id);
 	(void)barrier_close(id);
+}
+
+static void close_after_entry(struct lane *lane)
+{
+	record_entry(lane_id_of(lane));
+	close_barrier(lane_id_of(lane));
+}
+
+static void close_after_exit(struct lane *lane)
+{
+	record_exit(lane_id_of(lane));
+	close_barrier(lane_id_of(lane));
 }
 
 /*
@@ -284,6 +303,54 @@ static void request_rearmable_exit_assistance(struct lane *lane)
 		[EV_BEAM_OFF] = GO_IF(car_far, STATE_IDLE, LANE_STATE_NONE),   \
 	}
 
+/* REQ-06: the motor stops at the real limit; a missed one is a timeout. */
+#define ROW_OPENING                                                            \
+	{                                                                      \
+		LATCHING_FAULTS,                                               \
+		[EV_UPPER_REACHED] = GO(STATE_OPEN),                           \
+		[EV_TIMEOUT] = GO(STATE_ASSIST_LOCKED), /* arm stopped halfway */ \
+	}
+
+/* REQ-07: the beam must go active, then inactive with the car far. A car
+ * that never passes (stationary) keeps green until the passage budget.
+ */
+#define ROW_OPEN                                                               \
+	{                                                                      \
+		LATCHING_FAULTS,                                               \
+		[EV_BEAM_ON] = GO(STATE_PASSING),                              \
+		[EV_TIMEOUT] = GO(STATE_ASSIST_LOCKED), /* barrier left open */ \
+	}
+
+/* Beam clear and car far may come in either order: both edges ask. */
+#define ROW_PASSING                                                            \
+	{                                                                      \
+		LATCHING_FAULTS,                                               \
+		[EV_BEAM_OFF] = GO_IF(passage_complete, STATE_CLOSING, LANE_STATE_NONE), \
+		[EV_CAR_LEFT] = GO_IF(passage_complete, STATE_CLOSING, LANE_STATE_NONE), \
+		[EV_TIMEOUT] = GO(STATE_ASSIST_LOCKED), /* beam held or car stayed */ \
+	}
+
+/* REQ-08: an obstruction stops the motor (assistance) and never reverses
+ * or restarts it, even if the beam clears again.
+ */
+#define ROW_CLOSING                                                            \
+	{                                                                      \
+		LATCHING_FAULTS,                                               \
+		[EV_LOWER_REACHED] = GO_IF(car_near, STATE_IDENTIFYING, STATE_IDLE), \
+		[EV_BEAM_ON] = GO(STATE_ASSIST_LOCKED),                        \
+		[EV_TIMEOUT] = GO(STATE_ASSIST_LOCKED), /* arm stopped halfway */ \
+	}
+
+/* PASSING keeps OPEN's budget: the beam going active does not restart it.
+ * Both lanes move the same barrier model, so they share these budgets.
+ */
+static const uint16_t barrier_cycle_deadlines_ms[STATE_COUNT] = {
+	[STATE_OPENING] = BARRIER_MOTION_BUDGET_MS,
+	[STATE_OPEN] = PASSAGE_BUDGET_MS,
+	[STATE_PASSING] = LANE_DEADLINE_KEEP,
+	[STATE_CLOSING] = BARRIER_MOTION_BUDGET_MS,
+};
+
 /* ---- Entry lane rules ---- */
 
 /* STATE_ASSIST_LOCKED has an empty row in both lanes: only a reset leaves it. */
@@ -296,35 +363,10 @@ static const struct lane_transition entry_table[STATE_COUNT][EV_COUNT] = {
 		[EV_CAPTURE_FAILED] = GO(STATE_ASSIST),
 		[EV_CAR_LEFT] = GO(STATE_IDLE), /* REQ-03: gave up, no assistance */
 	},
-	[STATE_OPENING] = {
-		LATCHING_FAULTS,
-		[EV_UPPER_REACHED] = GO(STATE_OPEN),
-		[EV_TIMEOUT] = GO(STATE_ASSIST_LOCKED), /* arm stopped halfway */
-	},
-	/* REQ-07: the beam must go active, then inactive with the car far. A car
-	 * that never passes (stationary) keeps green until the passage budget.
-	 */
-	[STATE_OPEN] = {
-		LATCHING_FAULTS,
-		[EV_BEAM_ON] = GO(STATE_PASSING),
-		[EV_TIMEOUT] = GO(STATE_ASSIST_LOCKED), /* barrier left open */
-	},
-	/* Beam clear and car far may come in either order: both edges ask. */
-	[STATE_PASSING] = {
-		LATCHING_FAULTS,
-		[EV_BEAM_OFF] = GO_IF(passage_complete, STATE_CLOSING, LANE_STATE_NONE),
-		[EV_CAR_LEFT] = GO_IF(passage_complete, STATE_CLOSING, LANE_STATE_NONE),
-		[EV_TIMEOUT] = GO(STATE_ASSIST_LOCKED), /* beam held or car stayed */
-	},
-	/* REQ-08: an obstruction stops the motor (assistance) and never
-	 * reverses or restarts it, even if the beam clears again.
-	 */
-	[STATE_CLOSING] = {
-		LATCHING_FAULTS,
-		[EV_LOWER_REACHED] = GO_IF(car_near, STATE_IDENTIFYING, STATE_IDLE),
-		[EV_BEAM_ON] = GO(STATE_ASSIST_LOCKED),
-		[EV_TIMEOUT] = GO(STATE_ASSIST_LOCKED), /* arm stopped halfway */
-	},
+	[STATE_OPENING] = ROW_OPENING,
+	[STATE_OPEN] = ROW_OPEN,
+	[STATE_PASSING] = ROW_PASSING,
+	[STATE_CLOSING] = ROW_CLOSING,
 	[STATE_ASSIST] = ROW_ASSIST,
 };
 
@@ -333,23 +375,15 @@ static const lane_enter_fn entry_actions[STATE_COUNT] = {
 	[STATE_IDENTIFYING] = start_recognition,
 	[STATE_OPENING] = open_barrier,
 	[STATE_OPEN] = let_car_through,
-	[STATE_CLOSING] = close_after_passage,
+	[STATE_CLOSING] = close_after_entry,
 	[STATE_ASSIST] = request_rearmable_assistance,
 	[STATE_ASSIST_LOCKED] = request_assistance,
-};
-
-/* PASSING keeps OPEN's budget: the beam going active does not restart it. */
-static const uint16_t entry_deadlines_ms[STATE_COUNT] = {
-	[STATE_OPENING] = BARRIER_MOTION_BUDGET_MS,
-	[STATE_OPEN] = PASSAGE_BUDGET_MS,
-	[STATE_PASSING] = LANE_DEADLINE_KEEP,
-	[STATE_CLOSING] = BARRIER_MOTION_BUDGET_MS,
 };
 
 static const struct lane_def entry_def = {
 	.table = &entry_table[0][0],
 	.on_enter = entry_actions,
-	.deadline_ms = entry_deadlines_ms,
+	.deadline_ms = barrier_cycle_deadlines_ms,
 	.n_states = STATE_COUNT,
 	.n_events = EV_COUNT,
 };
@@ -373,10 +407,15 @@ static const struct lane_transition exit_table[STATE_COUNT][EV_COUNT] = {
 	 */
 	[STATE_CHARGING] = {
 		LATCHING_FAULTS,
+		[EV_PAID] = GO(STATE_OPENING), /* REQ-05: only an exact, current PAID */
 		[EV_PAYMENT_FAILED] = GO(STATE_ASSIST),
 		[EV_TARIFF_OUT_OF_RANGE] = GO(STATE_ASSIST),
 		[EV_CAR_LEFT] = GO(STATE_ASSIST),
 	},
+	[STATE_OPENING] = ROW_OPENING,
+	[STATE_OPEN] = ROW_OPEN,
+	[STATE_PASSING] = ROW_PASSING,
+	[STATE_CLOSING] = ROW_CLOSING,
 	[STATE_ASSIST] = ROW_ASSIST,
 };
 
@@ -384,6 +423,9 @@ static const lane_enter_fn exit_actions[STATE_COUNT] = {
 	[STATE_IDLE] = wait_for_car,
 	[STATE_IDENTIFYING] = start_recognition,
 	[STATE_CHARGING] = start_charge,
+	[STATE_OPENING] = open_barrier,
+	[STATE_OPEN] = let_car_through,
+	[STATE_CLOSING] = close_after_exit,
 	[STATE_ASSIST] = request_rearmable_exit_assistance,
 	[STATE_ASSIST_LOCKED] = request_exit_assistance,
 };
@@ -391,6 +433,7 @@ static const lane_enter_fn exit_actions[STATE_COUNT] = {
 static const struct lane_def exit_def = {
 	.table = &exit_table[0][0],
 	.on_enter = exit_actions,
+	.deadline_ms = barrier_cycle_deadlines_ms,
 	.n_states = STATE_COUNT,
 	.n_events = EV_COUNT,
 };

@@ -660,7 +660,8 @@ ZTEST(fsm_states, test_entry_assistance_never_touches_the_payment)
 /* ---- Exit lane: identification (REQ-04) ---- */
 
 static const uint8_t exit_running_states[] = {
-	STATE_INIT, STATE_IDLE, STATE_IDENTIFYING, STATE_CHARGING, STATE_ASSIST,
+	STATE_INIT,    STATE_IDLE,    STATE_IDENTIFYING, STATE_CHARGING, STATE_OPENING,
+	STATE_OPEN,    STATE_PASSING, STATE_CLOSING,     STATE_ASSIST,
 };
 
 ZTEST(fsm_states, test_exit_boot_and_arrival_start_a_recognition)
@@ -948,4 +949,108 @@ ZTEST(fsm_states, test_charging_failures_ask_for_assistance)
 		zassert_true(call_position(payment_cancel) < call_position(signals_assist));
 		zassert_equal(barrier_open_fake.call_count, 0, "never opens");
 	}
+}
+
+/* ---- Exit lane: paid exit (REQ-05, REQ-07) ---- */
+
+/* sessions_remove fake: copies the plate (FFF keeps only the pointer). */
+static char removed_plate[PLATE_LEN + 1];
+
+static int record_removed_session(const char *plate)
+{
+	strncpy(removed_plate, plate, PLATE_LEN);
+	return 0;
+}
+
+ZTEST(fsm_states, test_exact_paid_opens_the_exit_barrier)
+{
+	start_exit_in(STATE_CHARGING);
+	int64_t before_ms = k_uptime_get();
+
+	zassert_true(lane_dispatch(&lane, EV_PAID));
+	int64_t after_ms = k_uptime_get();
+
+	zassert_equal(lane_state(&lane), STATE_OPENING);
+	zassert_equal(barrier_open_fake.call_count, 1);
+	zassert_equal(barrier_open_fake.arg0_val, LANE_EXIT);
+	zassert_false(lane_deadline_expired(&lane, before_ms + OPENING_BUDGET_MS - 1));
+	zassert_true(lane_deadline_expired(&lane, after_ms + OPENING_BUDGET_MS));
+}
+
+/* REQ-05: nothing but EV_PAID opens; the payment service only posts it for
+ * the exact, current UUID and amount.
+ */
+ZTEST(fsm_states, test_only_paid_opens_from_charging)
+{
+	for (uint8_t event = 0; event < EV_COUNT; event++) {
+		if (event == EV_PAID) {
+			continue;
+		}
+		start_exit_in(STATE_CHARGING);
+		(void)lane_dispatch(&lane, event);
+	}
+
+	zassert_equal(barrier_open_fake.call_count, 0);
+}
+
+ZTEST(fsm_states, test_exit_upper_limit_turns_green_on)
+{
+	start_exit_in(STATE_OPENING);
+
+	zassert_true(lane_dispatch(&lane, EV_UPPER_REACHED));
+
+	zassert_equal(lane_state(&lane), STATE_OPEN);
+	zassert_equal(signals_go_fake.arg0_val, LANE_EXIT);
+}
+
+/* REQ-07: only the completed exit passage ends the session. */
+ZTEST(fsm_states, test_exit_passage_removes_the_session_and_closes)
+{
+	start_exit_in(STATE_PASSING);
+	camera_plate_fake.custom_fake = plate_was_read;
+	sessions_remove_fake.custom_fake = record_removed_session;
+	memset(removed_plate, 0, sizeof(removed_plate));
+	presence_car_far_fake.return_val = true;
+
+	zassert_true(lane_dispatch(&lane, EV_BEAM_OFF));
+
+	zassert_equal(lane_state(&lane), STATE_CLOSING);
+	zassert_str_equal(removed_plate, READ_PLATE);
+	zassert_equal(sessions_create_fake.call_count, 0, "the exit never creates");
+	zassert_equal(barrier_close_fake.arg0_val, LANE_EXIT);
+	zassert_true(call_position(signals_stop) < call_position(barrier_close));
+}
+
+ZTEST(fsm_states, test_exit_closing_without_plate_still_closes)
+{
+	start_exit_in(STATE_PASSING);
+	camera_plate_fake.return_val = -ENOENT;
+	presence_car_far_fake.return_val = true;
+
+	zassert_true(lane_dispatch(&lane, EV_CAR_LEFT));
+
+	zassert_equal(sessions_remove_fake.call_count, 0);
+	zassert_equal(barrier_close_fake.call_count, 1);
+}
+
+ZTEST(fsm_states, test_exit_lower_limit_takes_the_next_car)
+{
+	start_exit_in(STATE_CLOSING);
+	presence_car_near_fake.return_val = true;
+
+	zassert_true(lane_dispatch(&lane, EV_LOWER_REACHED));
+
+	zassert_equal(lane_state(&lane), STATE_IDENTIFYING);
+	zassert_equal(camera_start_fake.arg0_val, LANE_EXIT);
+}
+
+ZTEST(fsm_states, test_exit_obstruction_while_closing_latches)
+{
+	start_exit_in(STATE_CLOSING);
+
+	zassert_true(lane_dispatch(&lane, EV_BEAM_ON));
+
+	zassert_equal(lane_state(&lane), STATE_ASSIST_LOCKED);
+	zassert_equal(barrier_stop_fake.arg0_val, LANE_EXIT);
+	zassert_equal(barrier_open_fake.call_count, 0, "never reverses");
 }

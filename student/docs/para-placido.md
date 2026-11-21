@@ -120,10 +120,47 @@ Lembre que na sabatina qualquer um de nós pode ter de explicar ou mudar
 este código. Se alguma linha não estiver clara, comente no PR que eu
 explico.
 
-## 8. Próximo: M3 (saída)
+## 8. M3: o branch `feat/exit-lane` (a partir do `feat/entry-lane`)
 
-Eu faço `services/tariff` e a tabela e a thread da saída, na ordem já
-combinada: `screen_show_plate` → `tariff_cents` → `screen_show_amount` →
-`payment_start`, com `EV_TARIFF_OUT_OF_RANGE`, `payment_poll` na volta da
-thread e `payment_cancel` ao desistir. Vou usar os seus `payment` e `screen`
-como estão; aviso se precisar mudar algum header.
+**Resultado: 19 de 19 cenários nos dois builds**, o normal (`lab.py`) e o
+de cobertura; 99,90% de linhas e 95,93% de branches; `static-check.py` com 0
+achados.
+
+### Como `payment` e `screen` são usados
+
+| Serviço | Onde | O que eu assumo dele |
+|---|---|---|
+| `payment_init` | `runner_init()`, só na saída | — |
+| `screen_init` | **no começo da thread da saída**, não na `main` | bloqueia cerca de 400 ms e ocupa a CPU no fill por SPI; na `main` (prioridade 0) ele segurava a entrada |
+| `screen_show_plate`, `screen_show_amount`, `payment_start` | ação de entrada do CHARGING, nesta ordem, com a tarifa no meio | um erro do `payment_start` vira `EV_PAYMENT_FAILED`; com `-ERANGE` na tarifa, não há `screen_show_amount` nem `payment_start` |
+| `payment_poll` | `runner_step()` da saída, a cada volta | — |
+| `payment_cancel` | ações de assistência da saída, **antes** do buzzer | sem efeito se não houver cobrança ativa (conferi no seu código) |
+| `EV_PAID` | CHARGING → OPENING | você já garante que é o PAID exato, do UUID e valor atuais |
+
+### Outras mudanças que você precisa conhecer
+- **`services/tariff`:** `tariff_cents()`, `200 + (unidades − 1) × 100`,
+  `-ERANGE` acima de 9999 unidades.
+- **`fsm/runner`:** uma tabela `setups[]` descreve o que muda entre as
+  faixas. A saída tem prioridade 6 e a entrada 5.
+- **Correção na partida:** `INPUT_SETTLE_MS` (20 ms) antes do `EV_BOOT`. No
+  build normal, a entrada lia o fim de curso inferior antes de o modelo
+  aplicá-lo e ia para a assistência travada. O build de cobertura
+  escondia isso, e o defeito já estava no `feat/entry-lane`.
+- **Rearme do ASSIST na entrada do estado:** se o carro já está longe e o
+  feixe livre (quem desiste no pagamento), a faixa rearma sozinha.
+- **`fsm/states.c`:** as duas faixas compartilham as linhas do ciclo da
+  cancela (macros `ROW_*`) e os prazos. A saída difere na guarda da placa,
+  no CHARGING e no fechamento (`sessions_remove`).
+
+### Como verificar os dois builds
+O `--headless all` para no primeiro cenário que reprova. Para ver todos no
+build normal:
+
+```sh
+python scripts/lab.py --module "$ZVB_MODULE" --renode "$RENODE_ROOT/renode" \
+  --output build/lab-fw --prepare-only
+for s in $(ls tests/scenarios/*.json | xargs -n1 basename | sed 's/\.json$//'); do
+  python scripts/assess.py --module "$ZVB_MODULE" --renode "$RENODE_ROOT/renode" \
+    --machine-script build/lab-fw/firmware/boot.resc --output build/lab-s-$s --scenario $s
+done
+```

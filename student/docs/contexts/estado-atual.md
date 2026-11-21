@@ -1,20 +1,19 @@
 # Estado atual do projeto
 
-Atualizado em 2026-11-21 (fim do branch `feat/entry-lane` do Kauã, marco M2). Atualize este
+Atualizado em 2026-11-21 (fim do branch `feat/exit-lane` do Kauã, marco M3). Atualize este
 arquivo ao fim de cada sessão de trabalho. O registro de cada sessão fica em
 [`sessoes/`](sessoes/). Para retomar o trabalho do Plácido numa sessão nova,
 leia [`proxima-sessao.md`](proxima-sessao.md).
 
 ## Onde estamos
 
-- **Branch:** `feat/entry-lane` (Kauã), a partir do `solucao`, com M1 e M2:
-  a faixa de entrada funciona de ponta a ponta no Renode.
-- **Cenários: 13 de 19 passam, incluindo os 4 do G3** (`obstruction-during-close`,
-  `jam`, `contradictory-limits`, `missing-lower`). Os 6 que faltam são de
-  saída e pagamento (M3): `normal`, `payment-delayed`, `payment-duplicate`,
-  `payment-missing`, `payment-stale` e `reset-payment`.
-- **A saída** só configura o equipamento e mantém as saídas seguras (motor
-  parado, vermelho): ainda não tem regras nem thread.
+- **Branches:** `feat/entry-lane` (M1 + M2, entrada) e `feat/exit-lane` (M3,
+  saída), este a partir daquele. As duas faixas funcionam ao mesmo tempo no
+  Renode.
+- **Cenários: 19 de 19 passam nos dois builds**: o normal (`lab.py`,
+  otimizado) e o de cobertura (`firmware-coverage.py`, gcov). Verifique
+  sempre os dois: um defeito de tempo na partida só aparecia no build normal
+  (corrigido com `INPUT_SETTLE_MS` no `runner`).
 - **Pastas:** todos os headers ficam em `student/src/include/<camada>/`; os
   `.c` em `student/src/<camada>/src/`; um `CMakeLists.txt` por camada.
 - **Pontos do contrato decididos** (ver seção 6 do contrato): `poll` na
@@ -49,8 +48,13 @@ camadas.
   diagrama 06: as faixas só consultam quando precisam e ninguém precisa ser
   avisado de mudanças.
 - **Partida:** `main.c` só chama `runner_init()` e `runner_start()`
-  (`fsm/runner`). Uma faixa com falha de inicialização fica em assistência,
-  sem `EV_BOOT`; a falha do ADC deixa as duas faixas em assistência.
+  (`fsm/runner`). Uma tabela `setups[]` descreve o que muda entre as faixas
+  (regras, `payment_init`, `screen_init`, `payment_poll`, prioridade 5 na
+  entrada e 6 na saída). Uma faixa com falha de inicialização fica em
+  assistência, sem `EV_BOOT`; a falha do ADC deixa as duas em assistência.
+  O `runner_init()` espera `INPUT_SETTLE_MS` (20 ms) antes do `EV_BOOT`. O
+  `screen_init()` (lento) roda no começo da thread da saída, nunca na
+  `main` (prioridade 0), para não segurar a entrada.
 - **Prazos por estado** na tabela (`lane_def.deadline_ms`): 0 = sem prazo,
   um orçamento em ms, ou `LANE_DEADLINE_KEEP` (o PASSING mantém os 10000 ms
   do OPEN). `runner_step()` aplica `EV_TIMEOUT` direto, sem passar pela fila.
@@ -63,19 +67,23 @@ camadas.
 
 ## O que está pronto
 
-Máquina da entrada (`fsm/states.c`):
+Máquinas (`fsm/states.c`): as duas faixas compartilham as linhas INIT, IDLE,
+OPENING, OPEN, PASSING, CLOSING e ASSIST (macros `ROW_*`) e os prazos.
 
 ```text
 INIT ─BOOT─► IDLE (cancela fechada) | ASSIST_LOCKED
 IDLE ─CAR_ARRIVED─► IDENTIFYING (fechada) | ASSIST_LOCKED
-IDENTIFYING ─PLATE_READ─► OPENING (pode entrar) | ASSIST
+IDENTIFYING ─PLATE_READ─► entrada: OPENING se pode entrar, senão ASSIST
+                          saída:   CHARGING se tem sessão, senão ASSIST
             ─CAPTURE_FAILED─► ASSIST ; ─CAR_LEFT─► IDLE
-OPENING (2500 ms) ─UPPER_REACHED─► OPEN ; ─TIMEOUT─► ASSIST_LOCKED
-OPEN (10000 ms) ─BEAM_ON─► PASSING ; ─TIMEOUT─► ASSIST_LOCKED
-PASSING (mantém) ─BEAM_OFF/CAR_LEFT + feixe livre e carro longe─► CLOSING
-CLOSING (2500 ms, cria a sessão) ─LOWER_REACHED─► IDENTIFYING (carro perto) | IDLE
+CHARGING (saída: placa, tarifa, valor, CHARGE) ─PAID─► OPENING
+         ─PAYMENT_FAILED / TARIFF_OUT_OF_RANGE / CAR_LEFT─► ASSIST (CANCEL)
+OPENING (2500 ms) ─UPPER_REACHED─► OPEN (verde)
+OPEN (10000 ms) ─BEAM_ON─► PASSING
+PASSING (mantém) ─feixe livre e carro longe─► CLOSING
+CLOSING (2500 ms; entrada cria / saída remove a sessão) ─LOWER_REACHED─► IDLE | IDENTIFYING
         ─BEAM_ON / TIMEOUT─► ASSIST_LOCKED
-ASSIST ─CAR_LEFT/BEAM_OFF + carro longe e feixe livre─► IDLE
+ASSIST ─carro longe e feixe livre─► IDLE (rearma sozinho se já estiver assim)
 todos ─LIMITS_CONFLICT / ADC_FAULT─► ASSIST_LOCKED (só sai com reset)
 ```
 
@@ -83,12 +91,13 @@ todos ─LIMITS_CONFLICT / ADC_FAULT─► ASSIST_LOCKED (só sai com reset)
 |---|---|---|
 | `fsm/` | `lane` (tabela, guarda, `otherwise`, fila, prazos por estado) | `tests/unit/fsm/test_lane.c` |
 | `fsm/` | `lanes` (as duas faixas, filas estáticas, `events_post`) | `tests/unit/fsm/test_lanes.c` |
-| `fsm/` | `states` (regras da entrada) | `tests/fsm/states/` |
+| `fsm/` | `states` (regras das duas faixas) | `tests/fsm/states/` |
 | `fsm/` | `runner` (partida, thread da entrada, `runner_step`) | `tests/fsm/runner/` |
 | `services/` | `events.h` (lista completa) | — |
 | `services/` | `signals`, `barrier`, `camera`, `distance`, `screen`, `payment` | `tests/unit/<módulo>/` |
 | `services/` | `presence` (histerese 683/1024 sobre `chan_distance`, feixe) | `tests/unit/presence/` |
 | `services/` | `sessions` (tabela de vagas com `k_mutex`) | `tests/unit/sessions/` |
+| `services/` | `tariff` (200 + 100 por unidade, `-ERANGE` acima de 9999) | `tests/unit/tariff/` |
 | `services/` | `wire`, `line_framer`, `camera_proto`, `p1_proto`, `text` | `tests/unit/<módulo>/` |
 | `hw/` | `lane_hw`, `indicator`, `motor`, `sensor`, `uart_line`, `adc4`, `st7789` | `tests/hw/` (emuladores do Zephyr) |
 
@@ -103,28 +112,24 @@ todos ─LIMITS_CONFLICT / ADC_FAULT─► ASSIST_LOCKED (só sai com reset)
   serviços (`fakes/service_fakes.{h,c}`). Fica separada porque em
   `tests/unit/` os serviços são compilados de verdade.
 
-**Última medição** (`firmware-coverage.py`): todas as suítes passam; 99,89% de
-linhas e 95,64% de branches em `student/src`. `static-check.py`: 0 achados.
-Os 22 branches que faltam estão justificados na última entrada do
-`REGISTRO_IA.md` (17 no `st7789.c`).
+**Última medição:** 19/19 cenários no build normal e no de cobertura; todas
+as suítes passam; 99,90% de linhas e 95,93% de branches em `student/src`;
+`static-check.py` com 0 achados. Os branches sem cobertura estão
+justificados no `REGISTRO_IA.md` (17 no `st7789.c`).
 
 ## O que falta e quem faz
 
 Contrato em [`../contrato-e-divisao.md`](../contrato-e-divisao.md).
 
-- **Pronto (Plácido):** `wire`, `line_framer`, `camera_proto`, `p1_proto`
-  (com `p1_uuid_format`), `text`, `hw/uart_line`, `hw/adc4`, `hw/st7789`;
-  etapa 1 (M0): `events.h` completo, campos de `lane_hw`, headers `camera.h`,
-  `distance.h`, `payment.h`, `screen.h`.
-- **Plácido, etapas seguintes:** etapas 2 a 5 (`camera`, `distance`, `screen`, `payment`) prontas; falta só
-  integrar com o `main.c` do Kauã.
-- **Kauã, M3:** `services/tariff` (`tariff_cents`, `-ERANGE` acima de 9999
-  unidades), tabela e thread da saída (sessão existente, cobrança na ordem
-  `screen_show_plate` → `tariff_cents` → `screen_show_amount` →
-  `payment_start`, `EV_TARIFF_OUT_OF_RANGE`, `payment_poll` na volta da
-  thread, `payment_cancel` ao desistir, `sessions_remove` na passagem).
-- **Cobertura de branches:** 95,64%. Folga possível: um driver SPI falso
-  para os 17 branches do `st7789.c` (combinar com o Plácido).
+- **Revisão em dupla** dos PRs `feat/entry-lane` e `feat/exit-lane`; guias em
+  [`../para-placido.md`](../para-placido.md).
+- **Folga de cobertura (opcional):** um driver SPI falso para os 17 branches
+  do `st7789.c` (combinar com o Plácido).
+- **`states.c` com cerca de 450 linhas:** pode ser separado em regras
+  compartilhadas e por faixa, se a dupla achar que fica mais fácil de
+  explicar.
+- **Preparação para a sabatina:** cada um explicar e mudar qualquer requisito
+  (prazo, limiar, regra de rearme) e ver o cenário passar.
 
 ## Como trabalhar (combinado com o Kauã)
 

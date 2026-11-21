@@ -26,6 +26,7 @@ DEFINE_FAKE_VALUE_FUNC(bool, presence_car_near, enum lane_id);
 DEFINE_FAKE_VALUE_FUNC(int, barrier_close, enum lane_id);
 DEFINE_FAKE_VALUE_FUNC(int, sessions_create, const char *, int64_t);
 DEFINE_FAKE_VALUE_FUNC(int, sessions_entry_time, const char *, int64_t *);
+DEFINE_FAKE_VALUE_FUNC(int, sessions_remove, const char *);
 DEFINE_FAKE_VALUE_FUNC(int, payment_init);
 DEFINE_FAKE_VOID_FUNC(payment_cancel);
 DEFINE_FAKE_VOID_FUNC(payment_poll, int64_t);
@@ -61,6 +62,7 @@ void service_fakes_reset(void)
 	RESET_FAKE(barrier_close);
 	RESET_FAKE(sessions_create);
 	RESET_FAKE(sessions_entry_time);
+	RESET_FAKE(sessions_remove);
 	RESET_FAKE(payment_init);
 	RESET_FAKE(payment_cancel);
 	RESET_FAKE(payment_poll);

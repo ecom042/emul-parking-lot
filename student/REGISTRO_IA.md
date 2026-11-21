@@ -790,6 +790,36 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   - Nos testes, `SET_RETURN_SEQ` do FFF faz a primeira chamada dar certo
     (a guarda) e a segunda falhar (a cobrança).
 
+### 2026-11-21 — Saída paga, passagem e fechamento (fsm/states), marco M3
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** REQ-05 (só PAID exato abre), REQ-06, REQ-07 (a passagem
+  remove a sessão), REQ-08, REQ-04 (as duas faixas ao mesmo tempo)
+- **O que pedi:** a abertura com o PAID e a saída do carro, fechando o M3.
+- **O que a IA propôs:**
+  - `EV_PAID` leva do CHARGING ao OPENING;
+  - as linhas OPENING, OPEN, PASSING e CLOSING viraram macros
+    compartilhadas (`ROW_OPENING`...), e a tabela de prazos ficou uma só
+    (`barrier_cycle_deadlines_ms`), usada pelas duas faixas;
+  - o fechamento ficou `close_after_entry` (cria a sessão) e
+    `close_after_exit` (remove a sessão), os dois sobre `close_barrier`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei.
+- **Como verifiquei:**
+  - **19 de 19 cenários nos dois builds:** normal (`lab.py
+    --prepare-only` + `assess.py`, um por vez) e `firmware-coverage.py`.
+  - Todas as suítes passam (7 testes novos); `states.c` com 100% de linhas
+    e de branches; total de 99,90% de linhas e 95,93% de branches.
+    `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:**
+  - A saída reaproveita o ciclo da cancela da entrada; só mudam a guarda da
+    placa (tem sessão), o estado de cobrança e o que o fechamento faz com a
+    sessão.
+  - O PAID que abre a cancela é só o exato e atual: quem confere UUID e
+    valor é o `payment`, e a máquina só reage ao `EV_PAID`. Um teste confere
+    que nenhum outro evento abre a cancela a partir do CHARGING.
+  - A sessão só sai da tabela na passagem completa: pagar e abrir não
+    liberam a vaga.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

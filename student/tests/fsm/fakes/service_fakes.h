@@ -39,6 +39,7 @@ DECLARE_FAKE_VALUE_FUNC(bool, presence_car_near, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(int, barrier_close, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(int, sessions_create, const char *, int64_t);
 DECLARE_FAKE_VALUE_FUNC(int, sessions_entry_time, const char *, int64_t *);
+DECLARE_FAKE_VALUE_FUNC(int, sessions_remove, const char *);
 DECLARE_FAKE_VALUE_FUNC(int, payment_init);
 DECLARE_FAKE_VOID_FUNC(payment_cancel);
 DECLARE_FAKE_VOID_FUNC(payment_poll, int64_t);
