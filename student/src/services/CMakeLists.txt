@@ -4,6 +4,7 @@ target_sources(app PRIVATE
 	src/barrier.c
 	src/camera.c
 	src/camera_proto.c
+	src/distance.c
 	src/line_framer.c
 	src/p1_proto.c
 	src/signals.c

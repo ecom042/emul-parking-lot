@@ -117,6 +117,8 @@ void camera_poll(enum lane_id id, int64_t now_ms);
 int camera_plate(enum lane_id id, char plate[PLATE_LEN + 1]);
 
 int distance_init(void);                    /* publishes chan_distance */
+void distance_start(void);                  /* schedules the periodic poll */
+void distance_poll(int64_t now_ms);         /* one step; the work item calls it */
 
 int payment_init(void);
 int payment_start(const char *plate, uint32_t cents);   /* mudou */
@@ -127,6 +129,17 @@ int screen_init(void);
 int screen_show_plate(const char *plate);
 int screen_show_amount(uint32_t cents);
 ```
+
+### distance: como usar
+
+- `main.c` chama `distance_init()` e depois `distance_start()`. Se
+  `distance_init()` falhar, o serviço fica travado e devolve o erro, sem postar
+  evento: quem decide o que fazer é o `main`.
+- O `presence` deve reagir só a publicações em `chan_distance` e nunca chamar
+  `zbus_chan_read` antes da primeira: o valor inicial é 0, que significa carro
+  no portão.
+- O listener roda no contexto de quem publica (o work do `distance`): tem de
+  ser curto e só postar eventos.
 
 ## 6. Marcos
 

@@ -43,6 +43,13 @@ struct lane_hw {
 const struct lane_hw *lane_hw_get(enum lane_id id);
 
 /**
+ * @brief ADC4, shared by both distance channels.
+ *
+ * @return the device, never NULL (readiness is checked by adc4_init()).
+ */
+const struct device *distance_adc_get(void);
+
+/**
  * @brief UART of the payment terminal (LPUART1).
  *
  * Exit lane only, so it is not part of struct lane_hw.

@@ -220,6 +220,22 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   branches; total 96,85% / 86,81%; `static-check.py` com 0 achados.
 - **O que aprendi / o que ainda preciso entender:** (preencher).
 
+### Etapa 3: services/distance (Plácido, Claude Code)
+
+- **O que pedi:** implementar `services/distance` (ADC4 alternando os canais
+  17/18, uma conversão por vez, prazo de 100 ms, `chan_distance` no zbus, falha
+  trava e posta `EV_ADC_FAULT`), planejado por um Opus e implementado por um
+  Sonnet.
+- **O que a IA fez:** `distance.c` (IDLE/PENDING/LATCHED, `k_work_delayable` de
+  5 ms, conclusão em 100 ms ou mais conta como falha), `distance_adc_get()` em
+  `lane_hw`, `distance_start()`/`distance_poll()` no header e 16 testes.
+- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). Aceitei
+  separar `init`/`start`/`poll` (muda o contrato: o `main.c` chama
+  `distance_start()`); falha de `init` trava e devolve o erro sem postar.
+- **Como verifiquei:** suítes passam; `distance.c` 100% de linhas e branches;
+  total 97,17% / 87,47%; `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:** (preencher).
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

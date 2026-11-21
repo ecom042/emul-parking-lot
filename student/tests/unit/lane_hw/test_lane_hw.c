@@ -22,3 +22,8 @@ ZTEST(lane_hw, test_payment_terminal_is_lpuart1)
 {
 	zassert_equal(payment_terminal_get(), DEVICE_DT_GET(DT_ALIAS(payment_terminal)));
 }
+
+ZTEST(lane_hw, test_distance_adc_is_adc4)
+{
+	zassert_equal(distance_adc_get(), DEVICE_DT_GET(DT_NODELABEL(adc4)));
+}

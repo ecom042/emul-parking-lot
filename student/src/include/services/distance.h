@@ -36,4 +36,22 @@ ZBUS_CHAN_DECLARE(chan_distance); /**< publishes struct distance_sample */
  */
 int distance_init(void);
 
+/**
+ * @brief Schedule the periodic poll on the system work queue.
+ *
+ * Call after distance_init(). Polling runs every few milliseconds with the
+ * virtual uptime and stops by itself once a fault is latched.
+ */
+void distance_start(void);
+
+/**
+ * @brief Advance the acquisition one step, without blocking.
+ *
+ * Normally called by the work item behind distance_start(). Exposed so that
+ * unit tests can drive the clock.
+ *
+ * @param now_ms virtual time in milliseconds.
+ */
+void distance_poll(int64_t now_ms);
+
 #endif /* PARKING_SERVICES_DISTANCE_H_ */

@@ -47,6 +47,13 @@ target_sources(app PRIVATE
 	../../src/services/src/camera.c
 )
 
+# services/distance: aquisição do ADC4. hw/adc4 é falso do FFF (não listar
+# hw/src/adc4.c); events_post() é o real, lido pela fila da faixa.
+target_sources(app PRIVATE
+	distance/test_distance.c
+	../../src/services/src/distance.c
+)
+
 # Lógica pura dos protocolos (sem hardware, sem falsos): wire, line_framer,
 # camera_proto, p1_proto e text.
 target_sources(app PRIVATE
