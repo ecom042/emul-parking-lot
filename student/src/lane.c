@@ -171,6 +171,10 @@ static void handle_request(struct parking_lane *lane, const struct parking_servi
 	bool identifying = lane->state == PARKING_IDENTIFYING;
 
 	if (clear) {
+		if (!identifying && lane->id == PARKING_EXIT) {
+			assist(lane, services, now_ms, false);
+			return;
+		}
 		cancel(lane, services);
 		lane->state = PARKING_IDLE;
 		return;

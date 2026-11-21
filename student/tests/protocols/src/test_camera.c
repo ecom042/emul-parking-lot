@@ -16,14 +16,19 @@ static void before_each(void *fixture)
 }
 
 /* Feeds every byte; returns how many complete results were produced. */
-static int feed(const char *bytes, size_t len)
+static int feed_at(const char *bytes, size_t len, int64_t received_ms)
 {
 	int results = 0;
 
 	for (size_t i = 0; i < len; i++) {
-		results += camera_parser_feed(&parser, (uint8_t)bytes[i], &plate) ? 1 : 0;
+		results += camera_parser_feed(&parser, (uint8_t)bytes[i], received_ms, &plate) ? 1 : 0;
 	}
 	return results;
+}
+
+static int feed(const char *bytes, size_t len)
+{
+	return feed_at(bytes, len, 0);
 }
 
 static int feed_str(const char *bytes)
@@ -65,6 +70,36 @@ ZTEST(camera, test_fragmented_after_ok)
 	zassert_equal(plate.id, 123);
 	zassert_equal(plate.confidence, 85);
 	zassert_str_equal(plate.plate, "XYZ9A00");
+}
+
+ZTEST(camera, test_accepts_frame_before_deadline)
+{
+	static const char body[] = "+PLATE:4,\"ABC1D23\",93\r";
+
+	zassert_equal(feed_at(body, sizeof(body) - 1, 10), 0);
+	zassert_equal(feed_at("\n", 1, 1009), 1);
+	zassert_equal(plate.id, 4);
+}
+
+ZTEST(camera, test_rejects_frame_at_deadline)
+{
+	static const char body[] = "+PLATE:4,\"ABC1D23\",93\r";
+
+	zassert_equal(feed_at(body, sizeof(body) - 1, 10), 0);
+	zassert_equal(feed_at("\n", 1, 1010), 0);
+	zassert_equal(plate.id, 0);
+}
+
+ZTEST(camera, test_discards_expired_prefix_and_resynchronizes)
+{
+	static const char prefix[] = "+PLATE:7,\"ABC";
+	static const char suffix[] = "1D23\",93\r\n";
+	static const char frame[] = "+PLATE:7,\"ABC1D23\",93\r\n";
+
+	zassert_equal(feed_at(prefix, sizeof(prefix) - 1, 10), 0);
+	zassert_equal(feed_at(suffix, sizeof(suffix) - 1, 1011), 0);
+	zassert_equal(feed_at(frame, sizeof(frame) - 1, 1012), 1);
+	zassert_equal(plate.id, 7);
 }
 
 ZTEST(camera, test_ok_and_error_are_not_results)

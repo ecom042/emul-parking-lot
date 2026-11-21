@@ -15,6 +15,7 @@
 struct camera_parser {
 	char line[CAMERA_FRAME_MAX];
 	size_t len;
+	int64_t started_ms;
 	bool discard;
 };
 
@@ -31,9 +32,11 @@ void camera_parser_reset(struct camera_parser *parser);
 
 /* Feed one received byte. Returns true only when a complete, well-formed
  * "+PLATE:<id>,\"<plate>\",<confidence>\r\n" frame ends at this byte. OK, ERROR,
- * oversized, non-printable and malformed frames are discarded through LF.
+ * oversized, non-printable, expired and malformed frames are discarded
+ * through LF. received_ms is the virtual uptime when the byte arrived.
  */
-bool camera_parser_feed(struct camera_parser *parser, uint8_t byte, struct camera_plate *out);
+bool camera_parser_feed(struct camera_parser *parser, uint8_t byte, int64_t received_ms,
+			struct camera_plate *out);
 
 /* Writes "AT+CAPTURE=<id>\r\n". Returns its length or -EINVAL. */
 int camera_format_capture(uint32_t id, char *buf, size_t size);

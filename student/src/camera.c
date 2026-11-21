@@ -6,6 +6,8 @@
 
 #define PLATE_PREFIX "+PLATE:"
 
+enum { CAMERA_FRAME_TIMEOUT_MS = 1000 };
+
 static bool upper(char c)
 {
 	return c >= 'A' && c <= 'Z';
@@ -88,8 +90,12 @@ void camera_parser_reset(struct camera_parser *parser)
 	parser->discard = false;
 }
 
-bool camera_parser_feed(struct camera_parser *parser, uint8_t byte, struct camera_plate *out)
+bool camera_parser_feed(struct camera_parser *parser, uint8_t byte, int64_t received_ms,
+			struct camera_plate *out)
 {
+	if (parser->len > 0 && received_ms - parser->started_ms >= CAMERA_FRAME_TIMEOUT_MS) {
+		parser->discard = true;
+	}
 	if (byte == '\n') {
 		bool complete = !parser->discard && parser->len > 0 &&
 				parser->line[parser->len - 1] == '\r';
@@ -108,6 +114,9 @@ bool camera_parser_feed(struct camera_parser *parser, uint8_t byte, struct camer
 	if (after_cr || (!printable && byte != '\r') || parser->len == CAMERA_FRAME_MAX - 1) {
 		parser->discard = true;
 		return false;
+	}
+	if (parser->len == 0) {
+		parser->started_ms = received_ms;
 	}
 	parser->line[parser->len++] = (char)byte;
 	return false;

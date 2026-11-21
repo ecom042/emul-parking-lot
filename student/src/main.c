@@ -76,6 +76,7 @@ int main(void)
 	parking_adc_init(&controller_wake);
 	/* Without services the lanes stay idle and never open; startup checks still run. */
 	(void)parking_services_start();
+	(void)parking_exit_start();
 	while (true) {
 		service_lanes();
 		/* EXTI and asynchronous replies wake the controller ahead of this tick. */

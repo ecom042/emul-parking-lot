@@ -8,8 +8,8 @@ entradas. Quem não usou IA escreve isso aqui.
 
 | Aluno | Matrícula | Partes que escreveu |
 |---|---|---|
-| | | |
-| | | |
+| Pablo | | Núcleo das faixas, ADC4 e integração da saída |
+| Matheus | | Câmeras UART e tabela de sessões |
 
 ## Ferramentas
 
@@ -191,6 +191,100 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   antes de reservar. Explicar por que `OK` não é reconhecimento, por que um
   ID antigo é ignorado e por que a reserva conta na lotação antes da
   passagem.
+
+### 2026-11-21 — Conferência de atualizações
+
+- **Aluno** Pablo.
+- **Pedido** Conferir as atualizações do repositório, incluindo os PRs.
+- **Proposta e execução** Revisar os dois commits locais da solução, as
+  referências Git e os resultados da última validação arquivada. Sem
+  alterações no firmware.
+- **Verificação** As alterações dos dois commits ficam em `student/`.
+  A última rodada arquivada confirma `partial-startup`, 7 testes do ADC
+  e 14 das faixas, com 83,20% de linhas e 67,50% de ramos cobertos e
+  zero achados estáticos. A consulta de PRs ficou pendente porque o GitHub
+  exigiu autenticação na primeira tentativa. Na nova consulta, o PR #1
+  estava aberto e sem conflitos, com um commit de Matheus (`8148f3f`)
+  para câmera UART e reserva de vagas. Revisei o diff sem aplicar o PR.
+  A revisão identificou perda silenciosa de bytes se o buffer RX lotar
+  e divergência no percentual de ramos entre a descrição e o registro do
+  PR. A validação relatada usa um launcher alterado na máquina do autor.
+  Os cenários do PR não foram reexecutados nesta revisão.
+
+### 2026-11-21 — Validação com a versão oficial v1.0.1
+
+- **Aluno** Pablo.
+- **Pedido** Considerar a atualização v1.0.1 anunciada pelo professor.
+- **Proposta e execução** Usar a tag oficial (`82d854b`) numa cópia
+  isolada com o conteúdo de `student/` do PR #1 (`8148f3f`), preservando
+  o checkout da dupla. A correção oficial aceita a data do Renode Linux.
+- **Verificação** Os 10 testes do launcher passaram. Com o Renode
+  `1.17.0+20260907gitf1dd1b4af`, o launcher oficial compilou o firmware e
+  aprovou `camera-timeout`, `confidence-retry`, `contradictory-limits`,
+  `jam`, `low-confidence`, `missing-lower`, `missing-upper` e
+  `noisy-threshold`. A execução parou em `normal`: no tick 1590, a
+  cancela de saída permanecia em 0 mdeg, com 90000 mdeg esperados.
+  O PR ainda não integra o pagamento. As evidências ficaram em
+  `build/validacao-430cfc9-01/workspace/revisao-v101.u7Pf8N/build/pr1-v101-03/`,
+  incluindo `headless.log` e `assessment/results.json`.
+
+### 2026-11-21 — Referência de segurança para a integração da saída
+
+- **Aluno** Pablo.
+- **Pedido** Implementar o plano acelerado de integração com frentes UART,
+  pagamento P1, tarifa e display.
+- **Proposta e aceitação** Plano de seis horas aprovado para execução. A
+  confirmação de entendimento dos estados, transições e prazos, prevista
+  em `AGENTS.md`, foi solicitada antes das alterações de firmware.
+- **Verificação** Em cópia da v1.0.1 oficial com o PR #1 (`8148f3f`),
+  `obstruction-during-close` passou com `lab.py --headless`. As evidências
+  dos quatro cenários G3 foram reproduzidas. A cobertura dos quatro G3
+  mais `partial-startup` aprovou também as suítes `adc`, `unit` e
+  `protocols` e mediu 96,22% de linhas e 83,27% de ramos. A análise
+  estática terminou com zero achados.
+- **Evidências** Na cópia já usada para validar a v1.0.1, os resultados
+  estão em `build/g3-obstrucao-referencia/assessment/results.json`,
+  `build/pr1-coverage-referencia/summary.json` e
+  `build/pr1-static-referencia/summary.json`.
+
+### 2026-11-21 — Integração da saída e robustez da UART
+
+- **Aluno** Pablo.
+- **Ferramenta** Codex (GPT-6), com três frentes de agentes em paralelo.
+- **Pedido e aceitação** Implementar o plano acelerado. Pablo confirmou
+  que entendeu os estados, as transições e os prazos antes da codificação.
+- **Proposta aplicada** Integrar o commit de Matheus (`8148f3f`) e
+  aproveitar o contrato das faixas. Em caso de perda, o transporte RX
+  limpa a fila, descarta a linha afetada até LF e avisa o parser antes
+  do próximo quadro íntegro. Um worker preemptível atende LPUART1 e SPI
+  na saída. Depois de desenhar a placa, calcula a tarifa uma vez, mostra
+  valor e status e envia P1. UUID e valor ficam fixos nos reenvios.
+  Desistir invalida a cobrança antes de CANCEL. Só PAID exato autoriza
+  e a sessão permanece ativa até a passagem confirmada.
+- **Cenários** O launcher oficial v1.0.1 (`82d854b`) executou os 19
+  cenários públicos e aprovou todos, incluindo os quatro do G3 e os
+  cenários de pagamento e reset. A análise estática registrou zero
+  achados em `student/src`.
+- **Cobertura final** Os 19 cenários e as oito suítes ztest/FFF (129
+  testes) passaram em `firmware-coverage.py`. Foram cobertas 967/986
+  linhas (98,07%) e 679/734 ramos (92,51%), com média de 95,29%.
+  Os testes de falha exercitam a mesma lógica de produção com falsos
+  apenas nas suítes. A medição não usou exclusões.
+- **Rastros** Em `normal` (execução `a949a52d4b5f4c7d8325e0357802bdca`),
+  o terminal registrou uma cobrança de 700 centavos e o display
+  registrou 7224 pixels escritos sem erros. O verde de saída acendeu
+  em 14,920012 s virtuais, com o motor desligado. Em
+  `obstruction-during-close` (execução `4fe57a53304e4c13b3864d1720d05f4a`),
+  o feixe subiu em 103800000 µs no relógio de origem e o motor foi
+  desligado em 103800009 µs. São 9 µs no rastro, dentro do prazo de 10 ms.
+- **Evidências** Na cópia oficial de validação, consultar
+  `build/sprint-publicos-01/assessment/results.json` e `assessment/runs/`
+  da mesma execução, além de `build/sprint-coverage-final/summary.json`
+  e `build/sprint-static-01/summary.json`.
+- **Para a sabatina** Explicar como a fila distingue perder bytes de
+  receber um LF, por que a thread de controle pode continuar enquanto
+  o display trabalha e como transação corrente, UUID e sessão ativa
+  impedem que um pagamento atrasado abra uma saída nova.
 
 ## Código de terceiros
 
