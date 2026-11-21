@@ -645,6 +645,39 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
     branch que nada alcança: removê-la, com o motivo escrito no código, é
     melhor do que escondê-la com uma exclusão.
 
+### 2026-11-21 — Tarifa da saída (services/tariff)
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** REQ-12 (tarifa), começo do M3
+- **O que pedi:** o plano do M3 em passos curtos e o passo 1, a tarifa, com
+  a skill `clean-c-zephyr`.
+- **O que a IA propôs:** `services/tariff.{h,c}`:
+  - `tariff_cents(parked_ms, &cents)`: unidades = max(1, ⌈ms /
+    `CONFIG_PARKING_TARIFF_UNIT_MS`⌉), valor = `200 + (unidades − 1) ×
+    100` centavos;
+  - `-ERANGE` acima de `TARIFF_MAX_UNITS` (9999), sem alterar a saída;
+  - o arredondamento para cima usa `ms / unit + (ms % unit != 0)`, que
+    não estoura para uma estadia enorme, ao contrário de `(ms + unit − 1)
+    / unit`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei.
+- **Como verifiquei:**
+  - 7 testes escritos em unidades de `CONFIG_PARKING_TARIFF_UNIT_MS`,
+    para valer com qualquer unidade configurada: 0 ms, 1 ms, uma unidade
+    exata, uma unidade + 1 ms, o exemplo da especificação (2,5 unidades
+    dão 400), 9999 unidades (1.000.000), 9999 unidades + 1 ms
+    (`-ERANGE`) e `INT64_MAX`.
+  - `firmware-coverage.py`: todas as suítes passam; `tariff.c` com 100%
+    de linhas e de branches; total de 99,89% de linhas e 95,66% de
+    branches; os 13 cenários continuam passando. `static-check.py` com 0
+    achados.
+- **O que aprendi / o que ainda preciso entender:**
+  - Uma unidade começada conta inteira: 1 ms já custa 200, e uma unidade
+    + 1 ms custa 300.
+  - 9999 unidades dão exatamente 1.000.000 centavos, o máximo que o
+    terminal aceita. Por isso o limite da tarifa e o do terminal batem.
+  - `(ms + unit − 1) / unit` pode estourar o `int64_t`; dividir e somar 1
+    quando sobra resto dá o mesmo resultado sem esse risco.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

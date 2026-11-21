@@ -83,6 +83,12 @@ target_sources(app PRIVATE
 	../../src/services/src/sessions.c
 )
 
+# services/tariff: valor da cobrança (lógica pura, sem falsos).
+target_sources(app PRIVATE
+	tariff/test_tariff.c
+	../../src/services/src/tariff.c
+)
+
 # Erros de programação (id de faixa inválido) disparam o __ASSERT do módulo;
 # o hook do ztest transforma o assert esperado no fim do teste.
 target_sources(app PRIVATE asserts/test_asserts.c)
