@@ -10,6 +10,9 @@
 /* REQ-06: opening or closing must reach its limit switch within this. */
 #define BARRIER_MOTION_BUDGET_MS 2500
 
+/* REQ-07: from full opening to a completed passage (OPEN, then PASSING). */
+#define PASSAGE_BUDGET_MS 10000
+
 /* Table cell shortcuts: GO always moves; GO_IF asks the guard first. */
 #define GO(target) {.next = (target)}
 #define GO_IF(guard_fn, target, else_target)                                   \
@@ -90,6 +93,14 @@ static void open_barrier(struct lane *lane)
 	(void)barrier_open(lane_id_of(lane));
 }
 
+/* REQ-06: reached only on EV_UPPER_REACHED, which the barrier posts after
+ * stopping the motor, so green never shows with the motor on.
+ */
+static void let_car_through(struct lane *lane)
+{
+	(void)signals_go(lane_id_of(lane));
+}
+
 /* REQ-09: motor off first, then red on, green off and one buzzer pulse. */
 static void request_assistance(struct lane *lane)
 {
@@ -125,7 +136,20 @@ static const struct lane_transition entry_table[STATE_COUNT][EV_COUNT] = {
 	},
 	[STATE_OPENING] = {
 		LATCHING_FAULTS,
+		[EV_UPPER_REACHED] = GO(STATE_OPEN),
 		[EV_TIMEOUT] = GO(STATE_ASSIST_LOCKED), /* arm stopped halfway */
+	},
+	/* REQ-07: the beam must go active, then inactive with the car far. A car
+	 * that never passes (stationary) keeps green until the passage budget.
+	 */
+	[STATE_OPEN] = {
+		LATCHING_FAULTS,
+		[EV_BEAM_ON] = GO(STATE_PASSING),
+		[EV_TIMEOUT] = GO(STATE_ASSIST_LOCKED), /* barrier left open */
+	},
+	[STATE_PASSING] = {
+		LATCHING_FAULTS,
+		[EV_TIMEOUT] = GO(STATE_ASSIST_LOCKED), /* beam held or car stayed */
 	},
 	[STATE_ASSIST] = {
 		LATCHING_FAULTS,
@@ -138,12 +162,16 @@ static const lane_enter_fn entry_actions[STATE_COUNT] = {
 	[STATE_IDLE] = wait_for_car,
 	[STATE_IDENTIFYING] = start_recognition,
 	[STATE_OPENING] = open_barrier,
+	[STATE_OPEN] = let_car_through,
 	[STATE_ASSIST] = request_assistance,
 	[STATE_ASSIST_LOCKED] = request_assistance,
 };
 
+/* PASSING keeps OPEN's budget: the beam going active does not restart it. */
 static const uint16_t entry_deadlines_ms[STATE_COUNT] = {
 	[STATE_OPENING] = BARRIER_MOTION_BUDGET_MS,
+	[STATE_OPEN] = PASSAGE_BUDGET_MS,
+	[STATE_PASSING] = LANE_DEADLINE_KEEP,
 };
 
 static const struct lane_def entry_def = {

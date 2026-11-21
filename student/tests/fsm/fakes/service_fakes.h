@@ -20,6 +20,7 @@ DECLARE_FAKE_VALUE_FUNC(bool, barrier_is_closed, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(int, barrier_stop, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(int, signals_init, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(int, signals_stop, enum lane_id);
+DECLARE_FAKE_VALUE_FUNC(int, signals_go, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(int, signals_assist, enum lane_id);
 DECLARE_FAKE_VALUE_FUNC(int, camera_init, enum lane_id);
 DECLARE_FAKE_VOID_FUNC(camera_poll, enum lane_id, int64_t);

@@ -522,6 +522,43 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   - O FFF guarda ponteiros, não o conteúdo: para verificar uma string
     passada como argumento, é preciso copiá-la num falso próprio.
 
+### 2026-11-21 — Cancela aberta e passagem (fsm/states)
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** REQ-06 (verde só no fim de curso superior com o motor
+  desligado), REQ-07 (prazo de passagem de 10000 ms)
+- **O que pedi:** os estados OPEN e PASSING, com a skill `clean-c-zephyr`.
+- **O que a IA propôs:**
+  - OPENING → OPEN com `EV_UPPER_REACHED`; a ação de entrada é
+    `let_car_through` (`signals_go`);
+  - OPEN → PASSING com `EV_BEAM_ON`;
+  - os dois estados levam a ASSIST_LOCKED com `EV_TIMEOUT`;
+  - prazos: OPEN = `PASSAGE_BUDGET_MS` (10000) e PASSING =
+    `LANE_DEADLINE_KEEP`.
+
+  A conclusão da passagem (feixe livre e carro longe) e o CLOSING ficam para
+  o passo 8.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei.
+- **Como verifiquei:**
+  - Passam agora `confidence-retry`, `stationary`, `noisy-threshold` e
+    `obstruction-before-close`: 11 de 19 no total, com `jam` e
+    `contradictory-limits` do G3. O `obstruction-before-close` confirma o
+    KEEP: o feixe fica preso desde o tick 630, e a assistência precisa sair
+    antes do tick 1600.
+  - `firmware-coverage.py`: todas as suítes passam (6 testes novos);
+    `states.c` com 100% de linhas e de branches; total de 99,89% de linhas e
+    92,28% de branches. `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:**
+  - O verde nunca acende com o motor ligado porque o `barrier` desliga o
+    motor antes de postar `EV_UPPER_REACHED`, e só esse evento leva ao
+    OPEN. Um teste confere que nenhum outro evento acende o verde a partir
+    do OPENING.
+  - O prazo de passagem conta desde a abertura completa, e o PASSING mantém
+    esse prazo. Um carro parado (`stationary`) fica com o verde até esse
+    prazo vencer.
+  - Prazo de passagem vencido trava a assistência, porque a cancela está
+    aberta, fora da posição fechada.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

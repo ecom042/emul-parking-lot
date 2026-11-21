@@ -15,6 +15,8 @@ enum lane_state {
 	STATE_IDLE,          /**< barrier closed, red on, waiting for a car */
 	STATE_IDENTIFYING,   /**< camera recognition running (up to 3 attempts) */
 	STATE_OPENING,       /**< plate accepted, motor opening (2500 ms budget) */
+	STATE_OPEN,          /**< upper limit, motor off, green on: waiting for the beam */
+	STATE_PASSING,       /**< beam seen: waiting for it to clear with the car far */
 	STATE_ASSIST,        /**< assistance at a closed barrier: rearms when the car leaves */
 	STATE_ASSIST_LOCKED, /**< assistance until reset: position, limits or ADC fault */
 	STATE_COUNT,

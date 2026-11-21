@@ -24,13 +24,15 @@ K_MSGQ_DEFINE(test_queue, sizeof(uint8_t), 4, 1);
 
 /* States in which the latching faults must work (all but the latched one). */
 static const uint8_t running_states[] = {
-	STATE_INIT, STATE_IDLE, STATE_IDENTIFYING, STATE_OPENING, STATE_ASSIST,
+	STATE_INIT, STATE_IDLE,    STATE_IDENTIFYING, STATE_OPENING,
+	STATE_OPEN, STATE_PASSING, STATE_ASSIST,
 };
 
 #define READ_PLATE "ABC1D23"
 
 /* Deadline checks bound the arming instant, as in tests/unit/fsm. */
 #define OPENING_BUDGET_MS 2500
+#define PASSAGE_BUDGET_MS 10000
 #define FAR_FUTURE_MS     (INT64_MAX / 2)
 
 /*
@@ -349,7 +351,83 @@ ZTEST(fsm_states, test_assistance_waits_for_the_car_when_beam_clears)
 	zassert_equal(lane_state(&lane), STATE_ASSIST);
 }
 
-ZTEST(fsm_states, test_entry_deadlines_belong_to_opening_only)
+/* ---- Open and passing (REQ-06, REQ-07) ---- */
+
+ZTEST(fsm_states, test_upper_limit_turns_green_on)
+{
+	start_in(STATE_OPENING);
+
+	zassert_true(lane_dispatch(&lane, EV_UPPER_REACHED));
+
+	zassert_equal(lane_state(&lane), STATE_OPEN);
+	zassert_equal(signals_go_fake.call_count, 1);
+	zassert_equal(signals_go_fake.arg0_val, LANE_ENTRY);
+	zassert_equal(barrier_stop_fake.call_count, 0, "the barrier already stopped");
+}
+
+/* REQ-06: from OPENING, no other event may turn green on. */
+ZTEST(fsm_states, test_green_only_after_the_upper_limit)
+{
+	for (uint8_t event = 0; event < EV_COUNT; event++) {
+		if (event == EV_UPPER_REACHED) {
+			continue;
+		}
+		start_in(STATE_OPENING);
+		(void)lane_dispatch(&lane, event);
+	}
+
+	zassert_equal(signals_go_fake.call_count, 0);
+}
+
+ZTEST(fsm_states, test_beam_going_active_keeps_the_passage_budget)
+{
+	start_in(STATE_OPENING);
+	int64_t before_ms = k_uptime_get();
+
+	zassert_true(lane_dispatch(&lane, EV_UPPER_REACHED));
+	int64_t after_ms = k_uptime_get();
+	zassert_true(lane_dispatch(&lane, EV_BEAM_ON));
+
+	zassert_equal(lane_state(&lane), STATE_PASSING);
+	zassert_false(lane_deadline_expired(&lane, before_ms + PASSAGE_BUDGET_MS - 1));
+	zassert_true(lane_deadline_expired(&lane, after_ms + PASSAGE_BUDGET_MS),
+		     "counted from the opening, not from the beam");
+}
+
+ZTEST(fsm_states, test_open_ignores_events_that_are_not_a_passage)
+{
+	const uint8_t not_a_passage[] = {EV_BEAM_OFF, EV_CAR_LEFT, EV_CAR_ARRIVED};
+
+	start_in(STATE_OPEN);
+	for (size_t i = 0; i < ARRAY_SIZE(not_a_passage); i++) {
+		zassert_false(lane_dispatch(&lane, not_a_passage[i]), "event %u",
+			      not_a_passage[i]);
+	}
+
+	zassert_equal(lane_state(&lane), STATE_OPEN);
+}
+
+ZTEST(fsm_states, test_passage_timeout_latches_assistance_from_open)
+{
+	start_in(STATE_OPEN);
+
+	zassert_true(lane_dispatch(&lane, EV_TIMEOUT));
+
+	zassert_equal(lane_state(&lane), STATE_ASSIST_LOCKED);
+	assert_assisted_once();
+}
+
+ZTEST(fsm_states, test_passage_timeout_latches_assistance_from_passing)
+{
+	start_in(STATE_PASSING);
+
+	zassert_true(lane_dispatch(&lane, EV_TIMEOUT));
+
+	zassert_equal(lane_state(&lane), STATE_ASSIST_LOCKED);
+	assert_assisted_once();
+}
+
+ZTEST(fsm_states, test_identifying_has_no_lane_deadline)
 {
 	start_in(STATE_IDLE);
 	barrier_is_closed_fake.return_val = true;
