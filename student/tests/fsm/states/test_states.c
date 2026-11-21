@@ -685,7 +685,7 @@ ZTEST(fsm_states, test_exit_plate_with_session_goes_to_charging)
 
 	zassert_equal(lane_state(&lane), STATE_CHARGING);
 	zassert_equal(camera_plate_fake.arg0_val, LANE_EXIT);
-	zassert_equal(sessions_entry_time_fake.call_count, 1);
+	zassert_equal(sessions_entry_time_fake.call_count, 2, "the guard, then the charge");
 }
 
 ZTEST(fsm_states, test_exit_plate_without_session_asks_for_assistance)
@@ -761,4 +761,191 @@ ZTEST(fsm_states, test_exit_assistance_with_car_already_gone_rearms_by_itself)
 
 	zassert_ok(k_msgq_get(own_queue(LANE_EXIT), &event, K_NO_WAIT));
 	zassert_equal(event, EV_CAR_LEFT);
+}
+
+/* ---- Exit lane: charging (REQ-05, REQ-12) ---- */
+
+#define PARKED_MS     2500
+#define CHARGED_CENTS 400U
+
+/* What the charge used, copied while the pointers were still valid. */
+static char shown_plate[PLATE_LEN + 1];
+static char charged_plate[PLATE_LEN + 1];
+static uint32_t charged_cents;
+static int64_t entry_time_ms;
+static int tariff_result;
+
+static int session_entered_parked_ms_ago(const char *plate, int64_t *entry_ms)
+{
+	ARG_UNUSED(plate);
+	*entry_ms = entry_time_ms;
+	return 0;
+}
+
+static int tariff_says_400(int64_t parked_ms, uint32_t *cents)
+{
+	ARG_UNUSED(parked_ms);
+	if (tariff_result == 0) {
+		*cents = CHARGED_CENTS;
+	}
+	return tariff_result;
+}
+
+static int record_shown_plate(const char *plate)
+{
+	strncpy(shown_plate, plate, PLATE_LEN);
+	return 0;
+}
+
+static int record_charge(const char *plate, uint32_t cents)
+{
+	strncpy(charged_plate, plate, PLATE_LEN);
+	charged_cents = cents;
+	return 0;
+}
+
+/* A plate with a session, read at the exit: the lane enters CHARGING. */
+static void enter_charging(void)
+{
+	start_exit_in(STATE_IDENTIFYING);
+	camera_plate_fake.custom_fake = plate_was_read;
+	entry_time_ms = k_uptime_get() - PARKED_MS;
+	sessions_entry_time_fake.custom_fake = session_entered_parked_ms_ago;
+	tariff_cents_fake.custom_fake = tariff_says_400;
+	screen_show_plate_fake.custom_fake = record_shown_plate;
+	payment_start_fake.custom_fake = record_charge;
+	memset(shown_plate, 0, sizeof(shown_plate));
+	memset(charged_plate, 0, sizeof(charged_plate));
+
+	zassert_true(lane_dispatch(&lane, EV_PLATE_READ));
+	zassert_equal(lane_state(&lane), STATE_CHARGING);
+}
+
+static void assert_own_event(enum lane_id id, enum lane_event expected)
+{
+	uint8_t event;
+
+	zassert_ok(k_msgq_get(own_queue(id), &event, K_NO_WAIT), "no event posted");
+	zassert_equal(event, expected);
+	zassert_equal(k_msgq_num_used_get(own_queue(id)), 0, "only one event");
+}
+
+ZTEST(fsm_states, test_charging_follows_the_specified_order)
+{
+	tariff_result = 0;
+
+	enter_charging();
+
+	zassert_true(call_position(screen_show_plate) < call_position(tariff_cents),
+		     "plate shown before the amount is frozen");
+	zassert_true(call_position(tariff_cents) < call_position(screen_show_amount));
+	zassert_true(call_position(screen_show_amount) < call_position(payment_start),
+		     "amount shown before CHARGE");
+}
+
+ZTEST(fsm_states, test_charge_uses_the_read_plate_and_the_tariff)
+{
+	tariff_result = 0;
+
+	enter_charging();
+
+	zassert_str_equal(shown_plate, READ_PLATE);
+	zassert_str_equal(charged_plate, READ_PLATE);
+	zassert_equal(screen_show_amount_fake.arg0_val, CHARGED_CENTS);
+	zassert_equal(charged_cents, CHARGED_CENTS);
+	zassert_equal(k_msgq_num_used_get(own_queue(LANE_EXIT)), 0, "no failure event");
+}
+
+ZTEST(fsm_states, test_tariff_counts_the_time_since_entry_once)
+{
+	tariff_result = 0;
+
+	enter_charging();
+
+	zassert_equal(tariff_cents_fake.call_count, 1, "frozen: computed once");
+	zassert_true(tariff_cents_fake.arg0_val >= PARKED_MS);
+	zassert_true(tariff_cents_fake.arg0_val <= k_uptime_get() - entry_time_ms);
+}
+
+/* REQ-12: above 9999 units, assistance; nothing drawn or charged. */
+ZTEST(fsm_states, test_tariff_out_of_range_charges_nothing)
+{
+	tariff_result = -ERANGE;
+
+	enter_charging();
+
+	zassert_equal(screen_show_plate_fake.call_count, 1, "the plate is shown");
+	zassert_equal(screen_show_amount_fake.call_count, 0);
+	zassert_equal(payment_start_fake.call_count, 0);
+	assert_own_event(LANE_EXIT, EV_TARIFF_OUT_OF_RANGE);
+}
+
+ZTEST(fsm_states, test_charge_refused_by_the_terminal_service_fails)
+{
+	tariff_result = 0;
+	payment_start_fake.custom_fake = NULL;
+	start_exit_in(STATE_IDENTIFYING);
+	camera_plate_fake.custom_fake = plate_was_read;
+	entry_time_ms = k_uptime_get();
+	sessions_entry_time_fake.custom_fake = session_entered_parked_ms_ago;
+	tariff_cents_fake.custom_fake = tariff_says_400;
+	payment_start_fake.return_val = -EBUSY;
+
+	zassert_true(lane_dispatch(&lane, EV_PLATE_READ));
+
+	assert_own_event(LANE_EXIT, EV_PAYMENT_FAILED);
+}
+
+/*
+ * The guard into CHARGING read the plate and the session; these tests make
+ * the second read (at the start of the charge) fail, with FFF return
+ * sequences: first call succeeds, second fails.
+ */
+ZTEST(fsm_states, test_charge_without_plate_fails_without_drawing)
+{
+	int plate_reads[] = {0, -ENOENT};
+
+	start_exit_in(STATE_IDENTIFYING);
+	SET_RETURN_SEQ(camera_plate, plate_reads, ARRAY_SIZE(plate_reads));
+
+	zassert_true(lane_dispatch(&lane, EV_PLATE_READ));
+
+	zassert_equal(screen_show_plate_fake.call_count, 0);
+	zassert_equal(payment_start_fake.call_count, 0);
+	assert_own_event(LANE_EXIT, EV_PAYMENT_FAILED);
+}
+
+ZTEST(fsm_states, test_charge_without_session_fails_before_the_tariff)
+{
+	int session_reads[] = {0, -ENOENT};
+
+	start_exit_in(STATE_IDENTIFYING);
+	camera_plate_fake.custom_fake = plate_was_read;
+	SET_RETURN_SEQ(sessions_entry_time, session_reads, ARRAY_SIZE(session_reads));
+
+	zassert_true(lane_dispatch(&lane, EV_PLATE_READ));
+
+	zassert_equal(tariff_cents_fake.call_count, 0);
+	zassert_equal(payment_start_fake.call_count, 0);
+	assert_own_event(LANE_EXIT, EV_PAYMENT_FAILED);
+}
+
+/* Every way out of CHARGING except PAID asks for assistance, which cancels
+ * the charge (P1 CANCEL) before the buzzer.
+ */
+ZTEST(fsm_states, test_charging_failures_ask_for_assistance)
+{
+	const uint8_t failures[] = {EV_PAYMENT_FAILED, EV_TARIFF_OUT_OF_RANGE, EV_CAR_LEFT};
+
+	for (size_t i = 0; i < ARRAY_SIZE(failures); i++) {
+		reset_fakes(NULL);
+		start_exit_in(STATE_CHARGING);
+
+		zassert_true(lane_dispatch(&lane, failures[i]), "event %u", failures[i]);
+
+		zassert_equal(lane_state(&lane), STATE_ASSIST, "event %u", failures[i]);
+		zassert_equal(payment_cancel_fake.call_count, 1);
+		zassert_true(call_position(payment_cancel) < call_position(signals_assist));
+		zassert_equal(barrier_open_fake.call_count, 0, "never opens");
+	}
 }

@@ -30,6 +30,10 @@ DEFINE_FAKE_VALUE_FUNC(int, payment_init);
 DEFINE_FAKE_VOID_FUNC(payment_cancel);
 DEFINE_FAKE_VOID_FUNC(payment_poll, int64_t);
 DEFINE_FAKE_VALUE_FUNC(int, screen_init);
+DEFINE_FAKE_VALUE_FUNC(int, screen_show_plate, const char *);
+DEFINE_FAKE_VALUE_FUNC(int, screen_show_amount, uint32_t);
+DEFINE_FAKE_VALUE_FUNC(int, tariff_cents, int64_t, uint32_t *);
+DEFINE_FAKE_VALUE_FUNC(int, payment_start, const char *, uint32_t);
 
 void service_fakes_reset(void)
 {
@@ -61,5 +65,9 @@ void service_fakes_reset(void)
 	RESET_FAKE(payment_cancel);
 	RESET_FAKE(payment_poll);
 	RESET_FAKE(screen_init);
+	RESET_FAKE(screen_show_plate);
+	RESET_FAKE(screen_show_amount);
+	RESET_FAKE(tariff_cents);
+	RESET_FAKE(payment_start);
 	FFF_RESET_HISTORY();
 }

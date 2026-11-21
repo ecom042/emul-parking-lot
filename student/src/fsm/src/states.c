@@ -1,5 +1,7 @@
 #include "fsm/states.h"
 
+#include <errno.h>
+
 #include <zephyr/kernel.h>
 
 #include "services/barrier.h"
@@ -7,8 +9,10 @@
 #include "services/events.h"
 #include "services/payment.h"
 #include "services/presence.h"
+#include "services/screen.h"
 #include "services/sessions.h"
 #include "services/signals.h"
+#include "services/tariff.h"
 
 /* REQ-06: opening or closing must reach its limit switch within this. */
 #define BARRIER_MOTION_BUDGET_MS 2500
@@ -156,6 +160,53 @@ static void close_after_passage(struct lane *lane)
 	record_entry(id);
 	(void)signals_stop(id);
 	(void)barrier_close(id);
+}
+
+/*
+ * REQ-12: the amount is computed once, here, from the entry time; P1 resends
+ * reuse it inside services/payment and never ask for it again.
+ * @retval -ENOENT the plate no longer has a session.
+ * @retval -ERANGE more than 9999 units (from tariff_cents()).
+ */
+static int freeze_amount(const char *plate, uint32_t *cents)
+{
+	int64_t entry_ms;
+
+	if (sessions_entry_time(plate, &entry_ms) != 0) {
+		return -ENOENT;
+	}
+	return tariff_cents(k_uptime_get() - entry_ms, cents);
+}
+
+/*
+ * REQ-05, REQ-12, in the order the specification fixes: plate on the
+ * display, amount frozen, amount on the display, then CHARGE. Every way it
+ * cannot charge ends in an event, so the table decides what follows: above
+ * 9999 units nothing is drawn or charged (EV_TARIFF_OUT_OF_RANGE).
+ */
+static void start_charge(struct lane *lane)
+{
+	enum lane_id id = lane_id_of(lane);
+	char plate[PLATE_LEN + 1];
+	uint32_t cents;
+
+	if (camera_plate(id, plate) != 0) {
+		(void)events_post(id, EV_PAYMENT_FAILED);
+		return;
+	}
+	(void)screen_show_plate(plate);
+
+	int err = freeze_amount(plate, &cents);
+
+	if (err != 0) {
+		(void)events_post(id, (err == -ERANGE) ? EV_TARIFF_OUT_OF_RANGE
+						       : EV_PAYMENT_FAILED);
+		return;
+	}
+	(void)screen_show_amount(cents);
+	if (payment_start(plate, cents) != 0) {
+		(void)events_post(id, EV_PAYMENT_FAILED);
+	}
 }
 
 /* REQ-09: motor off first, then red on, green off and one buzzer pulse. */
@@ -317,8 +368,14 @@ static const struct lane_transition exit_table[STATE_COUNT][EV_COUNT] = {
 		[EV_CAPTURE_FAILED] = GO(STATE_ASSIST),
 		[EV_CAR_LEFT] = GO(STATE_IDLE), /* REQ-03: gave up, no assistance */
 	},
+	/* REQ-03/05: a car leaving during payment gives up the charge; the
+	 * assistance cancels it (P1 CANCEL) and rearms once the car is gone.
+	 */
 	[STATE_CHARGING] = {
 		LATCHING_FAULTS,
+		[EV_PAYMENT_FAILED] = GO(STATE_ASSIST),
+		[EV_TARIFF_OUT_OF_RANGE] = GO(STATE_ASSIST),
+		[EV_CAR_LEFT] = GO(STATE_ASSIST),
 	},
 	[STATE_ASSIST] = ROW_ASSIST,
 };
@@ -326,6 +383,7 @@ static const struct lane_transition exit_table[STATE_COUNT][EV_COUNT] = {
 static const lane_enter_fn exit_actions[STATE_COUNT] = {
 	[STATE_IDLE] = wait_for_car,
 	[STATE_IDENTIFYING] = start_recognition,
+	[STATE_CHARGING] = start_charge,
 	[STATE_ASSIST] = request_rearmable_exit_assistance,
 	[STATE_ASSIST_LOCKED] = request_exit_assistance,
 };

@@ -749,6 +749,47 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
     esperar a primeira atualização (dois ticks) antes de decidir pela
     posição da cancela é a forma segura.
 
+### 2026-11-21 — Cobrança na saída (fsm/states, estado CHARGING)
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** REQ-05 (pagamento), REQ-12 (tarifa congelada, display,
+  acima de 9999 unidades), REQ-03 (desistir durante o pagamento)
+- **O que pedi:** a cobrança da saída, com a skill `clean-c-zephyr`.
+- **O que a IA propôs:**
+  - ação `start_charge`, na ordem `screen_show_plate` → `sessions_entry_time`
+    → `tariff_cents` (em `freeze_amount`) → `screen_show_amount` →
+    `payment_start`;
+  - todo caso em que não dá para cobrar vira um evento na própria fila:
+    `-ERANGE` posta `EV_TARIFF_OUT_OF_RANGE`, sem desenhar o valor nem
+    cobrar; placa ou sessão sumindo, ou erro do `payment_start`, postam
+    `EV_PAYMENT_FAILED`;
+  - linha do CHARGING: `EV_PAYMENT_FAILED`, `EV_TARIFF_OUT_OF_RANGE` e
+    `EV_CAR_LEFT` levam ao ASSIST, que cancela a cobrança antes do buzzer e
+    rearma quando o carro sai.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei.
+- **Como verifiquei:**
+  - Os 19 cenários **nos dois builds**: 15/19 no normal (`lab.py
+    --prepare-only` + `assess.py`) e 15/19 no `firmware-coverage.py`.
+    Passaram a passar `payment-missing` e `reset-payment`; faltam os 4 que
+    exigem abrir com o PAID (passo 4).
+  - Todas as suítes passam (9 testes novos); `states.c` com 100% de linhas
+    e de branches; total de 99,90% de linhas e 95,92% de branches.
+    `static-check.py` com 0 achados.
+  - Um teste antigo precisou de ajuste: entrar no CHARGING agora consulta a
+    sessão duas vezes (a guarda e a cobrança).
+- **O que aprendi / o que ainda preciso entender:**
+  - A ordem é a da especificação: a placa aparece antes de o valor ser
+    calculado, o valor aparece antes do CHARGE, e o valor é calculado uma
+    vez só. Os reenvios ficam dentro do `payment` e reaproveitam o mesmo
+    valor e o mesmo UUID.
+  - A ação de entrada não muda de estado sozinha: quando não consegue
+    cobrar, posta um evento na própria faixa, e a tabela decide o que vem
+    depois. Assim todo destino fica visível na tabela.
+  - Acima de 9999 unidades nada é cobrado e o valor não é desenhado; a tela
+    fica só com a placa.
+  - Nos testes, `SET_RETURN_SEQ` do FFF faz a primeira chamada dar certo
+    (a guarda) e a segunda falhar (a cobrança).
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

@@ -43,6 +43,10 @@ DECLARE_FAKE_VALUE_FUNC(int, payment_init);
 DECLARE_FAKE_VOID_FUNC(payment_cancel);
 DECLARE_FAKE_VOID_FUNC(payment_poll, int64_t);
 DECLARE_FAKE_VALUE_FUNC(int, screen_init);
+DECLARE_FAKE_VALUE_FUNC(int, screen_show_plate, const char *);
+DECLARE_FAKE_VALUE_FUNC(int, screen_show_amount, uint32_t);
+DECLARE_FAKE_VALUE_FUNC(int, tariff_cents, int64_t, uint32_t *);
+DECLARE_FAKE_VALUE_FUNC(int, payment_start, const char *, uint32_t);
 
 /** Reset every fake above and the shared call history. */
 void service_fakes_reset(void);
