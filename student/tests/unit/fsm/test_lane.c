@@ -7,6 +7,7 @@
  *   B --TRY--> A if guard          (guard without otherwise)
  *   B --GO--> C                    (C has no entry action)
  *   NOP does nothing anywhere.
+ * Toy deadlines: A none, B TOY_DEADLINE_MS, C keeps the running one.
  */
 #include <errno.h>
 #include <stdbool.h>
@@ -59,12 +60,32 @@ static const lane_enter_fn toy_on_enter[ST_COUNT] = {
 	[ST_B] = enter_b,
 };
 
+#define TOY_DEADLINE_MS 50U
+
+static const uint16_t toy_deadlines_ms[ST_COUNT] = {
+	[ST_A] = LANE_DEADLINE_NONE,
+	[ST_B] = TOY_DEADLINE_MS,
+	[ST_C] = LANE_DEADLINE_KEEP,
+};
+
 static const struct lane_def toy_def = {
+	.table = &toy_table[0][0],
+	.on_enter = toy_on_enter,
+	.deadline_ms = toy_deadlines_ms,
+	.n_states = ST_COUNT,
+	.n_events = EV_COUNT,
+};
+
+/* The same rules with no deadline table at all. */
+static const struct lane_def toy_def_without_deadlines = {
 	.table = &toy_table[0][0],
 	.on_enter = toy_on_enter,
 	.n_states = ST_COUNT,
 	.n_events = EV_COUNT,
 };
+
+/* Far beyond any toy deadline: "would it ever expire?" */
+#define FAR_FUTURE_MS (INT64_MAX / 2)
 
 /* Small on purpose: two posts fill it, so the "full" case is easy to reach. */
 #define TOY_QUEUE_LEN 2
@@ -192,4 +213,86 @@ ZTEST(fsm_lane, test_post_to_full_queue_fails)
 		zassert_ok(lane_post(&toy, EV_NOP));
 	}
 	zassert_equal(lane_post(&toy, EV_GO), -ENOMSG);
+}
+
+/*
+ * Deadline tests do not sleep: they bound the arming instant by the uptime
+ * read before and after entering the state, so they cannot be flaky.
+ */
+struct arming_window {
+	int64_t before_ms; /**< uptime just before the state was entered */
+	int64_t after_ms;  /**< uptime just after */
+};
+
+static struct arming_window dispatch_timed(uint8_t event)
+{
+	struct arming_window window = {.before_ms = k_uptime_get()};
+
+	zassert_true(lane_dispatch(&toy, event));
+	window.after_ms = k_uptime_get();
+	return window;
+}
+
+static void assert_expires_once_within(const struct arming_window *window)
+{
+	zassert_false(lane_deadline_expired(&toy, window->before_ms + TOY_DEADLINE_MS - 1),
+		      "expired too early");
+	zassert_true(lane_deadline_expired(&toy, window->after_ms + TOY_DEADLINE_MS));
+}
+
+ZTEST(fsm_lane, test_init_arms_no_deadline)
+{
+	zassert_false(lane_deadline_expired(&toy, FAR_FUTURE_MS));
+}
+
+ZTEST(fsm_lane, test_entering_a_state_with_budget_arms_its_deadline)
+{
+	struct arming_window window = dispatch_timed(EV_GO); /* A -> B */
+
+	assert_expires_once_within(&window);
+}
+
+ZTEST(fsm_lane, test_expired_deadline_is_reported_once)
+{
+	struct arming_window window = dispatch_timed(EV_GO); /* A -> B */
+
+	zassert_true(lane_deadline_expired(&toy, window.after_ms + TOY_DEADLINE_MS));
+	zassert_false(lane_deadline_expired(&toy, FAR_FUTURE_MS), "already reported");
+}
+
+ZTEST(fsm_lane, test_keep_state_keeps_the_running_deadline)
+{
+	struct arming_window window = dispatch_timed(EV_GO); /* A -> B */
+
+	zassert_true(lane_dispatch(&toy, EV_GO)); /* B -> C keeps B's deadline */
+
+	assert_expires_once_within(&window);
+}
+
+ZTEST(fsm_lane, test_keep_state_with_nothing_running_stays_without_deadline)
+{
+	lane_init(&toy, TOY_LANE_ID, &toy_def, &toy_queue, ST_B);
+
+	zassert_true(lane_dispatch(&toy, EV_GO)); /* B -> C, nothing was armed */
+
+	zassert_false(lane_deadline_expired(&toy, FAR_FUTURE_MS));
+}
+
+ZTEST(fsm_lane, test_entering_a_state_without_budget_disarms)
+{
+	(void)dispatch_timed(EV_GO); /* A -> B arms */
+	guard_answer = true;
+
+	zassert_true(lane_dispatch(&toy, EV_TRY)); /* B -> A has none */
+
+	zassert_false(lane_deadline_expired(&toy, FAR_FUTURE_MS));
+}
+
+ZTEST(fsm_lane, test_rules_without_deadline_table_never_expire)
+{
+	lane_init(&toy, TOY_LANE_ID, &toy_def_without_deadlines, &toy_queue, ST_A);
+
+	zassert_true(lane_dispatch(&toy, EV_GO)); /* A -> B */
+
+	zassert_false(lane_deadline_expired(&toy, FAR_FUTURE_MS));
 }

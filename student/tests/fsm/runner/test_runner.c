@@ -182,3 +182,46 @@ ZTEST(fsm_runner, test_step_without_event_still_polls_the_camera)
 	zassert_equal(camera_poll_fake.call_count, 1);
 	zassert_equal(camera_poll_fake.arg0_val, LANE_ENTRY);
 }
+
+/*
+ * Toy rules for the deadline: EV_BOOT enters WAITING, which has a short
+ * budget; EV_TIMEOUT leaves it. The entry rules get deadlines in later steps.
+ */
+enum { TOY_IDLE = 1, TOY_WAITING, TOY_TIMED_OUT, TOY_STATE_COUNT };
+
+#define TOY_DEADLINE_MS 20U
+
+static const struct lane_transition toy_table[TOY_STATE_COUNT][EV_COUNT] = {
+	[TOY_IDLE][EV_BOOT] = {.next = TOY_WAITING},
+	[TOY_WAITING][EV_TIMEOUT] = {.next = TOY_TIMED_OUT},
+};
+
+static const lane_enter_fn toy_actions[TOY_STATE_COUNT];
+
+static const uint16_t toy_deadlines_ms[TOY_STATE_COUNT] = {
+	[TOY_WAITING] = TOY_DEADLINE_MS,
+};
+
+static const struct lane_def toy_def = {
+	.table = &toy_table[0][0],
+	.on_enter = toy_actions,
+	.deadline_ms = toy_deadlines_ms,
+	.n_states = TOY_STATE_COUNT,
+	.n_events = EV_COUNT,
+};
+
+ZTEST(fsm_runner, test_step_applies_timeout_only_after_the_deadline)
+{
+	struct lane *entry = lanes_get(LANE_ENTRY);
+
+	lane_init(entry, LANE_ENTRY, &toy_def, entry->queue, TOY_IDLE);
+	zassert_true(lane_dispatch(entry, EV_BOOT));
+
+	runner_step(entry);
+	zassert_equal(lane_state(entry), TOY_WAITING, "deadline not reached yet");
+
+	k_msleep(TOY_DEADLINE_MS);
+	runner_step(entry);
+	zassert_equal(lane_state(entry), TOY_TIMED_OUT);
+	zassert_equal(camera_poll_fake.call_count, 2, "camera serviced every turn");
+}

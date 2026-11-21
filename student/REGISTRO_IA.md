@@ -347,6 +347,43 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   - `EV_BOOT` pode ser postado antes de a thread existir, porque a fila é
     estática e o evento espera nela.
 
+### 2026-11-21 — Prazos no motor da máquina (fsm/lane, fsm/runner)
+
+- **Aluno:** Kauã Lessa
+- **Requisito(s):** REQ-06 (2500 ms para abrir e fechar), REQ-07 (10000 ms
+  de passagem); só o mecanismo, porque os estados com prazo entram nos
+  próximos passos.
+- **O que pedi:** prazos por estado no motor genérico, com a skill
+  `clean-c-zephyr`.
+- **O que a IA propôs:**
+  - `lane_def.deadline_ms[]`, um valor por estado: `LANE_DEADLINE_NONE`, um
+    orçamento em ms ou `LANE_DEADLINE_KEEP` (mantém o prazo que estava
+    correndo);
+  - `enter()` arma o prazo antes da ação de entrada;
+  - `lane_deadline_expired()` avisa uma vez só e desarma;
+  - `runner_step()` despacha `EV_TIMEOUT` direto, sem passar pela fila.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei. A tabela de
+  prazos da entrada não foi criada agora (o campo `NULL` quer dizer "sem
+  prazos"), para não ter uma tabela só de zeros; ela entra com o OPENING.
+- **Como verifiquei:** `firmware-coverage.py`: todas as suítes passam (7
+  testes novos em `tests/unit/fsm`, 1 em `tests/fsm`); `lane.c` e `runner.c`
+  com 100% de linhas e de branches; total de 99,87% de linhas e 91,35% de
+  branches. `partial-startup` e `contradictory-limits` continuam passando.
+  `static-check.py` com 0 achados.
+- **O que aprendi / o que ainda preciso entender:**
+  - Cada estado declara o seu prazo numa tabela, como as transições. Mudar
+    um prazo (pedido típico da sabatina) é mudar um número nessa tabela.
+  - O `LANE_DEADLINE_KEEP` deixa um prazo cobrir vários estados. O PASSING
+    mantém os 10000 ms do OPEN; se reiniciasse quando o feixe sobe, o
+    `obstruction-before-close` reprovaria (assistência no tick ~1630, depois
+    do 1600).
+  - O `EV_TIMEOUT` é aplicado na hora, sem passar pela fila, para nunca
+    chegar a um estado que já mudou.
+  - O prazo é conferido a cada volta (cerca de 1 ms), dentro da tolerância
+    de 10 ms da avaliação.
+  - Os testes não dormem: limitam o instante em que o prazo foi armado pelo
+    relógio lido antes e depois da transição, então não ficam instáveis.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do

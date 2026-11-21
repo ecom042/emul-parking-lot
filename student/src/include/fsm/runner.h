@@ -29,7 +29,8 @@ void runner_start(void);
 
 /**
  * @brief One turn of a lane thread, without blocking for long: apply at most
- *        one queued event (waiting up to 1 ms), then service the camera.
+ *        one queued event (waiting up to 1 ms), apply EV_TIMEOUT if the
+ *        state's deadline expired, then service the camera.
  * Exposed so that unit tests can drive a lane step by step.
  */
 void runner_step(struct lane *lane);

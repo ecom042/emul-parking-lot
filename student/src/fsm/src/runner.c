@@ -14,7 +14,8 @@
 
 /*
  * One lane turn waits at most this long for an event, so camera_poll() runs
- * about every millisecond: replies arrive in 8-byte pieces every 10 ms.
+ * and deadlines are checked about every millisecond: camera replies arrive
+ * in 8-byte pieces every 10 ms, and a motion deadline may be late by 10 ms.
  */
 #define LANE_EVENT_WAIT_MS 1
 
@@ -89,7 +90,13 @@ int runner_init(void)
 void runner_step(struct lane *lane)
 {
 	(void)lane_process(lane, K_MSEC(LANE_EVENT_WAIT_MS));
-	camera_poll((enum lane_id)lane->id, k_uptime_get());
+
+	int64_t now_ms = k_uptime_get();
+
+	if (lane_deadline_expired(lane, now_ms)) {
+		(void)lane_dispatch(lane, EV_TIMEOUT);
+	}
+	camera_poll((enum lane_id)lane->id, now_ms);
 }
 
 static void run_lane(void *lane, void *unused1, void *unused2)
