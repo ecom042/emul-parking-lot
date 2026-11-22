@@ -57,33 +57,33 @@
 #define CAMERA_ID_MAX 999999999U
 #define CAMERA_CONFIDENCE_MAX 100U
 
-/* Que tipo de quadro acabou de ser concluído? */
+/** Tipo de quadro recebido da câmera. */
 enum camera_frame_kind {
-	CAMERA_FRAME_NONE,    /* ainda não há quadro completo (faltam bytes) */
-	CAMERA_FRAME_OK,      /* "OK": a câmera ACEITOU o comando (não é a placa!) */
-	CAMERA_FRAME_ERROR,   /* "ERROR": a câmera rejeitou o comando */
-	CAMERA_FRAME_PLATE,   /* "+PLATE:id,"placa",conf": o resultado da captura */
-	CAMERA_FRAME_INVALID, /* uma linha chegou ao LF, mas estava malformada: foi descartada */
+	CAMERA_FRAME_NONE,    /**< Nenhum quadro completo. */
+	CAMERA_FRAME_OK,      /**< A câmera aceitou o comando de captura. */
+	CAMERA_FRAME_ERROR,   /**< A câmera rejeitou o comando. */
+	CAMERA_FRAME_PLATE,   /**< Resultado da captura com placa e confiança. */
+	CAMERA_FRAME_INVALID, /**< A linha malformada foi descartada ao chegar ao LF. */
 };
 
-/* Conteúdo de um quadro. Os campos id/plate/confidence só valem se kind == PLATE. */
+/** Quadro decodificado. A carga útil vale quando o tipo é CAMERA_FRAME_PLATE. */
 struct camera_frame {
-	enum camera_frame_kind kind;
-	uint32_t id;                         /* id da captura que a câmera está respondendo */
-	char plate[CAMERA_PLATE_LEN + 1U];   /* placa terminada em '\0' */
-	uint8_t confidence;                  /* 0..100 */
+	enum camera_frame_kind kind;        /**< Tipo de quadro. */
+	uint32_t id;                         /**< Identificador da captura respondida. */
+	char plate[CAMERA_PLATE_LEN + 1U];   /**< Placa terminada em NUL. */
+	uint8_t confidence;                  /**< Confiança informada pela câmera, de 0 a 100. */
 };
 
-/*
+/**
  * Estado de UM analisador. Cada câmera (entrada e saída) tem o seu próprio:
  * "analisadores independentes" é exigência do REQ-11 — o lixo de uma UART
  * jamais pode contaminar a outra.
  */
 struct camera_parser {
-	char buf[CAMERA_FRAME_MAX]; /* bytes da linha em montagem (guarda até 127) */
-	size_t len;                 /* quantos bytes já estão em buf */
-	bool discarding;            /* true: descartando até o próximo LF */
-	int64_t started_at;         /* instante do 1º byte da linha em montagem */
+	char buf[CAMERA_FRAME_MAX]; /**< Bytes da linha em montagem, sem o LF. */
+	size_t len;                 /**< Número de bytes armazenados em buf. */
+	bool discarding;            /**< Descarta bytes até o próximo LF. */
+	int64_t started_at;         /**< Uptime em ms do primeiro byte da linha. */
 };
 
 /* Coloca o analisador no estado inicial (vazio, sincronizado). */

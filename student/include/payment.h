@@ -55,16 +55,16 @@
 #define PAYMENT_READ_CHUNK 16U
 #define PAYMENT_READ_ROUNDS 8
 
-/* Contrato que o módulo do display (issue #7) precisa cumprir. */
+/** Operações de display usadas durante a cobrança. */
 struct payment_display_ops {
-	/* Pede para desenhar a tela com a PLACA reconhecida. 0 = pedido aceito; < 0 = falha. */
 	int (*draw_plate)(const char plate[PARKING_PLATE_SIZE]);
-	/* Pede para desenhar a COBRANÇA (placa, BRL r.cc, SIMULATED PAYMENT, NOT PIX). */
+	/**< Solicita o desenho da placa. Retorna zero se o pedido for aceito. */
 	int (*draw_charge)(const char plate[PARKING_PLATE_SIZE], uint32_t amount_centavos);
-	/* Andamento do último desenho pedido: PENDING, OK (terminou) ou FAILED. Não bloqueia. */
+	/**< Solicita a tela com a placa, o valor em centavos e os avisos de simulação. */
 	enum equipment_result (*poll)(int64_t now);
-	/* Abandona o desenho em andamento. */
+	/**< Consulta o andamento do último desenho sem bloquear. */
 	void (*cancel)(void);
+	/**< Abandona o desenho em andamento. */
 };
 
 /*

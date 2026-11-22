@@ -53,15 +53,15 @@
 #define DISPLAY_COLOR_GREEN 0x07E0U
 #define DISPLAY_COLOR_RED 0xF800U
 
-/* Uma linha de texto a pintar: um retângulo da tela. */
+/** Retângulo da tela usado para desenhar uma linha de texto. */
 struct display_item {
-	char text[DISPLAY_TEXT_MAX]; /* texto terminado em '\0' */
-	uint16_t x;                  /* canto superior esquerdo, em pixels */
-	uint16_t y;
-	uint8_t chars;               /* quantos caracteres (largura = chars * 6 * scale) */
-	uint8_t scale;               /* ampliação da fonte (1, 2, 3...) */
-	uint16_t fg;                 /* cor da letra */
-	uint16_t bg;                 /* cor do fundo */
+	char text[DISPLAY_TEXT_MAX]; /**< Texto terminado em NUL. */
+	uint16_t x;                   /**< Coordenada esquerda em pixels. */
+	uint16_t y;                   /**< Coordenada superior em pixels. */
+	uint8_t chars;                /**< Número de células desenhadas, incluindo espaços. */
+	uint8_t scale;                /**< Fator inteiro de ampliação da fonte. */
+	uint16_t fg;                  /**< Cor do texto em RGB565. */
+	uint16_t bg;                  /**< Cor do fundo em RGB565. */
 };
 
 /* Largura e altura do retângulo do item, em pixels. */

@@ -38,9 +38,10 @@
 #define FONT_ROWS 7U /* linhas de pixels de uma letra */
 
 /* Um glifo: 7 linhas de 5 caracteres ('#' aceso, '.' apagado). */
+/** Mapa de pixels de um caractere da fonte 5×7. */
 struct font_glyph {
-	char character;
-	const char *rows[FONT_ROWS];
+	char character;             /**< Caractere ASCII representado. */
+	const char *rows[FONT_ROWS]; /**< Linhas do glifo, da superior à inferior. */
 };
 
 /* Devolve o glifo de `c` (ou o do espaço, em branco, se `c` não existir na fonte). Nunca NULL. */

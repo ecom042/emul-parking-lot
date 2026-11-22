@@ -39,32 +39,34 @@
 #define PAYMENT_FRAME_TIMEOUT_MS 1000     /* prazo de uma linha parcial */
 #define PAYMENT_AMOUNT_MAX 1000000U       /* limite do terminal, em centavos */
 
+/** Tipo de quadro recebido do terminal de pagamento. */
 enum payment_frame_kind {
-	PAYMENT_FRAME_NONE,    /* ainda não há quadro completo */
-	PAYMENT_FRAME_RESULT,  /* P1 RESULT ... (PAID ou CANCELLED) */
-	PAYMENT_FRAME_ERROR,   /* P1 ERROR <código>: só diagnóstico */
-	PAYMENT_FRAME_INVALID, /* linha terminou mas estava malformada: descartada */
+	PAYMENT_FRAME_NONE,    /**< Nenhum quadro completo. */
+	PAYMENT_FRAME_RESULT,  /**< Resultado do pagamento, PAID ou CANCELLED. */
+	PAYMENT_FRAME_ERROR,   /**< Diagnóstico de erro do terminal. */
+	PAYMENT_FRAME_INVALID, /**< A linha malformada foi descartada. */
 };
 
+/** Situação reportada pelo terminal. */
 enum payment_status {
-	PAYMENT_STATUS_PAID,
-	PAYMENT_STATUS_CANCELLED,
+	PAYMENT_STATUS_PAID,      /**< Pagamento confirmado. */
+	PAYMENT_STATUS_CANCELLED, /**< Cobrança cancelada. */
 };
 
-/* Campos de um RESULT (só valem quando kind == PAYMENT_FRAME_RESULT). */
+/** Quadro decodificado. A carga útil vale quando o tipo é PAYMENT_FRAME_RESULT. */
 struct payment_frame {
-	enum payment_frame_kind kind;
-	char uuid[PAYMENT_UUID_SIZE];
-	enum payment_status status;
-	uint32_t amount; /* centavos */
+	enum payment_frame_kind kind; /**< Tipo de quadro. */
+	char uuid[PAYMENT_UUID_SIZE]; /**< Identificador da cobrança, terminado em NUL. */
+	enum payment_status status;  /**< Situação devolvida pelo terminal. */
+	uint32_t amount;             /**< Valor informado em centavos. */
 };
 
-/* Estado de UM analisador. */
+/** Estado do analisador da UART do terminal. */
 struct payment_parser {
-	char buf[PAYMENT_FRAME_MAX]; /* até 127 bytes de linha em montagem */
-	size_t len;
-	bool discarding;    /* true: jogando fora até o próximo LF */
-	int64_t started_at; /* instante do 1º byte da linha em montagem */
+	char buf[PAYMENT_FRAME_MAX]; /**< Bytes da linha em montagem, sem o LF. */
+	size_t len;                  /**< Número de bytes armazenados em buf. */
+	bool discarding;             /**< Descarta bytes até o próximo LF. */
+	int64_t started_at;          /**< Uptime em ms do primeiro byte da linha. */
 };
 
 void payment_parser_init(struct payment_parser *parser);

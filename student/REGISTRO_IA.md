@@ -113,6 +113,14 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Verificação:** `entrega-normal-x86-01` falhou no tick 590 (5,90 s virtuais). `entrega-normal-x86-02` confirmou o cenário `normal` completo no Renode oficial x86_64.
 - **Validação completa:** [job ARM64 44658985711](https://github.com/anntimar/estacionamento-embarcados/actions/runs/44658985711), firmware `bf9e724`. Passaram 19 cenários públicos e 123 testes unitários. Cobertura de 96,17% das linhas e 88,61% das ramificações. Análise estática com zero achados.
 
+### 2026-11-22 — Organização dos contratos e adaptadores
+
+- **Aluna:** Maria Antonia Ribeiro Ramos.
+- **Ferramenta:** Codex.
+- **Pedido:** aplicar as sugestões de organização repassadas pelo Jackson Bruno.
+- **Alterações:** mover cabeçalhos para `include/` e os adaptadores de câmera, terminal, display e ADC4 para `src/drivers/`. Atualizar o CMake da aplicação e das oito suítes. Documentar os tipos públicos em Doxygen.
+- **Verificação:** [job ARM64 45066678160](https://github.com/anntimar/estacionamento-embarcados/actions/runs/45066678160), commit `4392a73`. Passaram os 19 cenários públicos e os 123 testes unitários. Cobertura de 96,17% das linhas e 88,61% das ramificações, com zero achados na análise estática. As alterações posteriores nos cabeçalhos foram verificadas como comentários.
+
 ### AAAA-MM-DD — título curto
 
 - **Aluno:** quem fez esta tarefa.
