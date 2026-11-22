@@ -4,4 +4,16 @@ list(APPEND BOARD_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../hardware)
 list(APPEND DTS_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../hardware)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(parking_student)
-target_sources(app PRIVATE src/main.c)
+target_sources(app PRIVATE
+	src/main.c
+	# --- lógica de identificação, cobrança e tela (A) ---
+	src/at_parser.c
+	src/p1_parser.c
+	src/tariff.c
+	src/sessions.c
+	src/uuid.c
+	src/hw_uart.c
+	src/st7789.c
+	src/font.c
+	# --- movimento e segurança (B): acrescente abaixo ---
+)
