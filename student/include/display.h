@@ -31,7 +31,9 @@
 
 #include <stdint.h>
 
-#include "payment.h"
+#include "equipment_types.h"
+
+struct payment_display_ops;
 
 /* Máximo de linhas de pixels enviadas por chamada de display_service(). */
 #define DISPLAY_ROWS_PER_STEP 4U

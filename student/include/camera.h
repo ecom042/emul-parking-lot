@@ -42,8 +42,7 @@
 
 #include <stdint.h>
 
-#include "camera_parser.h"
-#include "parking.h"
+#include "equipment_types.h"
 
 #define CAMERA_ATTEMPTS 3             /* tentativas por captura */
 #define CAMERA_ATTEMPT_TIMEOUT_MS 1000 /* prazo de cada tentativa */

@@ -15,6 +15,7 @@
 #include "display.h"
 #include "display_hw.h"
 #include "display_render.h"
+#include "payment.h"
 
 /* Comandos do ST7789V usados. */
 #define CMD_SWRESET 0x01U

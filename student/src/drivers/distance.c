@@ -4,6 +4,7 @@
 #include <zephyr/kernel.h>
 
 #include "distance.h"
+#include "equipment_types.h"
 
 #define ENTRY_DISTANCE DT_ALIAS(entry_distance)
 #define EXIT_DISTANCE DT_ALIAS(exit_distance)

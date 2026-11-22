@@ -7,6 +7,7 @@
 
 #include "camera.h"
 #include "display.h"
+#include "distance.h"
 #include "gate.h"
 #include "parking.h"
 #include "payment.h"

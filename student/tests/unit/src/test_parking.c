@@ -4,6 +4,8 @@
 #include <zephyr/ztest.h>
 
 #include "parking.h"
+#include "distance.h"
+#include "gate.h"
 
 FAKE_VALUE_FUNC(bool, distance_read, unsigned int, int64_t, uint16_t *);
 FAKE_VALUE_FUNC(bool, distance_faulted);

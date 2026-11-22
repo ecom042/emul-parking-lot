@@ -27,6 +27,8 @@ DEFINE_FFF_GLOBALS;
 #include "display_hw.h"
 #include "display_render.h"
 #include "font5x7.h"
+#include "payment.h"
+#include "font5x7.h"
 
 FAKE_VALUE_FUNC(int, display_hw_init);
 FAKE_VALUE_FUNC(int, display_hw_reset, bool);

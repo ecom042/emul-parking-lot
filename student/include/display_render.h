@@ -34,7 +34,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "font5x7.h"
 
 #define DISPLAY_WIDTH 240U
 #define DISPLAY_HEIGHT 320U

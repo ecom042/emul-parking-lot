@@ -1,23 +1,13 @@
 #ifndef PARKING_CONTROLLER_H
 #define PARKING_CONTROLLER_H
 
-#include "distance.h"
-#include "gate.h"
+#include <stdbool.h>
+#include <stdint.h>
 
-#define PARKING_PLATE_SIZE 8
+#include "equipment_types.h"
 
-/** Índices das faixas no controlador e nos adaptadores. */
-enum parking_lane_id {
-	PARKING_ENTRY, /**< Faixa de entrada. */
-	PARKING_EXIT,   /**< Faixa de saída, com terminal de pagamento. */
-};
-
-/** Resultado da consulta à operação atual do equipamento. */
-enum equipment_result {
-	EQUIPMENT_PENDING, /**< Operação ainda em andamento. */
-	EQUIPMENT_OK,      /**< Operação concluída com sucesso. */
-	EQUIPMENT_FAILED,  /**< Operação encerrada com falha. */
-};
+struct gate;
+struct gate_inputs;
 
 /**
  * These operations run in the serialized controller queue and must return

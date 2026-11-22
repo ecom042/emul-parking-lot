@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include "display_render.h"
+#include "font5x7.h"
 
 #define PLATE_Y 20U
 #define PLATE_SCALE 4U

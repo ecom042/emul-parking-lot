@@ -1,6 +1,8 @@
 #include <string.h>
 
 #include "parking.h"
+#include "distance.h"
+#include "gate.h"
 
 #define PASSAGE_TIMEOUT_MS 10000
 #define NO_SESSION (-1)

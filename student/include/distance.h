@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define PARKING_LANES 2
 #define PARKING_ADC_DEADLINE_MS 100
 #define PARKING_ARRIVAL_CODE 683
 #define PARKING_DEPARTURE_CODE 1024

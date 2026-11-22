@@ -48,7 +48,7 @@
 
 #include <stdint.h>
 
-#include "parking.h"
+#include "equipment_types.h"
 
 #define PAYMENT_ATTEMPTS 3             /* envios da mesma cobrança */
 #define PAYMENT_ATTEMPT_TIMEOUT_MS 1000 /* espera por envio */

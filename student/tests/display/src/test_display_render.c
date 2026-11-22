@@ -8,6 +8,7 @@
 
 #include "display_render.h"
 #include "font5x7.h"
+#include "font5x7.h"
 
 ZTEST_SUITE(display_render, NULL, NULL, NULL, NULL, NULL);
 

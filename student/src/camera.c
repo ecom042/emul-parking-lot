@@ -31,6 +31,7 @@
 
 #include "camera.h"
 #include "camera_hw.h"
+#include "camera_parser.h"
 
 /* O buffer de placa do controle (8) = 7 caracteres + '\0'. Se alguém mudar um, o build avisa. */
 _Static_assert(CAMERA_PLATE_LEN + 1U == PARKING_PLATE_SIZE, "placa: 7 caracteres + NUL");

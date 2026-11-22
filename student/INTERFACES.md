@@ -37,6 +37,10 @@ Usar o uptime virtual do Zephyr em todos os prazos. Para ztest/FFF, substituir a
 
 Os contratos C ficam em `student/include/`. A lógica e a inicialização da aplicação ficam em `student/src/`, e os adaptadores de câmera, terminal, display e ADC4 ficam em `student/src/drivers/`. As suítes de lógica usam FFF para substituir as operações de hardware. As suítes dos drivers incluem os adaptadores reais.
 
+`equipment_types.h` reúne os identificadores de faixa, o tamanho da placa e o resultado das operações. Câmera, pagamento e display usam esses tipos sem incluir o controlador. Os arquivos de implementação e de teste incluem diretamente as definições de que precisam.
+
+Câmera, cancela e passagem podem ser desenvolvidas e testadas em paralelo com pagamento, display e tarifa. O controlador integra os dois fluxos por `parking_equipment`. O terminal usa `payment_display_ops` para solicitar o desenho e consultar o resultado. Os testes com FFF podem substituir o outro lado de cada interface.
+
 O adaptador de câmera e pagamento deve implementar `struct parking_equipment` de `include/parking.h` e registrar uma instância estática com `parking_set_equipment(&adapter)` durante a inicialização, antes de agendar os trabalhos. As operações devem retornar rapidamente. Use os callbacks de início para iniciar uma operação, os de consulta para devolver o resultado corrente e os de cancelamento para invalidar o identificador imediatamente. Na saída, `payment_start` recebe o instante da passagem na entrada. O módulo de pagamento desenha a placa, calcula e congela o valor nesse momento e coordena o restante com o display antes de cobrar.
 
 ## Cenário inicial
