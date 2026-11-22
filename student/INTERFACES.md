@@ -35,7 +35,7 @@ Usar o uptime virtual do Zephyr em todos os prazos. Para ztest/FFF, substituir a
 
 ## Ponto de integração da dupla
 
-O adaptador de câmera e pagamento deve implementar `struct parking_equipment` de `src/parking.h` e registrar uma instância estática com `parking_set_equipment(&adapter)` durante a inicialização, antes de agendar os trabalhos. As operações devem retornar rapidamente. Use os callbacks de início para iniciar uma operação, os de consulta para devolver o resultado corrente e os de cancelamento para invalidar o identificador imediatamente. Na saída, `payment_start` recebe o instante da passagem na entrada. O módulo de pagamento desenha a placa, calcula e congela o valor nesse momento e coordena o restante com o display antes de cobrar.
+O adaptador de câmera e pagamento deve implementar `struct parking_equipment` de `include/parking.h` e registrar uma instância estática com `parking_set_equipment(&adapter)` durante a inicialização, antes de agendar os trabalhos. As operações devem retornar rapidamente. Use os callbacks de início para iniciar uma operação, os de consulta para devolver o resultado corrente e os de cancelamento para invalidar o identificador imediatamente. Na saída, `payment_start` recebe o instante da passagem na entrada. O módulo de pagamento desenha a placa, calcula e congela o valor nesse momento e coordena o restante com o display antes de cobrar.
 
 ## Cenário inicial
 
