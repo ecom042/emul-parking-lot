@@ -23,6 +23,7 @@ DEFINE_FFF_GLOBALS;
 
 #include "camera.h"
 #include "camera_hw.h"
+#include "camera_parser.h"
 
 FAKE_VALUE_FUNC(int, camera_hw_init);
 FAKE_VALUE_FUNC(int, camera_hw_send, unsigned int, const uint8_t *, size_t);
