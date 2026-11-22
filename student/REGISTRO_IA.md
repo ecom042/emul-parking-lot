@@ -121,6 +121,16 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Alterações:** mover cabeçalhos para `include/` e os adaptadores de câmera, terminal, display e ADC4 para `src/drivers/`. Atualizar o CMake da aplicação e das oito suítes. Documentar os tipos públicos em Doxygen.
 - **Verificação:** [job ARM64 45066678160](https://github.com/anntimar/estacionamento-embarcados/actions/runs/45066678160), commit `4392a73`. Passaram os 19 cenários públicos e os 123 testes unitários. Cobertura de 96,17% das linhas e 88,61% das ramificações, com zero achados na análise estática. As alterações posteriores nos cabeçalhos foram verificadas como comentários.
 
+### 2026-11-22 — Dependências dos cabeçalhos
+
+- **Aluna:** Maria Antonia Ribeiro Ramos.
+- **Ferramenta:** Codex.
+- **Pedido:** aplicar a sugestão do monitor sobre dependências transitivas e registrar a divisão de trabalho por subsistema.
+- **Alterações:** extrair os tipos comuns para `equipment_types.h`, declarar previamente as estruturas usadas nas interfaces e mover os includes necessários para as implementações e testes.
+- **Verificação local:** todos os cabeçalhos passaram na compilação isolada em C11 com avisos tratados como erros. O relatório do compilador mostrou que `camera.h`, `display.h`, `payment.h` e `parking.h` passaram a depender apenas de `equipment_types.h` entre os cabeçalhos do projeto.
+- **Verificação inicial no Renode:** [job ARM64 45068699800](https://github.com/anntimar/estacionamento-embarcados/actions/runs/45068699800). Os 19 cenários passaram e a análise estática teve zero achados. A compilação da suíte de câmera encontrou uma dependência de `CAMERA_ID_MAX` que foi corrigida com um include direto de `camera_parser.h` no teste.
+- **Regressão final:** [job ARM64 45069906250](https://github.com/anntimar/estacionamento-embarcados/actions/runs/45069906250), commit `8d52fec`. Passaram os 19 cenários públicos e os 123 testes unitários. A análise estática teve zero achados, com cobertura de 96,17% das linhas e 88,61% das ramificações.
+
 ### AAAA-MM-DD — título curto
 
 - **Aluno:** quem fez esta tarefa.
