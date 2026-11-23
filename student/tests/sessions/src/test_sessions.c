@@ -80,3 +80,17 @@ ZTEST(sessions, test_reset)
 	zassert_equal(sessions_count(), 0);
 	zassert_false(sessions_has("ABC1D23"));
 }
+
+ZTEST(sessions, test_instante_com_placa_invalida)
+{
+	int64_t entry = 1234;
+
+	zassert_ok(sessions_add("ABC1D23", 500));
+	zassert_equal(sessions_entry_time(NULL, &entry), -EINVAL);
+	zassert_equal(sessions_entry_time("ABC1D2", &entry), -EINVAL);
+	zassert_equal(sessions_entry_time("ABC1D234", &entry), -EINVAL,
+		      "prefixo de placa existente nao conta");
+	zassert_equal(entry, 1234, "erro nao escreve o instante");
+	zassert_ok(sessions_entry_time("ABC1D23", &entry));
+	zassert_equal(entry, 500);
+}

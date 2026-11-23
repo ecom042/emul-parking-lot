@@ -362,6 +362,47 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   o UUID é invalidado antes do `CANCEL`; como ler o snapshot do display nas
   evidências do cenário.
 
+### 2026-11-23 — Fase 4: qualidade (testes de drivers, controller e parsers)
+
+- **Aluno:** B (Ycaro Sales).
+- **Requisito(s):** métricas de cobertura e análise estática; REQ-02 e
+  REQ-11 (bugs nos parsers/UART).
+- **O que pedi:** subir a cobertura de branches (78,6%) acima de 95% com
+  testes de verdade.
+- **Decisões que tomei (a IA perguntou antes):** cobrir os erros de driver
+  com suítes que compilam o `hw_*.c` real com um header forçado
+  (`-include shim.h`) que redireciona só as chamadas de driver do Zephyr para
+  falsos do FFF — o código de produção não muda; acrescentar testes à suíte
+  `parsers` do aluno A; tirar a lógica do `main.c` para `controller_run()`
+  (testável) em vez de usar `LCOV_EXCL`. **Nenhuma exclusão foi usada.**
+- **O que a IA propôs:** a IA rodou um workflow de agentes, cada um com uma
+  suíte: `hw_io` (41 testes; ISRs chamadas pelo callback capturado, buzzer
+  pelo work real), `hw_adc` + `hw_adc_submissao`/`_resultado`/`_codigo`
+  (11 testes; quatro pastas porque a trava do ADC só sai com reset da
+  máquina, então cada trava de conversão precisa de um boot limpo),
+  `hw_uart` (21), `st7789` (26, incluindo `font.c`), `controller` (25) e
+  28 testes novos em `parsers`, mais testes em `lane` e `sessions`. Um
+  agente revisor adversarial conferiu o diff: nenhum teste sem verificação,
+  nenhuma verificação de erro enfraquecida, nenhum shim que mude a lógica.
+- **Bugs do aluno A revelados pelos testes e corrigidos:**
+  `at_parser.c` exigia 21 bytes no `+PLATE`, mas o menor válido tem 20
+  (`+PLATE:5,"ABC1D23",0`): captura com ID e confiança de um dígito era
+  descartada e a faixa esperava o prazo em vez de tentar de novo.
+  `hw_uart.c` tirava um bloco de 16 bytes do buffer e perdia os bytes que
+  viessem depois de um quadro completo; agora lê um byte por vez.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei; cada correção
+  num commit próprio, com teste de regressão.
+- **Como verifiquei:** `firmware-coverage.py` (19 cenários + todas as
+  suítes, todos passando): **99,9% de linhas e 98,1% de branches**.
+  `static-check.py`: **0 achados**. Os 13 desfechos restantes estão em
+  macros do Zephyr ou em combinações que o código já impede (por exemplo
+  `tariff.c` 36:1); a linha descoberta de `main.c` é o `return 0` depois de
+  `controller_run()`, que só volta em falha de setup.
+- **O que aprendi / o que ainda preciso entender:** por que a ferramenta só
+  conta um desfecho da suíte quando o build tem o mesmo número de desfechos
+  na linha (e por isso o shim não pode mudar a lógica); como capturar e
+  chamar uma ISR num teste.
+
 ## Código de terceiros
 
 | Arquivo/trecho | Origem | Licença |

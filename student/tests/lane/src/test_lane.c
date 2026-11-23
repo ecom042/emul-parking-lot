@@ -980,3 +980,52 @@ ZTEST(lane, test_passagem_na_saida_encerra_a_sessao)
 	zassert_false(sessions_has("ABC1D23"));
 	zassert_equal(lane.state, LANE_CLOSING);
 }
+
+/* ---- Guardas redundantes (estado montado a mao) -------------------------- */
+
+/*
+ * Os eventos nunca deixam os dois fins de curso marcados fora de LOCKED, nem
+ * beam_cleared com o feixe ativo. Estes testes escrevem esses campos direto
+ * para provar que as guardas de barrier_closed() e da passagem seguram mesmo
+ * assim: defesa em profundidade, nao um caminho que o modelo produz.
+ */
+
+ZTEST(lane, test_dois_fins_de_curso_nao_sao_cancela_fechada)
+{
+	iniciar(entry, false, true);
+	zassert_equal(lane.state, LANE_IDLE);
+	lane.upper = true;
+	amostras(PERTO, 100);
+	zassert_equal(lane.state, LANE_IDLE, "sem cancela fechada nao captura");
+	zassert_equal(hw_uart_send_fake.call_count, 0);
+
+	iniciar(entry, false, false);
+	zassert_equal(lane.state, LANE_ASSIST);
+	lane.upper = true;
+	lane.lower = true;
+	ev_distancia(LONGE, 200);
+	tick(200);
+	zassert_equal(lane.state, LANE_ASSIST, "nao rearma sem cancela fechada");
+
+	lane.upper = false;
+	tick(210);
+	zassert_equal(lane.state, LANE_IDLE);
+}
+
+ZTEST(lane, test_passagem_exige_feixe_livre_no_tick)
+{
+	ate_aberta(100);
+	ev_simples(EV_BEAM_ON, 3000);
+	ev_simples(EV_BEAM_OFF, 3100);
+	zassert_true(lane.beam_cleared);
+	lane.beam = true;
+	ev_distancia(LONGE, 3200);
+	tick(3200);
+	zassert_equal(lane.state, LANE_WAIT_PASSAGE, "feixe ativo segura a passagem");
+	zassert_false(sessions_has("ABC1D23"));
+
+	lane.beam = false;
+	tick(3210);
+	zassert_equal(lane.state, LANE_CLOSING);
+	zassert_true(sessions_has("ABC1D23"));
+}
