@@ -374,6 +374,24 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   para redirecionar chamadas e por que os limites de 8 respostas e de 256
   bytes por passada protegem a segurança e os prazos do pagamento.
 
+### 2026-11-23 — Guia de estudo para a sabatina
+
+- **Aluno** Pablo Munih Silva de Carvalho.
+- **Ferramenta** Codex (GPT-6).
+- **Pedido** Ler o firmware da dupla e produzir um documento que ensine o
+  código em uma ordem que ajude a explicar e alterar qualquer requisito
+  na sabatina.
+- **Proposta e execução** Elaborar um guia linear do commit `9d1da39`,
+  com referências de arquivo e função, um exemplo completo de entrada e
+  saída e exercícios de explicação e mudança ao vivo para os 13 requisitos.
+- **Aceitação ou alterações** A preparação do guia foi solicitada por Pablo.
+  A revisão do documento pelo aluno está pendente.
+- **Verificação** Conferência das explicações com o código, os contratos e
+  as suítes da dupla. As 17 páginas do PDF foram renderizadas e revisadas,
+  e foram conferidos os links de navegação e os 13 exercícios. Os cenários
+  e as métricas citados são os da validação de 21/11. Esta tarefa foi
+  documental e não executou novamente o firmware.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do
