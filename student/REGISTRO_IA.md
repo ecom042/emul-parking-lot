@@ -17,6 +17,7 @@ entradas. Quem não usou IA escreve isso aqui.
 |---|---|---|---|
 | A | Hermes Agent (CLI) | deepseek-v4.1-flash-1017 | 21/11/2026 20:30 a 22/11/2026 |
 | A | Hermes Agent (CLI) | (mesmo modelo) | 21/11/2026 — revisão do roadmap e da especificação técnica da dupla |
+| B | Claude Code (CLI) | Claude Opus 5.5 (claude-opus-5-5) | 23/11/2026 — levantamento do estado e guia de estudo |
 
 ## Tarefas
 
@@ -140,6 +141,65 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   escondia o erro de link do UUID no firmware — o símbolo só era referenciado
   quando a suíte chamava `uuid_generate`, então o firmware compilava e a suíte
   não.
+
+### 2026-11-23 — Estado da branch e guia das tarefas restantes
+
+- **Aluno:** B.
+- **Requisito(s):** todos (planejamento); nenhum código escrito.
+- **O que pedi:** saber o que já está pronto na branch `solucao`, o que os
+  cenários públicos exigem, quais já passam, e um guia do que falta fazer e do
+  que estudar para isso, **sem sugestão de implementação**, porque vou
+  programar a máquina de estados à mão.
+- **O que a IA propôs:** resumo dos módulos do aluno A (prontos e testados por
+  suítes, exceto UART e display, que só compilam); explicação dos 19 cenários
+  agrupados por requisito; e um guia em 13 fases (leitura, GPIO/EXTI, partida e
+  assistência, movimento, ADC4, presença, câmera, passagem, sessões,
+  pagamento/display/tarifa, reset, qualidade, entrega), cada uma com o que
+  fazer, os cenários que a verificam e os conhecimentos de Zephyr necessários.
+  O guia ficou num documento privado no claude.ai, fora do repositório.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei o guia como roteiro
+  de estudo. A IA apontou um ponto a investigar: `uuid_generate` deriva o UUID
+  do tempo virtual e de um contador, que recomeçam no reset (REQ-13).
+- **Como verifiquei:** rodei os 19 cenários um a um com `scripts/assess.py`
+  sobre o firmware atual (`build/each-01/`): **nenhum passa**, como esperado com
+  o `main.c` inicial; o mais próximo é `partial-startup`/`contradictory-limits`,
+  que só falham em `buzzer_count`.
+- **O que aprendi / o que ainda preciso entender:** a ordem das fases pelo
+  portão G3; ainda preciso entender a posse única do ADC4 assíncrono e onde a
+  reação ao feixe deve ficar para cumprir 10 ms.
+
+### 2026-11-23 — Guia conferido com a fonte de verdade e o roadmap B
+
+- **Aluno:** B.
+- **Requisito(s):** todos (planejamento); nenhum código escrito.
+- **O que pedi:** atualizar o guia com a fonte de verdade da dupla e o roadmap
+  B, ignorando as partes sobre agentes de IA, e decidir comigo cada divergência.
+- **O que a IA propôs:** sete pontos em que a fonte de verdade contradiz o
+  `docs/`: (1) o fim de curso desligaria o motor na própria ISR, mas
+  `device-protocols.md` manda adiar para o contexto de work; (2) o prazo da
+  câmera contaria do primeiro byte, mas conta do envio, com a resposta
+  fragmentada inteira; (3) carro saindo durante a cobrança voltaria a IDLE, mas
+  o contrato manda invalidar o UUID, enviar `P1 CANCEL` e pedir assistência;
+  (4) o mesmo vale para o terceiro envio vencido; (5) a obstrução no
+  fechamento, que estava em aberto, deixa a cancela no meio, então é falha de
+  posição travada até o reset; (6) semear o ID de captura no boot não é exigido,
+  porque o reset também limpa o cache da câmera; (7) o registro de IA é o portão
+  G4, não vale 10 pontos. A IA também apontou que parte da interface congelada
+  (`display_show_charge`, `EV_DISPLAY_DONE`, `hw_camera_send`, UART postando
+  eventos) não existe no código; o real é `st7789_show_plate`/`_charge`,
+  `hw_uart_send` e `hw_uart_poll_*`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** segui o `docs/` nos sete
+  pontos, como a própria fonte de verdade manda. Incluí no guia o desenho da
+  dupla (estados com WAIT_BEAM_CLEAR, divisão em arquivos, debounce de 3
+  amostras), com a API corrigida para o código real. Fiquei só com a meta de
+  95% de cobertura do `AGENTS.md`, não com a de 85/75. Dos extras, só o
+  checklist final entrou.
+- **Como verifiquei:** cada correção conferida no texto de
+  `docs/device-protocols.md` (seções do controlador, da câmera e do P1) e nos
+  headers `hw_uart.h`, `st7789.h`, `tariff.h` e `sessions.h`.
+- **O que aprendi / o que ainda preciso entender:** que o cancelamento por
+  saída do carro também gera assistência, e por que a fonte de verdade precisa
+  ser corrigida nesses pontos.
 
 ## Código de terceiros
 
