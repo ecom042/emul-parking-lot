@@ -9,6 +9,7 @@
  * LOCKED. Depois o evento vai para o tratador do estado atual.
  */
 
+#include <errno.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
@@ -19,6 +20,8 @@
 #include "hw_uart.h"
 #include "lane.h"
 #include "sessions.h"
+#include "st7789.h"
+#include "tariff.h"
 
 /** Maior ID de captura aceito pela camera. */
 #define CAPTURE_ID_MAX 999999999U
@@ -62,9 +65,19 @@ static void forget_cycle(struct lane *lane)
  * buzzer por pedido. @p to e LANE_ASSIST (rearmavel) ou LANE_LOCKED (ate o
  * reset); LOCKED nunca volta a ASSIST.
  */
+static void send_cancel(struct lane *lane);
+
 static void enter_assist(struct lane *lane, enum lane_state to)
 {
 	bool already = in_assist(lane);
+
+	if (lane->uuid[0] != '\0') {
+		/* Cobranca abandonada: invalida o UUID antes do P1 CANCEL. */
+		memcpy(lane->cancel_uuid, lane->uuid, sizeof(lane->cancel_uuid));
+		lane->uuid[0] = '\0';
+		lane->cancel_pending = true;
+		send_cancel(lane);
+	}
 
 	/* Ja estamos no estado mais seguro possivel: um erro aqui nao tem
 	 * outra saida, so seguir travado.
@@ -126,6 +139,59 @@ static void capture_failed(struct lane *lane, int64_t now_ms)
 	}
 }
 
+/**
+ * P1 CANCEL do UUID ja invalidado. So um -EBUSY (um envio anterior ainda
+ * saindo pela UART) fica para o proximo tick; outro erro nao melhora com
+ * novas tentativas.
+ */
+static void send_cancel(struct lane *lane)
+{
+	char line[sizeof("P1 CANCEL ") + UUID_LEN];
+
+	(void)snprintf(line, sizeof(line), "P1 CANCEL %s", lane->cancel_uuid);
+	if (hw_uart_send(HW_UART_PAYMENT, line) != -EBUSY) {
+		lane->cancel_pending = false;
+	}
+}
+
+/**
+ * Um envio da cobranca congelada, sempre com o mesmo UUID e o mesmo valor.
+ * Um envio que falha vale como envio: sem resposta, vence o prazo.
+ */
+static void send_charge(struct lane *lane, int64_t now_ms)
+{
+	char line[FRAME_MAX];
+
+	lane->tries++;
+	(void)snprintf(line, sizeof(line), "P1 CHARGE %s %s %" PRIu32 " BRL",
+		       lane->uuid, lane->plate, lane->cents);
+	(void)hw_uart_send(HW_UART_PAYMENT, line);
+	lane->deadline_ms = now_ms + CHARGE_MS;
+}
+
+/**
+ * Inicia a cobranca da saida, nesta ordem: placa na tela, tarifa congelada,
+ * valor na tela, P1 CHARGE. A fila do display preserva a ordem no SPI.
+ */
+static void start_charge(struct lane *lane, int64_t entry_ms, int64_t now_ms)
+{
+	uint32_t cents = 0;
+
+	if (st7789_show_plate(lane->plate) < 0 ||
+	    tariff_cents(now_ms - entry_ms, CONFIG_PARKING_TARIFF_UNIT_MS,
+			 &cents) < 0 ||
+	    st7789_show_charge(cents) < 0) {
+		/* Sem tela ou acima de 9999 unidades: nao cobra. */
+		enter_assist(lane, LANE_ASSIST);
+		return;
+	}
+	lane->cents = cents;
+	uuid_generate(lane->uuid);
+	lane->tries = 0;
+	lane->state = LANE_CHARGING;
+	send_charge(lane, now_ms);
+}
+
 /** Liga o motor e arma o prazo do movimento. */
 static void move_gate(struct lane *lane, bool open, int64_t now_ms)
 {
@@ -153,8 +219,14 @@ static void plate_accepted(struct lane *lane, const struct at_plate *plate,
 		move_gate(lane, true, now_ms);
 		return;
 	}
-	/* Saida: so placa com sessao ativa; a cobranca entra na fase 3. */
-	enter_assist(lane, LANE_ASSIST);
+	/* Saida: so placa com sessao ativa paga e sai. */
+	int64_t entry_ms = 0;
+
+	if (sessions_entry_time(lane->plate, &entry_ms) < 0) {
+		enter_assist(lane, LANE_ASSIST);
+		return;
+	}
+	start_charge(lane, entry_ms, now_ms);
 }
 
 /** Passagem completa: so ela mexe na tabela de sessoes. */
@@ -221,11 +293,44 @@ static void handle_event_identifying(struct lane *lane,
 	}
 }
 
+/* Cobrando: so o PAID exato da cobranca atual abre. */
 static void handle_event_charging(struct lane *lane,
 				  const struct lane_event *ev)
 {
-	ARG_UNUSED(lane);
-	ARG_UNUSED(ev);
+	if (ev->id == EV_PAYMENT) {
+		const struct p1_result *r = &ev->payment;
+
+		/* ERROR nao tem UUID; outro UUID e resposta antiga. */
+		if (r->status == P1_STATUS_ERROR ||
+		    strcmp(r->uuid, lane->uuid) != 0) {
+			return;
+		}
+		if (r->status == P1_STATUS_CANCELLED) {
+			enter_assist(lane, LANE_ASSIST);
+			return;
+		}
+		if (r->cents != lane->cents) {
+			return; /* valor divergente nunca abre */
+		}
+		/* Pago: a autorizacao e consumida; duplicata nao reabre. */
+		lane->uuid[0] = '\0';
+		move_gate(lane, true, ev->now_ms);
+		return;
+	}
+	if (ev->id != EV_TICK) {
+		return;
+	}
+	if (car_away(lane, ev->now_ms)) {
+		enter_assist(lane, LANE_ASSIST);
+		return;
+	}
+	if (ev->now_ms >= lane->deadline_ms) {
+		if (lane->tries < CHARGE_TRIES) {
+			send_charge(lane, ev->now_ms);
+		} else {
+			enter_assist(lane, LANE_ASSIST);
+		}
+	}
 }
 
 /* Abrindo: para no fim de curso superior; verde so com o motor desligado. */
@@ -412,6 +517,9 @@ void lane_init(struct lane *lane, const struct lane_cfg *cfg)
 
 void lane_handle_event(struct lane *lane, const struct lane_event *ev)
 {
+	if (ev->id == EV_TICK && lane->cancel_pending) {
+		send_cancel(lane);
+	}
 	if (!update_inputs(lane, ev)) {
 		return;
 	}

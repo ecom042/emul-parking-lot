@@ -12,6 +12,7 @@
 #include "hw.h"
 #include "hw_adc.h"
 #include "hw_uart.h"
+#include "st7789.h"
 
 static struct lane lanes[LANE_COUNT];
 
@@ -76,6 +77,9 @@ int controller_init(void)
 
 	if (rc == 0) {
 		rc = hw_uart_init();
+	}
+	if (rc == 0) {
+		rc = st7789_start();
 	}
 	if (rc < 0) {
 		return rc;

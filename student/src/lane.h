@@ -59,8 +59,10 @@ struct lane {
 	bool beam_cleared;          /**< Na passagem: e depois inativo. */
 
 	/* Cobranca (so na saida). */
-	char uuid[UUID_LEN + 1];    /**< UUID da cobranca; vazio = nenhuma. */
+	char uuid[UUID_LEN + 1];    /**< UUID da cobranca ativa; vazio = nenhuma. */
 	uint32_t cents;             /**< Valor congelado da cobranca. */
+	char cancel_uuid[UUID_LEN + 1]; /**< UUID ja invalidado a cancelar. */
+	bool cancel_pending;        /**< P1 CANCEL ainda nao saiu pela UART. */
 };
 
 /**

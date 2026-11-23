@@ -185,10 +185,22 @@ static int inicializa(void)
 		return -ENODEV;
 	}
 
-	/* Reset por hardware: 10 ms em nivel baixo, 120 ms de recuperacao. */
-	gpio_pin_set_dt(&reset, 0);
-	k_msleep(10);
+	/* D/C e reset sao saidas; inativo = reset solto (nivel alto). */
+	rc = gpio_pin_configure_dt(&dc, GPIO_OUTPUT_INACTIVE);
+	if (rc == 0) {
+		rc = gpio_pin_configure_dt(&reset, GPIO_OUTPUT_INACTIVE);
+	}
+	if (rc != 0) {
+		return rc;
+	}
+
+	/* Reset por hardware: o pino e ativo em baixo (GPIO_ACTIVE_LOW no
+	 * devicetree), entao 1 segura o reset. 10 ms preso, 120 ms de
+	 * recuperacao.
+	 */
 	gpio_pin_set_dt(&reset, 1);
+	k_msleep(10);
+	gpio_pin_set_dt(&reset, 0);
 	k_msleep(120);
 
 	rc = comando(CMD_SWRESET, NULL, 0);

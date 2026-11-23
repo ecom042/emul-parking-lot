@@ -321,6 +321,47 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   "reafirma" os sensores a cada amostra e o que isso muda na partida; por que
   o verde só pode acender com o motor já desligado.
 
+### 2026-11-23 — Fase 3: saída com display, tarifa e pagamento; display corrigido
+
+- **Aluno:** B (Ycaro Sales).
+- **Requisito(s):** REQ-04 (saída), REQ-05, REQ-12, REQ-13.
+- **O que pedi:** a cobrança da saída até os 19 cenários públicos passarem.
+- **Decisões que tomei (a IA perguntou antes):** congelar a tarifa logo
+  depois de enfileirar a placa no display (`st7789_show_plate` →
+  `tariff_cents` → `st7789_show_charge` → `P1 CHARGE` no mesmo tick), porque a
+  fila do display preserva a ordem no SPI; display que recusa o pedido ou
+  tarifa acima de 9999 unidades levam à assistência **sem** cobrar; um
+  `P1 CANCEL` que volta `-EBUSY` é reenviado a cada tick até sair.
+- **O que a IA propôs:** em `lane.c`, saída só com sessão ativa
+  (`sessions_entry_time`, que já dá o instante de entrada); UUID novo por
+  tentativa de saída; até 3 envios de 1000 ms com a mesma linha; só abre com
+  `PAID` do UUID atual e do valor congelado, e o UUID é consumido nesse
+  momento (duplicata não reabre); `CANCELLED`, terceiro envio vencido, carro
+  que sai (código recente > 1024) e qualquer falha durante a cobrança
+  invalidam o UUID **antes** do `P1 CANCEL` e pedem assistência — isso ficou
+  num lugar só, em `enter_assist`. A passagem na saída remove a sessão.
+  `controller_init` passou a chamar `st7789_start`. O reset (REQ-13) não
+  precisa de código: nada sobrevive na RAM, e o reset limpa também as caches
+  da câmera e do terminal.
+- **Bug encontrado no módulo do aluno A (`st7789.c`):** com os cenários
+  passando, o snapshot do modelo mostrava o display `initialized: false`,
+  0 pixels e 23571 erros (os cenários públicos não olham o display). Causas:
+  os pinos D/C e reset nunca eram configurados como saída, e o reset é
+  `GPIO_ACTIVE_LOW` no devicetree, mas o código escrevia 0 e depois 1 —
+  soltava e depois prendia o reset. Correção: `gpio_pin_configure_dt` dos
+  dois pinos e pulso com 1 (preso) por 10 ms e 0 (solto). Depois disso:
+  `initialized: true`, 0 erros e 11760 pixels, exatamente a soma das quatro
+  áreas de texto (placa, `BRL r.cc`, `SIMULATED PAYMENT`, `NOT PIX`).
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei.
+- **Como verifiquei:** **19 de 19** cenários públicos passam.
+  `static-check.py`: 0 achados. `firmware-coverage.py`: **95,3% de linhas e
+  78,6% de branches** (`lane.c` 100% / 98,2%). Suíte `lane` com 69 testes,
+  incluindo a ordem placa → valor → terminal conferida pelo histórico do FFF.
+- **O que aprendi / o que ainda preciso entender:** a diferença entre
+  resposta duplicada (mesmo UUID, já consumido) e antiga (outro UUID); por que
+  o UUID é invalidado antes do `CANCEL`; como ler o snapshot do display nas
+  evidências do cenário.
+
 ## Código de terceiros
 
 | Arquivo/trecho | Origem | Licença |

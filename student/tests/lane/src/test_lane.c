@@ -749,3 +749,234 @@ ZTEST(lane, test_erro_ao_desligar_no_inferior_trava)
 	tick(5300);
 	zassert_equal(lane.state, LANE_LOCKED);
 }
+
+/* ---- Cobranca na saida (REQ-05, REQ-12) --------------------------------- */
+
+static void ev_pagamento(enum p1_status st, const char *uuid, uint32_t cents,
+			 int64_t now)
+{
+	struct lane_event ev = { .id = EV_PAYMENT, .now_ms = now };
+
+	ev.payment.status = st;
+	ev.payment.error = P1_ERROR_NONE;
+	strncpy(ev.payment.uuid, uuid, sizeof(ev.payment.uuid) - 1);
+	ev.payment.cents = cents;
+	lane_handle_event(&lane, &ev);
+}
+
+/** Saida com sessao desde t=0; placa aceita em @p now: fica CHARGING. */
+static void ate_cobrando(int64_t now)
+{
+	zassert_ok(sessions_add("ABC1D23", 0));
+	iniciar(exit_cfg, false, true);
+	amostras(PERTO, now);
+	ev_placa(1, "ABC1D23", 93, now);
+	zassert_equal(lane.state, LANE_CHARGING);
+}
+
+/** Linha de CHARGE esperada para a cobranca em andamento. */
+static void linha_charge(char *out, size_t n)
+{
+	snprintf(out, n, "P1 CHARGE %s ABC1D23 %u BRL", lane.uuid,
+		 (unsigned int)lane.cents);
+}
+
+ZTEST(lane, test_saida_com_sessao_cobra_na_ordem)
+{
+	char esperada[FRAME_MAX];
+
+	ate_cobrando(2500);
+	/* 2500 ms com unidade de 1000 ms: 3 unidades = 400 centavos. */
+	zassert_equal(lane.cents, 400);
+	zassert_equal(strlen(lane.uuid), UUID_LEN);
+	zassert_str_equal(st7789_show_plate_fake.arg0_val, "ABC1D23");
+	zassert_equal(st7789_show_charge_fake.arg0_val, 400);
+	linha_charge(esperada, sizeof(esperada));
+	zassert_str_equal(fake_uart_line, esperada);
+	zassert_equal(hw_uart_send_fake.arg0_val, HW_UART_PAYMENT);
+	zassert_equal(lane.tries, 1);
+	zassert_equal(lane.deadline_ms, 2500 + CHARGE_MS);
+
+	/* Placa na tela, depois o valor, depois o terminal. */
+	int plate = -1, charge = -1, send = -1;
+
+	for (unsigned int i = 0; i < fff.call_history_idx; i++) {
+		if (fff.call_history[i] == (void *)st7789_show_plate) {
+			plate = (int)i;
+		} else if (fff.call_history[i] == (void *)st7789_show_charge) {
+			charge = (int)i;
+		} else if (fff.call_history[i] == (void *)hw_uart_send) {
+			send = (int)i;
+		}
+	}
+	zassert_true(plate >= 0 && plate < charge && charge < send);
+}
+
+ZTEST(lane, test_pago_exato_abre_e_consome_a_autorizacao)
+{
+	char uuid[UUID_LEN + 1];
+
+	ate_cobrando(2500);
+	strcpy(uuid, lane.uuid);
+	ev_pagamento(P1_STATUS_PAID, uuid, 400, 2700);
+	zassert_equal(lane.state, LANE_OPENING);
+	zassert_true(hw_motor_drive_fake.arg1_val, "abre");
+	zassert_equal(lane.uuid[0], '\0');
+	zassert_false(lane.cancel_pending, "pago nao se cancela");
+}
+
+ZTEST(lane, test_resposta_que_nao_e_a_atual_nao_abre)
+{
+	char uuid[UUID_LEN + 1];
+
+	ate_cobrando(2500);
+	strcpy(uuid, lane.uuid);
+	ev_pagamento(P1_STATUS_PAID, "00000000-0000-4000-8000-000000000000",
+		     400, 2600);
+	ev_pagamento(P1_STATUS_PAID, uuid, 300, 2610);
+	ev_pagamento(P1_STATUS_ERROR, "", 0, 2620);
+	ev_simples(EV_BEAM_ON, 2630);
+	tick(2640);
+	zassert_equal(lane.state, LANE_CHARGING);
+	zassert_equal(hw_motor_drive_fake.call_count, 0);
+}
+
+ZTEST(lane, test_cancelado_invalida_cancela_e_pede_assistencia)
+{
+	char uuid[UUID_LEN + 1];
+	char cancel[64];
+
+	ate_cobrando(2500);
+	strcpy(uuid, lane.uuid);
+	ev_pagamento(P1_STATUS_CANCELLED, uuid, 400, 2700);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_equal(lane.uuid[0], '\0', "UUID invalidado");
+	snprintf(cancel, sizeof(cancel), "P1 CANCEL %s", uuid);
+	zassert_str_equal(fake_uart_line, cancel);
+	zassert_false(lane.cancel_pending);
+
+	/* Um PAID atrasado do mesmo UUID nao abre mais. */
+	ev_pagamento(P1_STATUS_PAID, uuid, 400, 2800);
+	zassert_equal(hw_motor_drive_fake.call_count, 0);
+}
+
+ZTEST(lane, test_tres_envios_com_o_mesmo_uuid_e_valor)
+{
+	char esperada[FRAME_MAX];
+	char uuid[UUID_LEN + 1];
+
+	ate_cobrando(2500);
+	strcpy(uuid, lane.uuid);
+	linha_charge(esperada, sizeof(esperada));
+
+	tick(2500 + CHARGE_MS - 10);
+	zassert_equal(hw_uart_send_fake.call_count, 2, "captura + 1 envio");
+	tick(2500 + CHARGE_MS);
+	zassert_str_equal(fake_uart_line, esperada, "mesma linha");
+	tick(2500 + 2 * CHARGE_MS);
+	zassert_str_equal(fake_uart_line, esperada);
+	zassert_equal(lane.tries, CHARGE_TRIES);
+	zassert_equal(lane.cents, 400, "preco nao recalculado");
+
+	tick(2500 + 3 * CHARGE_MS);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_true(strstr(fake_uart_line, "P1 CANCEL") != NULL);
+	zassert_true(strstr(fake_uart_line, uuid) != NULL);
+}
+
+ZTEST(lane, test_carro_que_sai_durante_a_cobranca_cancela)
+{
+	ate_cobrando(2500);
+	ev_distancia(LONGE, 2600);
+	tick(2600);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_true(strstr(fake_uart_line, "P1 CANCEL") != NULL);
+}
+
+ZTEST(lane, test_falha_do_adc_na_cobranca_tambem_cancela)
+{
+	ate_cobrando(2500);
+	ev_simples(EV_ADC_FAULT, 2600);
+	zassert_equal(lane.state, LANE_LOCKED);
+	zassert_true(strstr(fake_uart_line, "P1 CANCEL") != NULL);
+}
+
+ZTEST(lane, test_cancel_ocupado_sai_no_proximo_tick)
+{
+	ate_cobrando(2500);
+	fake_uart_rc = -EBUSY;
+	ev_distancia(LONGE, 2600);
+	tick(2600);
+	zassert_true(lane.cancel_pending);
+	int envios = (int)hw_uart_send_fake.call_count;
+
+	tick(2610);
+	zassert_equal(hw_uart_send_fake.call_count, envios + 1, "tentou de novo");
+	zassert_true(lane.cancel_pending);
+
+	fake_uart_rc = 0;
+	tick(2620);
+	zassert_false(lane.cancel_pending);
+	tick(2630);
+	zassert_equal(hw_uart_send_fake.call_count, envios + 2, "nao repete");
+}
+
+ZTEST(lane, test_cancel_com_outro_erro_nao_repete)
+{
+	ate_cobrando(2500);
+	fake_uart_rc = -EIO;
+	ev_distancia(LONGE, 2600);
+	tick(2600);
+	zassert_false(lane.cancel_pending);
+}
+
+ZTEST(lane, test_display_cheio_nao_cobra)
+{
+	st7789_show_plate_fake.return_val = -ENOMSG;
+	zassert_ok(sessions_add("ABC1D23", 0));
+	iniciar(exit_cfg, false, true);
+	amostras(PERTO, 100);
+	ev_placa(1, "ABC1D23", 93, 100);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_equal(hw_uart_send_fake.call_count, 1, "so a captura");
+	zassert_false(lane.cancel_pending, "nada a cancelar");
+}
+
+ZTEST(lane, test_valor_que_nao_entra_na_tela_nao_cobra)
+{
+	st7789_show_charge_fake.return_val = -ENOMSG;
+	zassert_ok(sessions_add("ABC1D23", 0));
+	iniciar(exit_cfg, false, true);
+	amostras(PERTO, 100);
+	ev_placa(1, "ABC1D23", 93, 100);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_equal(hw_uart_send_fake.call_count, 1);
+}
+
+ZTEST(lane, test_tarifa_acima_de_9999_unidades_pede_assistencia)
+{
+	int64_t agora = (int64_t)(TARIFF_UNITS_MAX + 1) *
+			CONFIG_PARKING_TARIFF_UNIT_MS;
+
+	zassert_ok(sessions_add("ABC1D23", 0));
+	iniciar(exit_cfg, false, true);
+	amostras(PERTO, agora);
+	ev_placa(1, "ABC1D23", 93, agora);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_equal(st7789_show_charge_fake.call_count, 0);
+	zassert_equal(hw_uart_send_fake.call_count, 1, "so a captura");
+}
+
+ZTEST(lane, test_passagem_na_saida_encerra_a_sessao)
+{
+	ate_cobrando(2500);
+	ev_pagamento(P1_STATUS_PAID, lane.uuid, 400, 2700);
+	ev_limites(true, false, 4800);
+	tick(4800);
+	zassert_equal(lane.state, LANE_WAIT_PASSAGE);
+	zassert_true(sessions_has("ABC1D23"), "pagar nao encerra a sessao");
+
+	passar(5000);
+	zassert_false(sessions_has("ABC1D23"));
+	zassert_equal(lane.state, LANE_CLOSING);
+}
