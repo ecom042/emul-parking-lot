@@ -223,7 +223,7 @@ static void desenha_placa(const char *plate)
 
 static void desenha_cobranca(uint32_t cents)
 {
-	char valor[12];
+	char valor[24];
 
 	/* "BRL r.cc": parte inteira e duas casas, sempre com dois digitos. */
 	(void)snprintf(valor, sizeof(valor), "BRL %u.%02u",

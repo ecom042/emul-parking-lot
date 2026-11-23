@@ -15,7 +15,7 @@ entradas. Quem não usou IA escreve isso aqui.
 
 | Aluno | Ferramenta | Modelo/versão | Período de uso |
 |---|---|---|---|
-| A | Hermes Agent (CLI) | deepseek-v4.1-flash-1017 | 21/11/2026, a partir das 20:30 |
+| A | Hermes Agent (CLI) | deepseek-v4.1-flash-1017 | 21/11/2026 20:30 a 22/11/2026 |
 | A | Hermes Agent (CLI) | (mesmo modelo) | 21/11/2026 — revisão do roadmap e da especificação técnica da dupla |
 
 ## Tarefas
@@ -32,22 +32,21 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **O que a IA propôs:** `parking_limits.h` com as constantes acordadas;
   `tariff.c` com `(dt + unit - 1) / unit` em 64 bits, `-EINVAL` para unidade
   zero ou tempo negativo e `-ERANGE` acima de 9999 unidades; `uuid.c` com
-  `sys_rand_get` **combinado com contador e `k_uptime_get`**; `sessions.c` com
-  vetor estático de `CONFIG_PARKING_CAPACITY` e `find()` linear.
+  `k_uptime_get` **combinado com um contador**; `sessions.c` com vetor estático
+  de `CONFIG_PARKING_CAPACITY` e `find()` linear.
 - **O que aceitei, mudei ou rejeitei, e por quê:** aceitei a estrutura.
   Acrescentei `sessions_count()` porque os testes de "tabela cheia" precisam
-  dele sem abrir a estrutura. Mantive o UUID com contador depois de conferir
-  em `docs/device-protocols.md` que UUID repetido é reenvio idempotente: se a
-  entropia do Renode for determinística, dois UUIDs iguais quebrariam
-  `payment-duplicate`.
+  dele sem abrir a estrutura. Recusei sortear os 16 bytes de `sys_rand_get`
+  (a versão inicial): em 22/11 o link na placa mostrou que a placa não expõe
+  entropia e o UUID passou a ser tempo virtual + contador — que é o que o
+  contrato pede (identificador novo por tentativa, não autenticação).
 - **Como verifiquei:** 1000 UUIDs distintos com entropia constante e uptime
   parado (só o contador separando); tabela de tarifa conferida contra o
   contrato (60000→200, 60001→300, 2500 ms com unidade 1000→400, 9999
-  unidades→1000000, 10000→`-ERANGE`). Suítes ztest escritas em
-  `student/tests/tariff`, `sessions` e `uuid` — **ainda não executadas**: o
-  workspace desta máquina não tem `west`, Zephyr 4.5.0 nem Renode instalados.
-  A lógica equivalente foi executada num harness de host (1156 verificações,
-  0 falhas).
+  unidades→1000000, 10000→`-ERANGE`). Na placa, as suítes `tariff`
+  (100% linhas, 91,7% branch), `sessions` (100%, 97,2%) e `uuid` (100%, 100%)
+  passam. Antes do ambiente existir, a mesma lógica rodou num harness de host
+  (1156 verificações, 0 falhas).
 - **O que aprendi / o que ainda preciso entender:** por que 9999 unidades dão
   exatamente 1 000 000 centavos e por que esse é o teto do terminal; e por que
   o teto é feito com divisão inteira em vez de `ceil()` de ponto flutuante.
@@ -75,6 +74,8 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   até o LF e o quadro seguinte que volta a valer, linha parcial vencida em
   1001 ms, UUID maiúsculo e hífen errado, valor com zero à esquerda, `PAID`
   sem `BRL`, `CR` na linha do terminal, dois espaços, `P1 ERROR` desconhecido.
+  Na placa a suíte `parsers` passa, com 93,8% das linhas em `at_parser.c` e
+  86,0% em `p1_parser.c`.
 - **O que aprendi / o que ainda preciso entender:** por que o contrato exige
   "descartar até o LF" em vez de simplesmente reiniciar o buffer — por causa do
   sufixo de um quadro malformado que ainda está chegando pela UART.
@@ -103,11 +104,42 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   verificação de sintaxe com `-Wall -Wextra -Werror`. Também li
   `models/ST7789V.cs` para confirmar que ele aceita comandos e pixels em
   transações separadas (`FinishTransmission` vazio) e que exige reset por
-  hardware antes do primeiro byte válido. **Não executado na placa**: falta o
-  ambiente (Zephyr, Renode).
+  hardware antes do primeiro byte válido. Compila na placa sem avisos.
+  **Ainda sem cobertura**: suíte não exercita driver de UART nem SPI; essa
+  cobertura vem dos cenários quando a FSM estiver ligada (parte do aluno B).
 - **O que aprendi / o que ainda preciso entender:** por que o modelo do display
   exige `DISPON` antes do primeiro `RAMWR`, e por que a fonte é enviada linha a
   linha em vez de guardar a tela em RAM.
+
+### 2026-11-22 — Ambiente, build e execução na placa
+
+- **Aluno:** A.
+- **Requisito(s):** portão G1 (build); base para todos os REQ.
+- **O que pedi:** instalar o laboratório conforme `docs/instalacao.md` e rodar as
+  suítes de unidade e o cenário `normal`.
+- **O que a IA propôs:** pacotes via `dnf` (cmake, dtc, gperf, dfu-util,
+  python3.12), workspace west em `~/estacionamento`, Renode 1.17.0 portable em
+  `~/renode-1.17.0`, SDK 1.0.1 via `west sdk install`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** a ordem do guia funcionou, com
+  correções: `west sdk install` falha sem `west packages pip --install` antes
+  (falta o pacote `patool`); o build do Renode no Linux é
+  `1.17.0+20260907gitf1dd1b4af`, um dia depois do valor citado no PDF, e o
+  próprio `scripts/lab.py` documenta que o pacote carimba a data (macOS
+  20260906, Linux 20260907). **Removi `CONFIG_RING_BUFFER`**: no Zephyr 4.5 ele
+  só restaura a API legada e marca o símbolo como depreciado, o que a análise
+  estática conta como aviso. **Tirei o `sys_rand_get` do UUID**: a placa não tem
+  nó de entropia no devicetree e o link falhava com `undefined reference to
+  z_impl_sys_rand_get`. Corrigi também `zassert_str_not_equal` (não existe no
+  ztest 4.5) e um caminho relativo errado no `CMakeLists.txt` da suíte
+  `parsers`.
+- **Como verifiquei:** `normal` com o código inicial falha exatamente como o
+  guia prevê (`position_mdeg expected 90000, observed 0`), o que prova a
+  instalação; build com **zero avisos**; as cinco suítes passam na placa
+  (`parsers`, `sessions`, `tariff`, `uuid` e o exemplo `unit`).
+- **O que aprendi / o que ainda preciso entender:** por que o `--gc-sections`
+  escondia o erro de link do UUID no firmware — o símbolo só era referenciado
+  quando a suíte chamava `uuid_generate`, então o firmware compilava e a suíte
+  não.
 
 ## Código de terceiros
 

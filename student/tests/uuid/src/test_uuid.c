@@ -38,8 +38,8 @@ ZTEST(uuid, test_unicidade)
 	for (int i = 1; i < (int)ARRAY_SIZE(vistos); i++) {
 		uuid_generate(vistos[i]);
 		for (int j = 0; j < i; j++) {
-			zassert_str_not_equal(vistos[i], vistos[j],
-					      "UUID repetido em %d/%d", i, j);
+			zassert_true(strcmp(vistos[i], vistos[j]) != 0,
+				     "UUID repetido em %d/%d", i, j);
 		}
 	}
 }
