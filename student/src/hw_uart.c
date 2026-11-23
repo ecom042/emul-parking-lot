@@ -129,8 +129,7 @@ int hw_uart_send(enum hw_uart_port port_id, const char *line)
 bool hw_uart_poll_plate(enum hw_uart_port port_id, struct at_plate *out)
 {
 	struct hw_uart *port;
-	uint8_t chunk[RX_CHUNK];
-	uint32_t n;
+	uint8_t c;
 	int64_t now;
 
 	if ((unsigned int)port_id > HW_UART_EXIT_CAMERA || out == NULL) {
@@ -139,11 +138,14 @@ bool hw_uart_poll_plate(enum hw_uart_port port_id, struct at_plate *out)
 	port = &ports[port_id];
 	now = k_uptime_get();
 
-	while ((n = ring_buf_get(&port->rx, chunk, sizeof(chunk))) > 0) {
-		for (uint32_t i = 0; i < n; i++) {
-			if (at_parser_feed(&port->at, (char)chunk[i], now, out) > 0) {
-				return true;
-			}
+	/*
+	 * Um byte por vez: ao fechar um quadro, o resto continua no buffer
+	 * para a proxima chamada (um bloco retirado de uma vez perderia os
+	 * bytes que viessem depois do quadro).
+	 */
+	while (ring_buf_get(&port->rx, &c, 1) > 0) {
+		if (at_parser_feed(&port->at, (char)c, now, out) > 0) {
+			return true;
 		}
 	}
 	return false;
@@ -152,8 +154,7 @@ bool hw_uart_poll_plate(enum hw_uart_port port_id, struct at_plate *out)
 bool hw_uart_poll_payment(struct p1_result *out)
 {
 	struct hw_uart *port = &ports[HW_UART_PAYMENT];
-	uint8_t chunk[RX_CHUNK];
-	uint32_t n;
+	uint8_t c;
 	int64_t now;
 
 	if (out == NULL) {
@@ -161,11 +162,10 @@ bool hw_uart_poll_payment(struct p1_result *out)
 	}
 	now = k_uptime_get();
 
-	while ((n = ring_buf_get(&port->rx, chunk, sizeof(chunk))) > 0) {
-		for (uint32_t i = 0; i < n; i++) {
-			if (p1_parser_feed(&port->p1, (char)chunk[i], now, out) > 0) {
-				return true;
-			}
+	/* Um byte por vez, pelo mesmo motivo de hw_uart_poll_plate. */
+	while (ring_buf_get(&port->rx, &c, 1) > 0) {
+		if (p1_parser_feed(&port->p1, (char)c, now, out) > 0) {
+			return true;
 		}
 	}
 	return false;
