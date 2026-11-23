@@ -9,12 +9,19 @@
  * LOCKED. Depois o evento vai para o tratador do estado atual.
  */
 
+#include <inttypes.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <zephyr/sys/util.h>
 
 #include "hw.h"
+#include "hw_uart.h"
 #include "lane.h"
+#include "sessions.h"
+
+/** Maior ID de captura aceito pela camera. */
+#define CAPTURE_ID_MAX 999999999U
 
 /* ---- Auxiliares ------------------------------------------------------- */
 
@@ -74,19 +81,144 @@ static void enter_assist(struct lane *lane, enum lane_state to)
 	}
 }
 
+/* ---- Acoes ------------------------------------------------------------ */
+
+/** Erro de driver ao comandar a faixa: nao ha como seguir com seguranca. */
+static void hw_failed(struct lane *lane)
+{
+	enter_assist(lane, LANE_LOCKED);
+}
+
+/** Proximo ID de captura da faixa: 1..CAPTURE_ID_MAX, nunca 0. */
+static uint32_t next_capture_id(struct lane *lane)
+{
+	lane->id_counter = (lane->id_counter >= CAPTURE_ID_MAX)
+				   ? 1U
+				   : lane->id_counter + 1U;
+	return lane->id_counter;
+}
+
+/**
+ * Nova tentativa de captura, com ID novo e prazo de CAPTURE_MS contado do
+ * envio. Um envio que falha vale como tentativa: sem resposta, vence o prazo.
+ */
+static void start_capture(struct lane *lane, int64_t now_ms)
+{
+	char cmd[sizeof("AT+CAPTURE=") + 10];
+
+	lane->tries++;
+	lane->capture_id = next_capture_id(lane);
+	(void)snprintf(cmd, sizeof(cmd), "AT+CAPTURE=%" PRIu32,
+		       lane->capture_id);
+	(void)hw_uart_send(lane->cfg->camera, cmd);
+	lane->deadline_ms = now_ms + CAPTURE_MS;
+	lane->state = LANE_IDENTIFYING;
+}
+
+/** Tentativa perdida (confianca baixa ou prazo): outra, ou assistencia. */
+static void capture_failed(struct lane *lane, int64_t now_ms)
+{
+	lane->capture_id = 0;
+	if (lane->tries < CAPTURE_TRIES) {
+		start_capture(lane, now_ms);
+	} else {
+		enter_assist(lane, LANE_ASSIST);
+	}
+}
+
+/** Liga o motor e arma o prazo do movimento. */
+static void move_gate(struct lane *lane, bool open, int64_t now_ms)
+{
+	if (hw_motor_drive(lane->cfg, open) < 0) {
+		hw_failed(lane);
+		return;
+	}
+	lane->deadline_ms = now_ms + GATE_MOVE_MS;
+	lane->state = open ? LANE_OPENING : LANE_CLOSING;
+}
+
+/** Placa aceita: decide pela tabela de sessoes. */
+static void plate_accepted(struct lane *lane, const struct at_plate *plate,
+			   int64_t now_ms)
+{
+	lane->capture_id = 0;
+	memcpy(lane->plate, plate->plate, sizeof(lane->plate));
+
+	if (!lane->cfg->has_payment) {
+		/* Entrada: placa nova e vaga livre. */
+		if (sessions_has(lane->plate) || sessions_full()) {
+			enter_assist(lane, LANE_ASSIST);
+			return;
+		}
+		move_gate(lane, true, now_ms);
+		return;
+	}
+	/* Saida: so placa com sessao ativa; a cobranca entra na fase 3. */
+	enter_assist(lane, LANE_ASSIST);
+}
+
+/** Passagem completa: so ela mexe na tabela de sessoes. */
+static void passage_done(struct lane *lane, int64_t now_ms)
+{
+	int rc = lane->cfg->has_payment ? sessions_remove(lane->plate)
+					: sessions_add(lane->plate, now_ms);
+
+	if (rc < 0) {
+		/* Tabela incoerente com a autorizacao: nao fecha sozinha. */
+		enter_assist(lane, LANE_ASSIST);
+		return;
+	}
+	/* Vermelho antes de fechar; o feixe ja esta livre. */
+	if (hw_lights_set(lane->cfg, true, false) < 0) {
+		hw_failed(lane);
+		return;
+	}
+	lane->beam_seen = false;
+	lane->beam_cleared = false;
+	move_gate(lane, false, now_ms);
+}
+
 /* ---- Estados ---------------------------------------------------------- */
 
+/* Carro chegou com a cancela fechada: comeca a identificacao. */
 static void handle_event_idle(struct lane *lane, const struct lane_event *ev)
 {
-	ARG_UNUSED(lane);
-	ARG_UNUSED(ev);
+	if (barrier_closed(lane) && lane->presence.present && !lane->served &&
+	    code_fresh(lane, ev->now_ms)) {
+		/* Uma identificacao por presenca: carro parado nao recomeca. */
+		lane->served = true;
+		lane->tries = 0;
+		start_capture(lane, ev->now_ms);
+	}
 }
 
 static void handle_event_identifying(struct lane *lane,
 				     const struct lane_event *ev)
 {
-	ARG_UNUSED(lane);
-	ARG_UNUSED(ev);
+	if (ev->id == EV_PLATE) {
+		/* So o +PLATE do ID atual conta; os outros sao ignorados. */
+		if (ev->plate.id != lane->capture_id) {
+			return;
+		}
+		if (ev->plate.confidence < CONF_MIN) {
+			capture_failed(lane, ev->now_ms);
+			return;
+		}
+		plate_accepted(lane, &ev->plate, ev->now_ms);
+		return;
+	}
+	if (ev->id != EV_TICK) {
+		return;
+	}
+	if (car_away(lane, ev->now_ms)) {
+		/* O carro foi embora: abandona e invalida o ID. */
+		forget_cycle(lane);
+		lane->state = LANE_IDLE;
+		return;
+	}
+	if (ev->now_ms >= lane->deadline_ms) {
+		capture_failed(lane, ev->now_ms);
+	}
 }
 
 static void handle_event_charging(struct lane *lane,
@@ -96,30 +228,93 @@ static void handle_event_charging(struct lane *lane,
 	ARG_UNUSED(ev);
 }
 
+/* Abrindo: para no fim de curso superior; verde so com o motor desligado. */
 static void handle_event_opening(struct lane *lane, const struct lane_event *ev)
 {
-	ARG_UNUSED(lane);
-	ARG_UNUSED(ev);
+	if (ev->id != EV_TICK) {
+		return;
+	}
+	if (lane->upper) {
+		/* O work do EXTI ja pode ter desligado; se nao, desliga aqui. */
+		if (hw_motor_running(lane->cfg) && hw_motor_stop(lane->cfg) < 0) {
+			hw_failed(lane);
+			return;
+		}
+		if (!hw_motor_running(lane->cfg)) {
+			if (hw_lights_set(lane->cfg, false, true) < 0) {
+				hw_failed(lane);
+				return;
+			}
+			lane->beam_seen = false;
+			lane->beam_cleared = false;
+			lane->deadline_ms = ev->now_ms + PASS_MS;
+			lane->state = LANE_WAIT_PASSAGE;
+			return;
+		}
+	}
+	if (ev->now_ms >= lane->deadline_ms) {
+		/* Travou ou perdeu o fim de curso: posicao incerta. */
+		enter_assist(lane, LANE_LOCKED);
+	}
 }
 
+/* Aberta: feixe ativo, depois inativo, e carro recente a mais de 1500 mm. */
 static void handle_event_wait_passage(struct lane *lane,
 				      const struct lane_event *ev)
 {
-	ARG_UNUSED(lane);
-	ARG_UNUSED(ev);
+	switch (ev->id) {
+	case EV_BEAM_ON:
+		lane->beam_seen = true;
+		lane->beam_cleared = false;
+		return;
+	case EV_BEAM_OFF:
+		lane->beam_cleared = lane->beam_seen;
+		return;
+	case EV_TICK:
+		break;
+	case EV_LIMITS:
+	case EV_DISTANCE:
+	case EV_PLATE:
+	case EV_PAYMENT:
+	case EV_ADC_FAULT:
+	case EV_HW_ERROR:
+		return;
+	}
+	if (lane->beam_cleared && !lane->beam && car_away(lane, ev->now_ms)) {
+		passage_done(lane, ev->now_ms);
+		return;
+	}
+	if (ev->now_ms >= lane->deadline_ms) {
+		/* Cancela aberta e parada: assistencia sem fechar no feixe. */
+		enter_assist(lane, LANE_ASSIST);
+	}
 }
 
-static void handle_event_wait_beam_clear(struct lane *lane,
-					 const struct lane_event *ev)
-{
-	ARG_UNUSED(lane);
-	ARG_UNUSED(ev);
-}
-
+/* Fechando: obstrucao trava (a ISR ja cortou o motor); para no inferior. */
 static void handle_event_closing(struct lane *lane, const struct lane_event *ev)
 {
-	ARG_UNUSED(lane);
-	ARG_UNUSED(ev);
+	if (ev->id == EV_BEAM_ON) {
+		/* Parada no meio do curso: sem reverter, travada ate o reset. */
+		enter_assist(lane, LANE_LOCKED);
+		return;
+	}
+	if (ev->id != EV_TICK) {
+		return;
+	}
+	if (lane->lower) {
+		if (hw_motor_running(lane->cfg) && hw_motor_stop(lane->cfg) < 0) {
+			hw_failed(lane);
+			return;
+		}
+		if (!hw_motor_running(lane->cfg)) {
+			forget_cycle(lane);
+			lane->state = LANE_IDLE;
+			return;
+		}
+	}
+	if (ev->now_ms >= lane->deadline_ms) {
+		enter_assist(lane, LANE_LOCKED);
+	}
 }
 
 /* Assistencia rearmavel: so com a cancela fechada, carro longe e feixe livre. */
@@ -152,6 +347,16 @@ static bool update_inputs(struct lane *lane, const struct lane_event *ev)
 			/* Contraditorio: trava mesmo que a falha suma depois. */
 			enter_assist(lane, LANE_LOCKED);
 			return false;
+		}
+		if (!lane->started) {
+			/* Partida: sem fim de curso inferior, pede ajuda e nunca
+			 * fecha sozinha.
+			 */
+			lane->started = true;
+			if (!lane->lower || lane->upper) {
+				enter_assist(lane, LANE_ASSIST);
+				return false;
+			}
 		}
 		return true;
 	case EV_DISTANCE:
@@ -186,34 +391,22 @@ static bool update_inputs(struct lane *lane, const struct lane_event *ev)
 
 void lane_init(struct lane *lane, const struct lane_cfg *cfg)
 {
-	bool upper = false;
-	bool lower = false;
-	bool beam = false;
 	int rc;
 
 	memset(lane, 0, sizeof(*lane));
 	lane->cfg = cfg;
 	lane->state = LANE_IDLE;
 
+	/* Saidas seguras ja. A posicao so e classificada no primeiro EV_LIMITS:
+	 * no boot o modelo so reafirma o nivel dos sensores na primeira amostra
+	 * (ParkingPhysical.cs, Drive), entao uma leitura aqui pode ser velha.
+	 */
 	rc = hw_motor_stop(cfg);
 	if (rc == 0) {
 		rc = hw_lights_set(cfg, true, false);
 	}
-	if (rc == 0) {
-		rc = hw_limits_read(cfg, &upper, &lower);
-	}
-	if (rc == 0) {
-		rc = hw_beam_read(cfg, &beam);
-	}
-	lane->upper = upper;
-	lane->lower = lower;
-	lane->beam = beam;
-
-	if (rc < 0 || (upper && lower)) {
+	if (rc < 0) {
 		enter_assist(lane, LANE_LOCKED);
-	} else if (!lower || upper) {
-		/* Sem fim de curso inferior: pede ajuda, nunca fecha sozinha. */
-		enter_assist(lane, LANE_ASSIST);
 	}
 }
 
@@ -238,9 +431,6 @@ void lane_handle_event(struct lane *lane, const struct lane_event *ev)
 		break;
 	case LANE_WAIT_PASSAGE:
 		handle_event_wait_passage(lane, ev);
-		break;
-	case LANE_WAIT_BEAM_CLEAR:
-		handle_event_wait_beam_clear(lane, ev);
 		break;
 	case LANE_CLOSING:
 		handle_event_closing(lane, ev);

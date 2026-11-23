@@ -5,7 +5,8 @@
  *        muda so a configuracao (struct lane_cfg).
  *
  * Os estados e as transicoes estao na secao "Desenho da dupla" do guia, ja
- * corrigidos pelo docs/ do curso.
+ * corrigidos pelo docs/ do curso. Decisao do aluno B: sem WAIT_BEAM_CLEAR,
+ * porque a passagem so completa com o feixe ja livre.
  */
 
 #ifndef STUDENT_LANE_H_
@@ -26,8 +27,7 @@ enum lane_state {
 	LANE_IDENTIFYING,     /**< Ate CAPTURE_TRIES capturas. */
 	LANE_CHARGING,        /**< So na saida: cobranca em andamento. */
 	LANE_OPENING,         /**< Abrindo, prazo GATE_MOVE_MS. */
-	LANE_WAIT_PASSAGE,    /**< Aberta, prazo PASS_MS. */
-	LANE_WAIT_BEAM_CLEAR, /**< Passagem completa; espera feixe livre. */
+	LANE_WAIT_PASSAGE,    /**< Aberta, prazo PASS_MS; a passagem completa fecha. */
 	LANE_CLOSING,         /**< Fechando, prazo GATE_MOVE_MS. */
 	LANE_ASSIST,          /**< Assistencia rearmavel. */
 	LANE_LOCKED,          /**< Assistencia travada ate o reset. */
@@ -40,6 +40,7 @@ struct lane {
 	int64_t deadline_ms;        /**< Prazo do estado atual. */
 
 	/* Ultimas entradas vistas. */
+	bool started;               /**< Partida ja classificada (1o EV_LIMITS). */
 	bool upper;                 /**< Fim de curso superior acionado. */
 	bool lower;                 /**< Fim de curso inferior acionado. */
 	bool beam;                  /**< Feixe ativo. */
@@ -50,6 +51,7 @@ struct lane {
 	bool served;                /**< A presenca atual ja foi identificada. */
 
 	/* Ciclo de autorizacao em andamento. */
+	uint32_t id_counter;        /**< Ultimo ID de captura usado. */
 	uint8_t tries;              /**< Capturas ou envios da cobranca feitos. */
 	uint32_t capture_id;        /**< ID esperado no +PLATE; 0 = nenhum. */
 	char plate[PLATE_LEN + 1];  /**< Placa aceita neste ciclo. */
@@ -64,9 +66,9 @@ struct lane {
 /**
  * @brief Prepara uma faixa para a partida segura.
  *
- * Motor desligado, vermelho aceso, verde apagado. Le os fins de curso:
- * so inferior -> IDLE; os dois -> LOCKED; outro caso -> ASSIST (sem fechar
- * sozinha).
+ * Motor desligado, vermelho aceso, verde apagado. A posicao e classificada
+ * no primeiro EV_LIMITS: so inferior -> IDLE; os dois -> LOCKED; outro caso
+ * -> ASSIST (sem fechar sozinha).
  */
 void lane_init(struct lane *lane, const struct lane_cfg *cfg);
 

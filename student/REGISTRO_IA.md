@@ -276,6 +276,51 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   obstrução contra a regra de adiar para work); por que uma conclusão do ADC
   vista depois de 100 ms trava mesmo que o valor seja bom.
 
+### 2026-11-23 — Fase 2: fluxo da entrada (captura, abertura, passagem, fechamento)
+
+- **Aluno:** B (Ycaro Sales).
+- **Requisito(s):** REQ-02, REQ-03, REQ-04 (entrada), REQ-06, REQ-07, REQ-08;
+  portão G3.
+- **O que pedi:** a identificação e o movimento da cancela na entrada, até os
+  cenários do G3 passarem.
+- **Decisões que tomei (a IA perguntou antes):** tirar o estado
+  `WAIT_BEAM_CLEAR` do desenho da dupla, porque a passagem só completa com o
+  feixe já inativo e `hw_motor_drive(fechar)` já recusa fechar com o feixe
+  ativo; ID de captura por faixa, contando de 1 (cada câmera tem cache
+  próprio e o reset o limpa); envio da câmera que falha conta como tentativa e
+  vence pelo prazo de 1000 ms, sem caminho especial.
+- **O que a IA propôs:** em `lane.c`, IDLE → IDENTIFYING quando a cancela está
+  fechada e parada, a presença foi aceita com amostra recente e essa presença
+  ainda não foi atendida (`served`); `+PLATE` só do ID atual, confiança ≥ 85,
+  até 3 tentativas com ID novo e 1000 ms; código recente > 1024 abandona e
+  invalida o ID; entrada abre só sem sessão e com vaga; OPENING acende o
+  verde só com o fim de curso superior e o motor desligado (desliga ele mesmo
+  se o work do EXTI ainda não rodou); prazo de 2500 ms trava (LOCKED);
+  WAIT_PASSAGE exige feixe ativo → inativo, feixe livre e código recente >
+  1024, cria a sessão nesse instante, acende o vermelho e fecha; prazo de
+  10 s pede assistência com a cancela aberta; CLOSING trava na obstrução
+  (a ISR já cortou o motor) e no prazo, e volta a IDLE no fim de curso
+  inferior.
+- **Bug encontrado e corrigido:** com o fluxo pronto, nenhum cenário
+  capturava. O trace mostrou o buzzer das duas faixas 300 µs após o boot:
+  `lane_init` lia o fim de curso inferior como baixo. O modelo explica
+  (`ParkingPhysical.cs`, `Drive`): depois do reset da máquina o receptor GPIO
+  só volta a ver o nível na primeira amostra de 10 ms. A partida passou a ser
+  classificada no primeiro `EV_LIMITS`, e a thread espera um tick antes do
+  primeiro serviço.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei.
+- **Como verifiquei:** passam `jam`, `missing-lower`, `contradictory-limits`,
+  `obstruction-during-close` (G3), `missing-upper`, `obstruction-before-close`,
+  `stationary`, `noisy-threshold`, `confidence-retry`, `low-confidence`,
+  `camera-timeout` e `partial-startup`. Falham só os 6 de pagamento e reset de
+  pagamento (fase 3). `firmware-coverage.py` (19 cenários + suítes, só os que
+  passam contam): total 81,1% de linhas e 68,9% de branches; `lane.c` 99,5% /
+  97,0%. `static-check.py`: 0 achados. Suíte `lane` com 56 testes, cada um com
+  `zassert`, incluindo os erros de driver por FFF.
+- **O que aprendi / o que ainda preciso entender:** por que o modelo
+  "reafirma" os sensores a cada amostra e o que isso muda na partida; por que
+  o verde só pode acender com o motor já desligado.
+
 ## Código de terceiros
 
 | Arquivo/trecho | Origem | Licença |

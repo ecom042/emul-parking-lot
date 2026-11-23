@@ -19,16 +19,17 @@ DECLARE_FAKE_VALUE_FUNC(int, hw_motor_stop, const struct lane_cfg *);
 DECLARE_FAKE_VALUE_FUNC(bool, hw_motor_running, const struct lane_cfg *);
 DECLARE_FAKE_VALUE_FUNC(int, hw_lights_set, const struct lane_cfg *, bool, bool);
 DECLARE_FAKE_VALUE_FUNC(int, hw_buzzer_pulse, const struct lane_cfg *);
-DECLARE_FAKE_VALUE_FUNC(int, hw_beam_read, const struct lane_cfg *, bool *);
-DECLARE_FAKE_VALUE_FUNC(int, hw_limits_read, const struct lane_cfg *, bool *, bool *);
 DECLARE_FAKE_VALUE_FUNC(int, hw_uart_send, enum hw_uart_port, const char *);
 DECLARE_FAKE_VALUE_FUNC(int, st7789_show_plate, const char *);
 DECLARE_FAKE_VALUE_FUNC(int, st7789_show_charge, uint32_t);
 
-/** Niveis devolvidos por hw_limits_read e hw_beam_read nos falsos. */
-extern bool fake_upper, fake_lower, fake_beam;
+/** Ultima linha enviada por hw_uart_send (o argumento e um buffer da pilha). */
+extern char fake_uart_line[64];
 
-/** Volta todos os falsos ao padrao: sucesso, cancela fechada, feixe livre. */
+/** Valor devolvido por hw_uart_send. */
+extern int fake_uart_rc;
+
+/** Volta todos os falsos ao padrao: sucesso, motor parado. */
 void fakes_reset(void);
 
 #endif /* TEST_FAKES_H_ */

@@ -24,11 +24,12 @@ int main(void)
 	printk("PARKING_STUDENT_READY: capacity %d, tariff unit %d ms\n",
 	       CONFIG_PARKING_CAPACITY, CONFIG_PARKING_TARIFF_UNIT_MS);
 
+	/* O primeiro servico espera um tick: a amostra inicial dos sensores. */
 	next = k_uptime_get();
 	for (;;) {
-		controller_step(k_uptime_get());
 		next += TICK_MS;
 		k_sleep(K_TIMEOUT_ABS_MS(next));
+		controller_step(k_uptime_get());
 	}
 	return 0;
 }
