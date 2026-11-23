@@ -201,6 +201,34 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   saída do carro também gera assistência, e por que a fonte de verdade precisa
   ser corrigida nesses pontos.
 
+### 2026-11-23 — Headers dos contratos do aluno B
+
+- **Aluno:** B.
+- **Requisito(s):** base de REQ-01 a REQ-10 (interfaces); nenhuma implementação.
+- **O que pedi:** transformar os contratos do guia (interface congelada da
+  fonte de verdade, já corrigida pelo `docs/` e pelo código real do aluno A) em
+  arquivos, para eu implementar à mão.
+- **O que a IA propôs:** só headers em `src/`, sem `.c`: `events.h` (enum de
+  eventos e `struct lane_event`), `lane.h` (estados e `lane_init`/
+  `lane_handle_event`), `hw.h` (motor, sinais, buzzer, feixe, fins de curso),
+  `hw_adc.h` (`hw_adc_start`/`hw_adc_read`) e `presence.h`
+  (`presence_update`). Diferenças em relação à fonte de verdade: sem
+  `EV_DISPLAY_DONE` nem `hw_camera_send`/`hw_payment_send`/
+  `display_show_charge`, que não existem no código do aluno A (usar
+  `hw_uart_*` e `st7789_*`); estados com prefixo `LANE_`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei. Ficaram em aberto,
+  para eu decidir: os campos de `struct lane_cfg` (só declarada, porque com
+  `gpio_dt_spec` ela levaria header de driver para a lógica), os campos
+  restantes de `struct lane` e o significado exato de `hw_adc_start`. Os
+  headers não entram no `CMakeLists.txt` até existirem os `.c`.
+- **Como verifiquei:** `gcc -std=gnu11 -fsyntax-only -Wall -Wextra -Wshadow
+  -Wundef -Wstrict-prototypes -Wmissing-prototypes -Wpedantic` num arquivo que
+  inclui os cinco headers: zero avisos. Nenhum cenário muda, porque nada os
+  inclui ainda.
+- **O que aprendi / o que ainda preciso entender:** como separar a
+  configuração de hardware da faixa (aliases) da parte que a lógica precisa
+  ler, sem quebrar a regra de headers de driver só em `hw_*.c`.
+
 ## Código de terceiros
 
 | Arquivo/trecho | Origem | Licença |
