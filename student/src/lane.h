@@ -4,16 +4,21 @@
  * @brief Maquina de estados de uma faixa. As duas faixas usam este codigo;
  *        muda so a configuracao (struct lane_cfg).
  *
- * Contrato congelado da dupla (fonte de verdade, secao 2). Implementado em
- * lane.c. Os estados e as transicoes estao na secao "Desenho da dupla" do
- * guia, ja corrigidos pelo docs/ do curso.
+ * Os estados e as transicoes estao na secao "Desenho da dupla" do guia, ja
+ * corrigidos pelo docs/ do curso.
  */
 
 #ifndef STUDENT_LANE_H_
 #define STUDENT_LANE_H_
 
+#include <stdbool.h>
+#include <stdint.h>
+
 #include "events.h"
-#include "hw.h"
+#include "lane_cfg.h"
+#include "parking_limits.h"
+#include "presence.h"
+#include "uuid.h"
 
 /** Estados de uma faixa. */
 enum lane_state {
@@ -32,10 +37,37 @@ enum lane_state {
 struct lane {
 	const struct lane_cfg *cfg; /**< Configuracao recebida em lane_init(). */
 	enum lane_state state;      /**< Estado atual. */
-	/* Os demais campos (tentativa, ID, UUID, preco, prazos) sao do aluno B. */
+	int64_t deadline_ms;        /**< Prazo do estado atual. */
+
+	/* Ultimas entradas vistas. */
+	bool upper;                 /**< Fim de curso superior acionado. */
+	bool lower;                 /**< Fim de curso inferior acionado. */
+	bool beam;                  /**< Feixe ativo. */
+	uint16_t code;              /**< Ultimo codigo do ADC4. */
+	int64_t code_ms;            /**< Quando @c code chegou. */
+	bool have_code;             /**< Ja chegou alguma amostra. */
+	struct presence presence;   /**< Histerese e debounce da chegada. */
+	bool served;                /**< A presenca atual ja foi identificada. */
+
+	/* Ciclo de autorizacao em andamento. */
+	uint8_t tries;              /**< Capturas ou envios da cobranca feitos. */
+	uint32_t capture_id;        /**< ID esperado no +PLATE; 0 = nenhum. */
+	char plate[PLATE_LEN + 1];  /**< Placa aceita neste ciclo. */
+	bool beam_seen;             /**< Na passagem: feixe ja ficou ativo. */
+	bool beam_cleared;          /**< Na passagem: e depois inativo. */
+
+	/* Cobranca (so na saida). */
+	char uuid[UUID_LEN + 1];    /**< UUID da cobranca; vazio = nenhuma. */
+	uint32_t cents;             /**< Valor congelado da cobranca. */
 };
 
-/** @brief Prepara uma faixa para a partida segura. */
+/**
+ * @brief Prepara uma faixa para a partida segura.
+ *
+ * Motor desligado, vermelho aceso, verde apagado. Le os fins de curso:
+ * so inferior -> IDLE; os dois -> LOCKED; outro caso -> ASSIST (sem fechar
+ * sozinha).
+ */
 void lane_init(struct lane *lane, const struct lane_cfg *cfg);
 
 /** @brief Entrega um evento a maquina de estados da faixa. */

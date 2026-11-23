@@ -64,15 +64,15 @@ static struct {
 	bool inicializado;
 } disp;
 
-static int escreve(const uint8_t *dados, size_t len)
+static int escreve(uint8_t *dados, size_t len)
 {
-	struct spi_buf buf = { .buf = (void *)dados, .len = len };
+	struct spi_buf buf = { .buf = dados, .len = len };
 	struct spi_buf_set set = { .buffers = &buf, .count = 1 };
 
 	return spi_write_dt(&display, &set);
 }
 
-static int comando(uint8_t cmd, const uint8_t *dados, size_t len)
+static int comando(uint8_t cmd, uint8_t *dados, size_t len)
 {
 	int rc;
 
@@ -176,8 +176,8 @@ static uint16_t centralizado(const char *s, uint8_t escala)
 
 static int inicializa(void)
 {
-	static const uint8_t colmod = 0x55;
-	static const uint8_t madctl = 0x00;
+	uint8_t colmod = 0x55; /* nao const: spi_buf.buf e void * */
+	uint8_t madctl = 0x00;
 	int rc;
 
 	if (!spi_is_ready_dt(&display) || !gpio_is_ready_dt(&dc) ||

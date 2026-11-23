@@ -15,5 +15,11 @@ target_sources(app PRIVATE
 	src/hw_uart.c
 	src/st7789.c
 	src/font.c
-	# --- movimento e segurança (B): acrescente abaixo ---
+	# --- movimento e segurança (B) ---
+	src/lane_cfg.c
+	src/hw_io.c
+	src/hw_adc.c
+	src/presence.c
+	src/lane.c
+	src/controller.c
 )

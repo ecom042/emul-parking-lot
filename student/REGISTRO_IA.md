@@ -18,6 +18,7 @@ entradas. Quem não usou IA escreve isso aqui.
 | A | Hermes Agent (CLI) | deepseek-v4.1-flash-1017 | 21/11/2026 20:30 a 22/11/2026 |
 | A | Hermes Agent (CLI) | (mesmo modelo) | 21/11/2026 — revisão do roadmap e da especificação técnica da dupla |
 | B | Claude Code (CLI) | Claude Opus 5.5 (claude-opus-5-5) | 23/11/2026 — levantamento do estado e guia de estudo |
+| B | Claude Code (CLI) | Claude Opus 5.5 (claude-opus-5-5) | 23/11/2026 — implementação da parte B, por fases |
 
 ## Tarefas
 
@@ -228,6 +229,52 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **O que aprendi / o que ainda preciso entender:** como separar a
   configuração de hardware da faixa (aliases) da parte que a lógica precisa
   ler, sem quebrar a regra de headers de driver só em `hw_*.c`.
+
+### 2026-11-23 — Fase 1: hardware das faixas, ADC4, presença e partida segura
+
+- **Aluno:** B (Ycaro Sales).
+- **Requisito(s):** REQ-01 (partida segura), REQ-09 (assistência e rearme),
+  REQ-10 (ADC4 assíncrono), REQ-03 (presença), base de REQ-06 e REQ-08.
+- **O que pedi:** terminar a atividade pelo guia, me perguntando cada decisão
+  de arquitetura antes de cada fase. Nesta fase: a camada de GPIO/EXTI, o
+  ADC4, a presença, a thread de controle e os estados de assistência.
+- **Decisões que tomei (a IA perguntou antes de codificar):** uma única
+  thread de controle de 10 ms para as duas faixas, dona única do ADC4 (em vez
+  de uma thread por faixa); pinos escondidos em `hw_io.c` e `hw_adc.c`, com
+  `lane_cfg` só lógica (id, porta da câmera, se cobra); falha do ADC4 trava as
+  **duas** faixas, porque o conversor é um só; pulso do buzzer por
+  `k_work_delayable`; a ISR do feixe registra as bordas em `atomic_t` e corta
+  o motor quando a faixa está fechando.
+- **O que a IA propôs:** `lane_cfg.c/h`; `hw_io.c` (saídas inativas e
+  vermelho na partida; fim de curso com interrupção na subida, que agenda um
+  `k_work` para desligar o motor, como manda `device-protocols.md`; feixe nas
+  duas bordas); `hw_adc.c` (sequência, buffer e `k_poll_signal` estáticos,
+  `adc_read_async` alternando os canais 17 e 18, `k_poll_signal_check` sem
+  bloquear, prazo de 100 ms e trava); `presence.c` (histerese 683/1024 e 3
+  amostras consecutivas); `controller.c` (um tick: ADC, fins de curso,
+  feixe, UARTs, prazos); `main.c` com sono em instante absoluto
+  (`K_TIMEOUT_ABS_MS`) para o período não escorregar; `lane.c` com a partida
+  (inferior → IDLE, os dois → LOCKED, outro → ASSIST, nunca fecha sozinha),
+  LOCKED para limites contraditórios, falha do ADC e erro de driver, um só
+  pulso de buzzer por pedido de assistência e rearme só com cancela fechada,
+  motor parado, distância recente > 1024 e feixe livre. `events.h` passou a
+  levar o tempo virtual em cada evento, para a lógica ser testável sem
+  relógio. Suítes novas: `presence` e `lane` (FFF para `hw.h`, UART e
+  display).
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei. A análise
+  estática apontou um `-Wcast-qual` em `st7789.c` (do aluno A): o
+  `(void *)dados` tirava o `const`. A correção tira o `const` dos parâmetros
+  de `escreve`/`comando` e dos dois bytes de configuração, em vez de esconder
+  o cast.
+- **Como verifiquei:** `partial-startup` e `contradictory-limits` passam
+  (antes nenhum passava); `jam` e `missing-upper` ainda falham, como
+  esperado, porque a captura e a abertura são da fase 2. `static-check.py`:
+  **0 achados**. `firmware-coverage.py` com esses dois cenários e as suítes:
+  todas as suítes passam; `presence.c` 100% de linhas e branches, `lane.c` 98,8% de linhas e 91,1% de branches; total 70,1% / 58,1% (só dois cenários).
+- **O que aprendi / o que ainda preciso entender:** por que o callback do
+  fim de curso não desliga o motor direto e o do feixe sim (prazo de 10 ms da
+  obstrução contra a regra de adiar para work); por que uma conclusão do ADC
+  vista depois de 100 ms trava mesmo que o valor seja bom.
 
 ## Código de terceiros
 
