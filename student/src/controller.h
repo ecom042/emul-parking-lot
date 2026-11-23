@@ -27,6 +27,18 @@ int controller_init(void);
 /** @brief Um tick de servico, no tempo virtual @p now_ms. */
 void controller_step(int64_t now_ms);
 
+/**
+ * @brief Inicializa e roda a thread de controle para sempre.
+ *
+ * Chama controller_init(); se falhar, imprime PARKING_STUDENT_SETUP_FAILED e
+ * devolve o erro. Senao imprime PARKING_STUDENT_READY e chama
+ * controller_step() a cada TICK_MS, acordando em instantes absolutos de tempo
+ * virtual (o periodo nao escorrega com o tempo de servico).
+ *
+ * @retval <0 Erro de controller_init(); em sucesso a funcao nao retorna.
+ */
+int controller_run(void);
+
 /** @brief Estado de uma faixa, para testes e diagnostico. */
 const struct lane *controller_lane(enum lane_id id);
 

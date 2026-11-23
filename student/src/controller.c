@@ -8,6 +8,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <zephyr/kernel.h>
+#include <zephyr/sys/printk.h>
+
 #include "controller.h"
 #include "hw.h"
 #include "hw_adc.h"
@@ -118,6 +121,31 @@ void controller_step(int64_t now_ms)
 	for (size_t i = 0; i < LANE_COUNT; i++) {
 		service_lane(&lanes[i], now_ms);
 	}
+}
+
+int controller_run(void)
+{
+	int64_t next;
+	int rc = controller_init();
+
+	if (rc < 0) {
+		printk("PARKING_STUDENT_SETUP_FAILED\n");
+		return rc;
+	}
+	printk("PARKING_STUDENT_READY: capacity %d, tariff unit %d ms\n",
+	       CONFIG_PARKING_CAPACITY, CONFIG_PARKING_TARIFF_UNIT_MS);
+
+	/* Acorda em instantes absolutos (inicio + n * TICK_MS de tempo
+	 * virtual), para o periodo nao escorregar com o tempo de servico.
+	 * O primeiro servico espera um tick: a amostra inicial dos sensores.
+	 */
+	next = k_uptime_get();
+	for (;;) {
+		next += TICK_MS;
+		k_sleep(K_TIMEOUT_ABS_MS(next));
+		controller_step(k_uptime_get());
+	}
+	return 0;
 }
 
 const struct lane *controller_lane(enum lane_id id)
