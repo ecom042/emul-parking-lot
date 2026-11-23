@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.20.0)
+list(APPEND BOARD_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../hardware)
+list(APPEND DTS_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../hardware)
+find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
+project(parking_distance_test)
+target_include_directories(app PRIVATE ../../include)
+target_sources(app PRIVATE test_distance.c ../../src/drivers/distance.c)

@@ -6,8 +6,10 @@ list(APPEND BOARD_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../hardware)
 list(APPEND DTS_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../hardware)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(parking_student_unit)
-target_include_directories(app PRIVATE ../../src)
+target_include_directories(app PRIVATE ../../include)
 target_sources(app PRIVATE src/test_exemplo.c)
+target_sources(app PRIVATE src/test_gate.c ../../src/gate.c)
+target_sources(app PRIVATE src/test_parking.c ../../src/parking.c)
 # Acrescente os módulos de student/src que esta suíte testa, por exemplo:
 # target_sources(app PRIVATE ../../src/tarifa.c)
 # Não inclua main.c: a suíte tem o próprio ponto de entrada (ztest).
