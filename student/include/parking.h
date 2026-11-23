@@ -10,10 +10,10 @@ struct gate;
 struct gate_inputs;
 
 /**
- * These operations run in the serialized controller queue and must return
- * promptly. The equipment implementation owns the wire identifiers, retries,
- * framing and deadlines. Poll reports only the current operation; cancel
- * invalidates it before returning and queues any required UART transmission.
+ * @brief Operações de equipamento usadas pelo controlador das faixas.
+ * @details Os callbacks são executados na fila serializada e devem retornar
+ * rapidamente. O adaptador controla os identificadores, quadros, prazos
+ * e tentativas. O cancelamento invalida a operação antes de retornar.
  */
 struct parking_equipment {
 	int (*capture_start)(enum parking_lane_id lane, int64_t now);
@@ -31,9 +31,18 @@ struct parking_equipment {
 	/**< Invalida a cobrança e solicita o cancelamento ao terminal quando aplicável. */
 };
 
-/* Supply the complete, static-lifetime equipment adapter during boot. */
+/** @brief Registra o adaptador de equipamentos durante a inicialização.
+ * @param equipment Tabela completa de callbacks com duração de armazenamento estática.
+ */
 void parking_set_equipment(const struct parking_equipment *equipment);
 
+/** @brief Avança a operação da faixa após o processamento de segurança.
+ * @param lane Faixa a processar.
+ * @param gate Estado da cancela associado à faixa.
+ * @param input Estado atual dos sensores da cancela.
+ * @param beam_rose Indica uma interrupção do feixe desde o último passo.
+ * @param now Uptime atual em ms.
+ */
 void parking_step(enum parking_lane_id lane, struct gate *gate,
 		  struct gate_inputs input, bool beam_rose, int64_t now);
 
