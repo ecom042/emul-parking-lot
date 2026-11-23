@@ -75,8 +75,8 @@ static int parse_plate(const char *s, uint16_t n, struct at_plate *out)
 	uint32_t id;
 	uint32_t conf;
 
-	/* prefixo, ID, virgula, aspas, 7 da placa, aspas, virgula, confianca */
-	if (n < (AT_PREFIX_LEN + 3U + PLATE_LEN + 4U)) {
+	/* prefixo, ID (1+), virgula, aspas, 7 da placa, aspas, virgula, confianca (1+) */
+	if (n < (AT_PREFIX_LEN + 3U + PLATE_LEN + 3U)) {
 		return 0;
 	}
 	if (memcmp(s, AT_PREFIX, AT_PREFIX_LEN) != 0) {
