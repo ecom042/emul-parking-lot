@@ -392,6 +392,22 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   e as métricas citados são os da validação de 21/11. Esta tarefa foi
   documental e não executou novamente o firmware.
 
+### 2026-11-23 — Guia de sabatina com código C comentado
+
+- **Aluno** Pablo Munih Silva de Carvalho.
+- **Ferramenta** Codex (GPT-6).
+- **Pedido** Produzir um segundo guia que mostre o código em C durante a
+  explicação da solução.
+- **Proposta e execução** Usar recortes do commit `b442dd6`, com arquivo e
+  numeração originais, organizados do laço de controle aos periféricos e
+  à passagem. Incluir testes ztest/FFF e três ensaios de mudança ao vivo.
+- **Aceitação ou alterações** A segunda versão foi solicitada pelo aluno.
+  A revisão do PDF pelo aluno está pendente.
+- **Verificação** Comparação das 914 linhas numeradas em 56 recortes com os
+  arquivos originais. Revisão das 27 páginas renderizadas, dos links do
+  roteiro e da associação aos 13 requisitos. Validação documental, sem
+  alterações de firmware nem novas execuções no Renode.
+
 ## Código de terceiros
 
 Trechos copiados ou adaptados de outras fontes (documentação, exemplos do
