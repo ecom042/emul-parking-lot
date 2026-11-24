@@ -6,18 +6,18 @@ entradas. Quem não usou IA escreve isso aqui.
 
 ## Dupla
 
-| Aluno | Matrícula | Partes que escreveu |
-|---|---|---|
-| `<Preencher Aluno 1>` | `<Matrícula 1>` | `hw`, `adc`, `lane`, `controller`, suíte `tests/unit` (bloco físico/segurança) |
-| `<Preencher Aluno 2>` | `<Matrícula 2>` | `camera`, `payment`, `session`, `display`, `font`, suíte `tests/unit` (bloco protocolos/display) |
+| Aluno                         | Matrícula  | Partes que escreveu                                                                              |
+| ----------------------------- | ---------- | ------------------------------------------------------------------------------------------------ |
+| `Guilherme de Oliveira Costa` | `21110819` | `hw`, `adc`, `lane`, `controller`, suíte `tests/unit` (bloco físico/segurança)                   |
+| `Thiago Lobo Pereira Barros`  | `20211588` | `camera`, `payment`, `session`, `display`, `font`, suíte `tests/unit` (bloco protocolos/display) |
 
 ## Ferramentas
 
-| Aluno                 | Ferramenta                                    | Modelo/versão                   | Período de uso |
-| --------------------- | --------------------------------------------- | ------------------------------- | -------------- |
-| `Guilherme`           | Antigravity                                   | Claude Opus 4.6 / Gemini Carbon | 2026-11        |
-| `Guilherme`           | Cursor                                        | Grok 4.7                        | 2026-11-23     |
-| `<Preencher Aluno 2>` | `<Preencher se usou IA ou "Não utilizou IA">` | `<Modelo>`                      | 2026-11        |
+| Aluno       | Ferramenta  | Modelo/versão                   | Período de uso |
+| ----------- | ----------- | ------------------------------- | -------------- |
+| `Guilherme` | Antigravity | Claude Opus 4.6 / Gemini Carbon | 2026-11        |
+| `Guilherme` | Cursor      | Grok 4.7                        | 2026-11-23     |
+| `Thiago`    | Cursor      | Grok 4.7                        | 2026-11        |
 
 ## Tarefas
 
@@ -25,7 +25,7 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 
 ### 2026-11-18 — Arquitetura modular e camada fina de hardware (`hw`, `controller`, `main`)
 
-- **Aluno:** `<Preencher Aluno 1>`
+- **Aluno:** `Guilherme`
 - **Requisito(s):** REQ-01, REQ-04, REQ-06, REQ-08, REQ-10, REQ-13
 - **O que pedi:** Estruturar o firmware do estacionamento de duas faixas em Zephyr RTOS separando estritamente os drivers reais (`GPIO/EXTI`, `ADC4` assíncrono, `UART`, `SPI`) da lógica determinística de controle para permitir testes de unidade com `ztest` + `FFF`.
 - **O que a IA propôs:** Criação de `src/hw.h` e `src/hw.c` contendo apenas repasses diretos de 1 a 4 linhas às APIs devicetree do Zephyr (`GPIO_DT_SPEC_GET`, `SPI_DT_SPEC_GET`, `ADC_CHANNEL_CFG_DT`, `k_work` na workqueue cooperativa do sistema para EXTI), coordenados por `src/controller.c` e `src/main.c`.
@@ -35,7 +35,7 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 
 ### 2026-11-18 — Aquisição assíncrona compartilhada do ADC4 e máquina de estados das faixas (`adc`, `lane`)
 
-- **Aluno:** `<Preencher Aluno 1>`
+- **Aluno:** `Guilherme`
 - **Requisito(s):** REQ-01, REQ-03, REQ-06, REQ-07, REQ-08, REQ-09, REQ-10
 - **O que pedi:** Implementar o gerenciador de proprietário único do `ADC4` alternando os canais 17 (entrada) e 18 (saída) e a máquina de estados determinística das duas faixas.
 - **O que a IA propôs:** Módulo `src/adc.c` com uma única requisição `adc_read_async` pendente por vez, buffers/sinal estáticos persistentes, verificação de conclusão estritamente antes de `+100 ms` e histerese `< 683` / `> 1024`; módulo `src/lane.c` tratando partida segura (20 ms de acomodação pós-reset), abertura/fechamento em até 2500 ms, passagem por feixe em até 10000 ms, parada de obstrução em `< 10 ms`, pulso de 100 ms no buzzer e distinção entre assistência rearmável (barreira fechada) e falhas travadas até reset.
@@ -45,7 +45,7 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 
 ### 2026-11-18 — Parsers UART limitados, sessões, tarifa congelada e display ST7789V (`camera`, `payment`, `session`, `display`, `font`)
 
-- **Aluno:** `<Preencher Aluno 2>`
+- **Aluno:** `Thiago`
 - **Requisito(s):** REQ-02, REQ-04, REQ-05, REQ-11, REQ-12, REQ-13
 - **O que pedi:** Implementar e revisar os analisadores independentes das câmeras AT (`CRLF`) e do terminal P1 (`LF`), a tabela de sessões, o cálculo inteiro da tarifa e o driver SPI do display `ST7789V`.
 - **O que a IA propôs:** `src/camera.c` e `src/payment.c` com buffers limitados a 128 bytes incluindo terminador, prazo de montagem parcial de 1000 ms com descarte até `LF`, rejeição estrita de `CR` no protocolo P1, até 3 capturas com IDs novos e até 3 envios idempotentes com o mesmo UUID, invalidação do UUID antes de `P1 CANCEL`; `src/display.c` com máquina de estados não-bloqueante de inicialização (pulso real no pino `reset` ativo-baixo, `SWRESET`, `SLPOUT`, `COLMOD 0x55`, `MADCTL 0x00`, `DISPON`) e renderização da placa antes do congelamento da tarifa seguida de `BRL r.cc`, `SIMULATED PAYMENT` e `NOT PIX`.
@@ -55,7 +55,7 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 
 ### 2026-11-23 — Compilação no Zephyr 4.5 e prazo do ADC4 durante o desenho (`hw`, `display`, `controller`, `tests/unit`)
 
-- **Aluno:** `<Preencher Aluno 1>`
+- **Aluno:** `Guilherme`
 - **Requisito(s):** REQ-10, REQ-12
 - **O que pedi:** Testar o firmware no laboratório v1.0.1, ver se os cenários públicos, a cobertura e a análise estática passavam, e corrigir o que falhasse. Não abrir o pull request.
 - **O que a IA propôs:** Trocar `SPI_DT_SPEC_GET` para a forma de dois argumentos do Zephyr 4.5 e `SPI_OP_MODE_MASTER` por `SPI_OP_MODE_CONTROLLER`. Entre cada linha desenhada no ST7789V, devolver o controle ao coordenador para ele ler o ADC4 e repetir a parada de segurança, porque um quadro inteiro passava de 100 ms na compilação de cobertura e travava as duas faixas. Ajustar o teste de unidade para o relógio falso acompanhar o passo, em vez de saltar para 700000000 ms.
