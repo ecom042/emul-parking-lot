@@ -1,73 +1,69 @@
-/* Student starter: diagnostics and safe initial outputs, not a solution.
- * Implement the controller with Zephyr GPIO, ADC, UART and SPI APIs.
- * Both lanes start with the motor disabled and the red signal on.
- * The simulator never interprets these messages as control commands.
+/*
+ * Controlador do estacionamento: inicialização e laço principal.
+ *
+ * Um só laço, a cada TICK_MS, atende as duas faixas. Nada nele pode
+ * bloquear. A parada urgente do motor não depende do laço: vem da EXTI,
+ * passa por uma work e chega em lane_on_input().
  */
-#include <zephyr/drivers/gpio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 
-/** Outputs of one lane, held inactive except for the red signal. */
-struct lane_outputs {
-        const char *name;
-        struct gpio_dt_spec enable;
-        struct gpio_dt_spec direction;
-        struct gpio_dt_spec red;
-        struct gpio_dt_spec green;
-        struct gpio_dt_spec buzzer;
-};
+#include "adc_sampler.h"
+#include "config.h"
+#include "display.h"
+#include "hw.h"
+#include "lane.h"
+#include "sessions.h"
 
-/* Every device of the parking_lot_u5 board has an alias
- * (hardware/boards/ufal/parking_lot_u5/parking_lot_u5.dts).
- */
-static const struct lane_outputs lanes[] = {
-        {
-                .name = "entry",
-                .enable = GPIO_DT_SPEC_GET(DT_ALIAS(entry_motor_enable), gpios),
-                .direction = GPIO_DT_SPEC_GET(DT_ALIAS(entry_motor_direction), gpios),
-                .red = GPIO_DT_SPEC_GET(DT_ALIAS(entry_light_red), gpios),
-                .green = GPIO_DT_SPEC_GET(DT_ALIAS(entry_light_green), gpios),
-                .buzzer = GPIO_DT_SPEC_GET(DT_ALIAS(entry_buzzer), gpios),
-        },
-        {
-                .name = "exit",
-                .enable = GPIO_DT_SPEC_GET(DT_ALIAS(exit_motor_enable), gpios),
-                .direction = GPIO_DT_SPEC_GET(DT_ALIAS(exit_motor_direction), gpios),
-                .red = GPIO_DT_SPEC_GET(DT_ALIAS(exit_light_red), gpios),
-                .green = GPIO_DT_SPEC_GET(DT_ALIAS(exit_light_green), gpios),
-                .buzzer = GPIO_DT_SPEC_GET(DT_ALIAS(exit_buzzer), gpios),
-        },
-};
+static struct lane lanes[LANE_COUNT];
 
-/** Configure one lane's outputs inactive, then assert red. */
-static int lane_setup(const struct lane_outputs *lane)
+/* Contexto de work: uma entrada da faixa mudou. */
+static void on_input(enum lane_id id)
 {
-        const struct gpio_dt_spec *outputs[] = {
-                &lane->enable, &lane->direction, &lane->red, &lane->green, &lane->buzzer
-        };
-
-        for (size_t i = 0; i < ARRAY_SIZE(outputs); ++i) {
-                if (!gpio_is_ready_dt(outputs[i]) ||
-                    gpio_pin_configure_dt(outputs[i], GPIO_OUTPUT_INACTIVE) < 0) {
-                        printk("PARKING_STUDENT_SETUP_FAILED: %s\n", lane->name);
-                        return -EIO;
-                }
-        }
-        return gpio_pin_set_dt(&lane->red, 1);
+	lane_on_input(&lanes[id]);
 }
 
 int main(void)
 {
-        for (size_t i = 0; i < ARRAY_SIZE(lanes); ++i) {
-                if (lane_setup(&lanes[i]) < 0) {
-                        return 0;
-                }
-        }
-        printk("PARKING_STUDENT_READY: controller not implemented (capacity %d)\n",
-               CONFIG_PARKING_CAPACITY);
-        for (;;) {
-                /* TODO: service both lanes' safety deadlines without blocking. */
-                k_sleep(K_MSEC(10));
-        }
-        return 0;
+	int rc;
+
+	/* As structs ficam prontas antes de qualquer interrupção chegar. */
+	for (int i = 0; i < LANE_COUNT; i++) {
+		lane_init(&lanes[i], (enum lane_id)i);
+	}
+
+	adc_sampler_init();
+	sessions_clear();
+
+	rc = hw_init(on_input);
+	if (rc != 0) {
+		printk("PARKING: falha ao iniciar o hardware (%d)\n", rc);
+		return 0;
+	}
+
+	for (int i = 0; i < LANE_COUNT; i++) {
+		lane_start(&lanes[i], hw_now_ms());
+	}
+
+	/*
+	 * Display: ~400 ms de esperas do controlador, só agora no boot, com os
+	 * motores desligados e o vermelho aceso. Se falhar, a saída pede
+	 * assistência ao tentar desenhar uma cobrança.
+	 */
+	rc = display_init();
+	if (rc != 0) {
+		printk("PARKING: falha ao iniciar o display (%d)\n", rc);
+	}
+	printk("PARKING: controlador pronto (capacidade %d)\n", CONFIG_PARKING_CAPACITY);
+
+	for (;;) {
+		int64_t now = hw_now_ms();
+
+		adc_sampler_step(now);
+		for (int i = 0; i < LANE_COUNT; i++) {
+			lane_step(&lanes[i], now);
+		}
+		k_msleep(TICK_MS);
+	}
+	return 0;
 }
