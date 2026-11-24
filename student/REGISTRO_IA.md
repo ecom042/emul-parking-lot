@@ -448,6 +448,20 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   prazo da passagem (quando pedir ajuda) e a passagem em si (quem está no
   estacionamento).
 
+### 2026-11-23 — Constantes sem uso em `parking_limits.h`
+
+- **Aluno:** B (Ycaro Sales). **Decidida pela IA sem consulta** (período de
+  trabalho autônomo), para eu revisar.
+- **O que aconteceu:** ao montar o roteiro da sabatina, a IA notou que
+  `GATE_TICK_TOL_MS` e `BEAM_STOP_MS` eram definidas e nunca usadas. Mudar
+  uma delas ao vivo não teria efeito nenhum.
+- **O que a IA fez:** trocou as duas por um comentário que diz onde esses
+  limites são cumpridos: a tolerância de um tick é do avaliador (o prazo de
+  2500 ms é conferido a cada tick em `lane.c`), e o corte em ≤ 10 ms é
+  imediato na ISR do feixe (`hw_io.c`, `beam_isr`).
+- **Como verifiquei:** `obstruction-during-close`, `jam` e `normal` passam;
+  `static-check.py` com 0 achados. Só comentário e `#define` sem uso mudaram.
+
 ## Código de terceiros
 
 | Arquivo/trecho | Origem | Licença |

@@ -26,11 +26,13 @@
 
 /** Prazo de abertura e de fechamento da cancela. */
 #define GATE_MOVE_MS		2500
-/** Tolerancia de um tick no prazo de movimento. */
-#define GATE_TICK_TOL_MS	10
-
-/** Corte do motor na obstrucao, dentro da ISR do feixe. */
-#define BEAM_STOP_MS		10
+/*
+ * Sem constante para dois limites que o firmware cumpre pela arquitetura:
+ * - a tolerancia de um tick (2510 ms) e do avaliador: o prazo acima e
+ *   verificado a cada TICK_MS na thread de controle (lane.c, OPENING/CLOSING);
+ * - o corte do motor na obstrucao (<= 10 ms) e imediato, na ISR do feixe
+ *   (hw_io.c, beam_isr), sem espera configuravel.
+ */
 /** Prazo para concluir a passagem depois de abrir. */
 #define PASS_MS			10000
 
