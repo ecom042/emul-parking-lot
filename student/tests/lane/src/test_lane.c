@@ -168,12 +168,18 @@ ZTEST(lane, test_partida_erro_nas_luzes_trava)
 	zassert_equal(lane.state, LANE_LOCKED);
 }
 
-ZTEST(lane, test_partida_so_classifica_uma_vez)
+ZTEST(lane, test_perder_o_inferior_em_idle_pede_assistencia)
 {
 	iniciar(entry, false, true);
-	/* Depois da partida, inferior baixo nao e mais "sem inferior". */
 	ev_limites(false, false, 10);
-	zassert_equal(lane.state, LANE_IDLE);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_equal(hw_buzzer_pulse_fake.call_count, 1);
+	zassert_equal(hw_motor_drive_fake.call_count, 0, "nunca fecha sozinha");
+
+	/* Carro chega: nada de identificar sem o inferior. */
+	amostras(PERTO, 100);
+	tick(100);
+	zassert_equal(hw_uart_send_fake.call_count, 0);
 }
 
 /* ---- Falhas travadas (REQ-01, REQ-09, REQ-10) --------------------------- */
@@ -888,9 +894,14 @@ ZTEST(lane, test_carro_que_sai_durante_a_cobranca_cancela)
 {
 	ate_cobrando(2500);
 	ev_distancia(LONGE, 2600);
-	tick(2600);
 	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_equal(lane.uuid[0], '\0', "UUID invalidado");
 	zassert_true(strstr(fake_uart_line, "P1 CANCEL") != NULL);
+	zassert_equal(hw_buzzer_pulse_fake.call_count, 1);
+
+	/* Cancela fechada, carro longe, feixe livre: rearma no tick. */
+	tick(2600);
+	zassert_equal(lane.state, LANE_IDLE);
 }
 
 ZTEST(lane, test_falha_do_adc_na_cobranca_tambem_cancela)
@@ -1099,4 +1110,77 @@ ZTEST(lane, test_falha_travada_esquece_a_passagem_tardia)
 	ev_simples(EV_ADC_FAULT, 12200);
 	zassert_equal(lane.state, LANE_LOCKED);
 	zassert_false(lane.late_passage);
+}
+
+/* ---- Achados da revisao independente ----------------------------------- */
+
+ZTEST(lane, test_perder_o_inferior_na_identificacao_pede_assistencia)
+{
+	iniciar(entry, false, true);
+	amostras(PERTO, 100);
+	zassert_equal(lane.state, LANE_IDENTIFYING);
+	ev_limites(false, false, 200);
+	zassert_equal(lane.state, LANE_ASSIST);
+	ev_placa(1, "ABC1D23", 93, 210);
+	zassert_equal(hw_motor_drive_fake.call_count, 0, "a placa nao abre");
+}
+
+ZTEST(lane, test_perder_o_inferior_na_cobranca_cancela)
+{
+	char uuid[UUID_LEN + 1];
+
+	ate_cobrando(2500);
+	strcpy(uuid, lane.uuid);
+	ev_limites(false, false, 2600);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_true(strstr(fake_uart_line, "P1 CANCEL") != NULL);
+	ev_pagamento(P1_STATUS_PAID, uuid, 400, 2610);
+	zassert_equal(hw_motor_drive_fake.call_count, 0, "o PAID nao abre");
+}
+
+ZTEST(lane, test_placa_no_tick_em_que_o_carro_sai_nao_abre)
+{
+	iniciar(entry, false, true);
+	amostras(PERTO, 100);
+	/* No mesmo tick: a amostra longe chega antes do ultimo fragmento. */
+	ev_distancia(LONGE, 300);
+	ev_placa(1, "ABC1D23", 93, 300);
+	zassert_equal(lane.state, LANE_IDLE);
+	zassert_equal(hw_motor_drive_fake.call_count, 0);
+}
+
+ZTEST(lane, test_pago_no_tick_em_que_o_carro_sai_nao_abre)
+{
+	char uuid[UUID_LEN + 1];
+
+	ate_cobrando(2500);
+	strcpy(uuid, lane.uuid);
+	ev_distancia(LONGE, 2700);
+	zassert_equal(lane.state, LANE_ASSIST, "abandona antes do PAID");
+	zassert_true(strstr(fake_uart_line, "P1 CANCEL") != NULL);
+	ev_pagamento(P1_STATUS_PAID, uuid, 400, 2700);
+	zassert_equal(hw_motor_drive_fake.call_count, 0, "o PAID nao abre");
+	zassert_not_equal(lane.state, LANE_OPENING);
+}
+
+ZTEST(lane, test_feixe_no_tick_em_que_fechou_nao_trava)
+{
+	ate_aberta(100);
+	passar(3000);
+	zassert_equal(lane.state, LANE_CLOSING);
+	/* No mesmo tick o inferior acende e o feixe fica ativo. */
+	ev_limites(false, true, 5300);
+	ev_simples(EV_BEAM_ON, 5300);
+	zassert_equal(lane.state, LANE_IDLE, "cancela fechada: sem posicao parcial");
+	zassert_equal(hw_buzzer_pulse_fake.call_count, 0);
+}
+
+ZTEST(lane, test_feixe_com_inferior_mas_motor_ligado_trava)
+{
+	ate_aberta(100);
+	passar(3000);
+	hw_motor_running_fake.return_val = true;
+	ev_limites(false, true, 5300);
+	ev_simples(EV_BEAM_ON, 5300);
+	zassert_equal(lane.state, LANE_LOCKED);
 }

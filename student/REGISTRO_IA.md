@@ -462,6 +462,33 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Como verifiquei:** `obstruction-during-close`, `jam` e `normal` passam;
   `static-check.py` com 0 achados. Só comentário e `#define` sem uso mudaram.
 
+### 2026-11-24 — Achados da revisão independente
+
+- **Aluno:** B (Ycaro Sales). **Correções decididas pela IA sem consulta**
+  (período de trabalho autônomo), para eu revisar.
+- **O que aconteceu:** um agente revisor recebeu o código e o contrato
+  (`docs/`), sem as conclusões anteriores, e procurou violações que só um
+  cenário oculto mostraria. Achou, com cenário concreto:
+  1. perder o fim de curso inferior com a faixa em IDLE só parava de
+     identificar, sem pedir assistência ("IDLE without a lower limit requests
+     assistance"); o mesmo durante identificação ou cobrança;
+  2. a amostra "carro longe" (> 1024) só era tratada no tick, depois dos
+     quadros do mesmo passo: um `+PLATE` ou `PAID` que chegasse no mesmo tick
+     da saída do carro autorizava a abertura;
+  3. feixe ativo no exato tick em que a cancela fecha levava a LOCKED com a
+     cancela fechada (a faixa morria até o reset sem posição parcial);
+  4. o `P1 CHARGE` sai pela UART antes de a thread do display desenhar a placa
+     e o valor (consequência da decisão de congelar a tarifa ao enfileirar a
+     placa). **Não mudei:** é decisão minha, fica para eu revisar.
+- **O que a IA fez:** (1) em IDLE, IDENTIFYING e CHARGING, inferior perdido →
+  assistência (cobrança cancelada antes, como em todo abandono); (2) o
+  abandono é avaliado já no evento de distância, que chega antes dos quadros
+  do mesmo tick; (3) no CLOSING, feixe com inferior acionado e motor parado
+  conclui o fechamento (IDLE) em vez de travar. Sete testes novos em `lane`.
+- **Como verifiquei:** `lab.py --headless all`: 19/19. Fila de carros: 34/34
+  vereditos. `static-check.py`: 0 achados. Suíte `lane` passa (81 testes),
+  `lane.c` com 100% de linhas e 98,97% de branches.
+
 ## Código de terceiros
 
 | Arquivo/trecho | Origem | Licença |

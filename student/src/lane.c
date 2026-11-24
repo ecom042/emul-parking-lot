@@ -51,6 +51,13 @@ static bool barrier_closed(const struct lane *lane)
 	return lane->lower && !lane->upper && !hw_motor_running(lane->cfg);
 }
 
+/** Estados em que a cancela deve estar parada no fim de curso inferior. */
+static bool barrier_should_be_closed(const struct lane *lane)
+{
+	return lane->state == LANE_IDLE || lane->state == LANE_IDENTIFYING ||
+	       lane->state == LANE_CHARGING;
+}
+
 /** Esquece o ciclo de autorizacao em andamento. */
 static void forget_cycle(struct lane *lane)
 {
@@ -301,6 +308,16 @@ static void handle_event_idle(struct lane *lane, const struct lane_event *ev)
 static void handle_event_identifying(struct lane *lane,
 				     const struct lane_event *ev)
 {
+	if ((ev->id == EV_DISTANCE || ev->id == EV_TICK) &&
+	    car_away(lane, ev->now_ms)) {
+		/* O carro foi embora: abandona e invalida o ID. A amostra chega
+		 * antes dos quadros no mesmo tick, entao nenhum +PLATE posterior
+		 * autoriza.
+		 */
+		forget_cycle(lane);
+		lane->state = LANE_IDLE;
+		return;
+	}
 	if (ev->id == EV_PLATE) {
 		/* So o +PLATE do ID atual conta; os outros sao ignorados. */
 		if (ev->plate.id != lane->capture_id) {
@@ -313,16 +330,7 @@ static void handle_event_identifying(struct lane *lane,
 		plate_accepted(lane, &ev->plate, ev->now_ms);
 		return;
 	}
-	if (ev->id != EV_TICK) {
-		return;
-	}
-	if (car_away(lane, ev->now_ms)) {
-		/* O carro foi embora: abandona e invalida o ID. */
-		forget_cycle(lane);
-		lane->state = LANE_IDLE;
-		return;
-	}
-	if (ev->now_ms >= lane->deadline_ms) {
+	if (ev->id == EV_TICK && ev->now_ms >= lane->deadline_ms) {
 		capture_failed(lane, ev->now_ms);
 	}
 }
@@ -331,6 +339,14 @@ static void handle_event_identifying(struct lane *lane,
 static void handle_event_charging(struct lane *lane,
 				  const struct lane_event *ev)
 {
+	if ((ev->id == EV_DISTANCE || ev->id == EV_TICK) &&
+	    car_away(lane, ev->now_ms)) {
+		/* O carro foi embora: invalida o UUID, CANCEL e assistencia,
+		 * antes de qualquer PAID que chegue no mesmo tick.
+		 */
+		enter_assist(lane, LANE_ASSIST);
+		return;
+	}
 	if (ev->id == EV_PAYMENT) {
 		const struct p1_result *r = &ev->payment;
 
@@ -352,10 +368,6 @@ static void handle_event_charging(struct lane *lane,
 		return;
 	}
 	if (ev->id != EV_TICK) {
-		return;
-	}
-	if (car_away(lane, ev->now_ms)) {
-		enter_assist(lane, LANE_ASSIST);
 		return;
 	}
 	if (ev->now_ms >= lane->deadline_ms) {
@@ -423,6 +435,12 @@ static void handle_event_wait_passage(struct lane *lane,
 static void handle_event_closing(struct lane *lane, const struct lane_event *ev)
 {
 	if (ev->id == EV_BEAM_ON) {
+		if (lane->lower && !hw_motor_running(lane->cfg)) {
+			/* Ja fechou neste tick: nao ha posicao parcial. */
+			forget_cycle(lane);
+			lane->state = LANE_IDLE;
+			return;
+		}
 		/* Parada no meio do curso: sem reverter, travada ate o reset. */
 		enter_assist(lane, LANE_LOCKED);
 		return;
@@ -499,6 +517,13 @@ static bool update_inputs(struct lane *lane, const struct lane_event *ev)
 				enter_assist(lane, LANE_ASSIST);
 				return false;
 			}
+		}
+		if (!lane->lower && barrier_should_be_closed(lane)) {
+			/* Perdeu o inferior com a cancela parada fechada: pede
+			 * ajuda, sem identificar nem abrir (cobranca cancelada).
+			 */
+			enter_assist(lane, LANE_ASSIST);
+			return false;
 		}
 		return true;
 	case EV_DISTANCE:
