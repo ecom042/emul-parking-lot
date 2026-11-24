@@ -1,73 +1,59 @@
-/* Student starter: diagnostics and safe initial outputs, not a solution.
- * Implement the controller with Zephyr GPIO, ADC, UART and SPI APIs.
- * Both lanes start with the motor disabled and the red signal on.
- * The simulator never interprets these messages as control commands.
+/**
+ * @file main.c
+ * @brief Inicialização e laço de atendimento das duas faixas.
+ *
+ * O laço atende as duas faixas sem esperar conversão do ADC ou desenho do
+ * display. A work queue atende as bordas dos fins de curso e dos feixes.
+ * O mutex serializa o atendimento do laço e o da work queue.
  */
-#include <zephyr/drivers/gpio.h>
+
 #include <zephyr/kernel.h>
 #include <zephyr/sys/printk.h>
 
-/** Outputs of one lane, held inactive except for the red signal. */
-struct lane_outputs {
-        const char *name;
-        struct gpio_dt_spec enable;
-        struct gpio_dt_spec direction;
-        struct gpio_dt_spec red;
-        struct gpio_dt_spec green;
-        struct gpio_dt_spec buzzer;
-};
+#include "display.h"
+#include "distance.h"
+#include "hw.h"
+#include "lane.h"
+#include "payment.h"
 
-/* Every device of the parking_lot_u5 board has an alias
- * (hardware/boards/ufal/parking_lot_u5/parking_lot_u5.dts).
- */
-static const struct lane_outputs lanes[] = {
-        {
-                .name = "entry",
-                .enable = GPIO_DT_SPEC_GET(DT_ALIAS(entry_motor_enable), gpios),
-                .direction = GPIO_DT_SPEC_GET(DT_ALIAS(entry_motor_direction), gpios),
-                .red = GPIO_DT_SPEC_GET(DT_ALIAS(entry_light_red), gpios),
-                .green = GPIO_DT_SPEC_GET(DT_ALIAS(entry_light_green), gpios),
-                .buzzer = GPIO_DT_SPEC_GET(DT_ALIAS(entry_buzzer), gpios),
-        },
-        {
-                .name = "exit",
-                .enable = GPIO_DT_SPEC_GET(DT_ALIAS(exit_motor_enable), gpios),
-                .direction = GPIO_DT_SPEC_GET(DT_ALIAS(exit_motor_direction), gpios),
-                .red = GPIO_DT_SPEC_GET(DT_ALIAS(exit_light_red), gpios),
-                .green = GPIO_DT_SPEC_GET(DT_ALIAS(exit_light_green), gpios),
-                .buzzer = GPIO_DT_SPEC_GET(DT_ALIAS(exit_buzzer), gpios),
-        },
-};
+#define LOOP_PERIOD_MS 1
 
-/** Configure one lane's outputs inactive, then assert red. */
-static int lane_setup(const struct lane_outputs *lane)
+static K_MUTEX_DEFINE(lock);
+
+/** @brief Borda de entrada, em contexto de work queue: atende a faixa já. */
+static void on_input(enum hw_lane lane, enum hw_input input)
 {
-        const struct gpio_dt_spec *outputs[] = {
-                &lane->enable, &lane->direction, &lane->red, &lane->green, &lane->buzzer
-        };
+	ARG_UNUSED(input);
 
-        for (size_t i = 0; i < ARRAY_SIZE(outputs); ++i) {
-                if (!gpio_is_ready_dt(outputs[i]) ||
-                    gpio_pin_configure_dt(outputs[i], GPIO_OUTPUT_INACTIVE) < 0) {
-                        printk("PARKING_STUDENT_SETUP_FAILED: %s\n", lane->name);
-                        return -EIO;
-                }
-        }
-        return gpio_pin_set_dt(&lane->red, 1);
+	k_mutex_lock(&lock, K_FOREVER);
+	lane_step(lane, k_uptime_get());
+	k_mutex_unlock(&lock);
 }
 
 int main(void)
 {
-        for (size_t i = 0; i < ARRAY_SIZE(lanes); ++i) {
-                if (lane_setup(&lanes[i]) < 0) {
-                        return 0;
-                }
-        }
-        printk("PARKING_STUDENT_READY: controller not implemented (capacity %d)\n",
-               CONFIG_PARKING_CAPACITY);
-        for (;;) {
-                /* TODO: service both lanes' safety deadlines without blocking. */
-                k_sleep(K_MSEC(10));
-        }
-        return 0;
+	int64_t now = k_uptime_get();
+
+	distance_init();
+	lane_init(HW_LANE_ENTRY, now);
+	lane_init(HW_LANE_EXIT, now);
+	/* LCOV_EXCL_START: drivers e módulos não falham no modelo; a falha trava as faixas */
+	if (hw_init() < 0 || payment_init() < 0 || display_init() < 0) {
+		printk("inicializacao falhou: faixas travadas em assistencia\n");
+		lane_fail(HW_LANE_ENTRY, now);
+		lane_fail(HW_LANE_EXIT, now);
+	}
+	/* LCOV_EXCL_STOP */
+	hw_set_input_callback(on_input);
+
+	while (true) {
+		k_mutex_lock(&lock, K_FOREVER);
+		now = k_uptime_get();
+		distance_service(now);
+		lane_step(HW_LANE_ENTRY, now);
+		lane_step(HW_LANE_EXIT, now);
+		k_mutex_unlock(&lock);
+		k_sleep(K_MSEC(LOOP_PERIOD_MS));
+	}
+	return 0;
 }

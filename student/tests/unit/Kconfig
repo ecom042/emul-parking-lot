@@ -1,2 +1,0 @@
-# Os mesmos símbolos CONFIG_PARKING_* do firmware.
-rsource "../../Kconfig"
