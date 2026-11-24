@@ -61,7 +61,7 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **O que a IA propôs:** Trocar `SPI_DT_SPEC_GET` para a forma de dois argumentos do Zephyr 4.5 e `SPI_OP_MODE_MASTER` por `SPI_OP_MODE_CONTROLLER`. Entre cada linha desenhada no ST7789V, devolver o controle ao coordenador para ele ler o ADC4 e repetir a parada de segurança, porque um quadro inteiro passava de 100 ms na compilação de cobertura e travava as duas faixas. Ajustar o teste de unidade para o relógio falso acompanhar o passo, em vez de saltar para 700000000 ms.
 - **O que aceitei, mudei ou rejeitei, e por quê:** Aceitei as três mudanças. A v1.0.1 do professor não entra neste arquivo: ela só faz o `lab.py` aceitar a data de build do Renode no Linux, e fica no repositório da disciplina, fora de `student/`.
 - **Como verifiquei:** No laboratório v1.0.1, `lab.py --headless normal` (`build/normal-03`, `"failure": null`), `firmware-coverage.py` (`build/cobertura-05`: 19 cenários públicos e a suíte `unit` passaram; 99,18% das linhas e 95,78% dos desvios) e `static-check.py` (`build/estatica-03`: 0 achados).
-- **O que aprendi / o que ainda preciso entender:** `<Preencher com as suas palavras: por que um desenho longo no display faz o ADC4 compartilhado estourar o prazo de 100 ms>`
+- **O que aprendi / o que ainda preciso entender:** Entendi que as duas faixas dividem um único ADC4 e que a amostra só vale se for observada antes de 100 ms. Desenhar o quadro inteiro do ST7789V no mesmo passo da thread principal, sobretudo na compilação de cobertura, gasta mais do que isso sem consultar o conversor, e a falha trava as duas faixas. Por isso o desenho devolve o controle a cada linha: o coordenador lê o ADC e repete a parada de segurança dentro do prazo.
 
 ## Código de terceiros
 
