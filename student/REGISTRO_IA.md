@@ -16,6 +16,7 @@ entradas. Quem não usou IA escreve isso aqui.
 | Aluno | Ferramenta | Modelo/versão | Período de uso |
 |---|---|---|---|
 | `<Preencher Aluno 1>` | Antigravity | Claude Opus 4.6 / Gemini | 2026-11 |
+| `<Preencher Aluno 1>` | Cursor | Grok 4.7 | 2026-11-23 |
 | `<Preencher Aluno 2>` | `<Preencher se usou IA ou "Não utilizou IA">` | `<Modelo>` | 2026-11 |
 
 ## Tarefas
@@ -51,6 +52,16 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **O que aceitei, mudei ou rejeitei, e por quê:** Corrigi três defeitos críticos da versão preliminar: (1) `payment.c` ignorava `\r` em vez de descartar o quadro malformado até `\n`; (2) `display_init` bloqueava o boot por 400 ms com `k_msleep` e não gerava borda `HIGH -> LOW` no pino `reset` ativo-baixo do modelo `CourseST7789V`; (3) faltava enviar `P1 CANCEL` ao esgotar as 3 tentativas de pagamento.
 - **Como verifiquei:** Cenários `confidence-retry`, `low-confidence`, `camera-timeout`, `payment-delayed`, `payment-missing`, `payment-duplicate`, `payment-stale`, `reset-capture`, `reset-payment`, fila interativa de carros (`driver.py`) e suíte `ztest` + `FFF` cobrindo linhas e branches.
 - **O que aprendi / o que ainda preciso entender:** Entendi a diferença entre nível lógico (`GPIO_ACTIVE_LOW`) no Zephyr e nível físico recebido pelo modelo `ST7789V`, além da importância da ordem exata de invalidação do UUID antes do envio de `CANCEL`.
+
+### 2026-11-23 — Compilação no Zephyr 4.5 e prazo do ADC4 durante o desenho (`hw`, `display`, `controller`, `tests/unit`)
+
+- **Aluno:** `<Preencher Aluno 1>`
+- **Requisito(s):** REQ-10, REQ-12
+- **O que pedi:** Testar o firmware no laboratório v1.0.1, ver se os cenários públicos, a cobertura e a análise estática passavam, e corrigir o que falhasse. Não abrir o pull request.
+- **O que a IA propôs:** Trocar `SPI_DT_SPEC_GET` para a forma de dois argumentos do Zephyr 4.5 e `SPI_OP_MODE_MASTER` por `SPI_OP_MODE_CONTROLLER`. Entre cada linha desenhada no ST7789V, devolver o controle ao coordenador para ele ler o ADC4 e repetir a parada de segurança, porque um quadro inteiro passava de 100 ms na compilação de cobertura e travava as duas faixas. Ajustar o teste de unidade para o relógio falso acompanhar o passo, em vez de saltar para 700000000 ms.
+- **O que aceitei, mudei ou rejeitei, e por quê:** Aceitei as três mudanças. A v1.0.1 do professor não entra neste arquivo: ela só faz o `lab.py` aceitar a data de build do Renode no Linux, e fica no repositório da disciplina, fora de `student/`.
+- **Como verifiquei:** No laboratório v1.0.1, `lab.py --headless normal` (`build/normal-03`, `"failure": null`), `firmware-coverage.py` (`build/cobertura-05`: 19 cenários públicos e a suíte `unit` passaram; 99,18% das linhas e 95,78% dos desvios) e `static-check.py` (`build/estatica-03`: 0 achados).
+- **O que aprendi / o que ainda preciso entender:** `<Preencher com as suas palavras: por que um desenho longo no display faz o ADC4 compartilhado estourar o prazo de 100 ms>`
 
 ## Código de terceiros
 
