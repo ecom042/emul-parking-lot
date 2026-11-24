@@ -8,8 +8,8 @@ entradas. Quem não usou IA escreve isso aqui.
 
 | Aluno | Matrícula | Partes que escreveu |
 |---|---|---|
-| A — _(preencher nome)_ | | parsers AT e P1, tarifa, UUID, sessões, UART dos equipamentos, display |
-| B — _(preencher nome)_ | | GPIO/EXTI, ADC4, presença, máquina de estados, integração |
+| A — _(preencher nome)_ | | parsers AT e P1, tarifa, UUID, sessões, UART dos equipamentos, display (com correções do aluno B em `at_parser.c`, `hw_uart.c` e `st7789.c`, registradas abaixo) |
+| B — Ycaro Sales | _(preencher)_ | GPIO/EXTI (`hw_io.c`), ADC4 (`hw_adc.c`), presença, máquina de estados das faixas (`lane.c`), thread de controle (`controller.c`, `main.c`), configuração das faixas e as suítes `lane`, `presence`, `controller`, `hw_io`, `hw_adc*`, `hw_uart`, `st7789` e os testes novos de `parsers` |
 
 ## Ferramentas
 
@@ -402,6 +402,15 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   conta um desfecho da suíte quando o build tem o mesmo número de desfechos
   na linha (e por isso o shim não pode mudar a lógica); como capturar e
   chamar uma ISR num teste.
+
+### 2026-11-23 — Nota: trabalho autônomo até 24/11 06:00
+
+- **Aluno:** B (Ycaro Sales).
+- **O que pedi:** depois da fila de carros, pedi para a IA seguir sem me
+  perguntar nada até as 06:00 de 24/11, fazendo push de cada commit
+  verificado para o repositório privado da dupla. Decisões tomadas nesse
+  período aparecem marcadas como "decidida pela IA sem consulta", para eu
+  revisar.
 
 ### 2026-11-23 — Fila de carros e passagem depois do prazo
 
