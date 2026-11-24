@@ -8,14 +8,15 @@ entradas. Quem não usou IA escreve isso aqui.
 
 | Aluno | Matrícula | Partes que escreveu |
 |---|---|---|
-| | | |
-| | | |
+| Plácido Cordeiro | 22210591 | `services/wire`, `line_framer`, `camera_proto`, `p1_proto`, `text`, `camera`, `distance`, `screen`, `payment`; `hw/uart_line`, `adc4`, `st7789`; headers do contrato (`events.h`, `camera.h`, `distance.h`, `payment.h`, `screen.h`) |
+| Kauã Lessa | 22210592 | `fsm/` (máquina, estados, threads, `main.c`), `signals`, `barrier`, `presence`, `sessions`, `tariff`, `hw/indicator`, `motor`, `sensor` |
 
 ## Ferramentas
 
 | Aluno | Ferramenta | Modelo/versão | Período de uso |
 |---|---|---|---|
 | Kauã Lessa | Claude Code (CLI), com a skill `clean-c-zephyr` e o plugin draw.io | Claude Opus 5.5 (`claude-opus-5-5`); um subagente Claude Sonnet na tentativa descartada (ver abaixo) | desde 2026-11-20 |
+| Plácido Cordeiro | Claude Code (CLI, extensão do VS Code); subagentes Opus (planejamento) e Sonnet (implementação) | Claude Sonnet 5.5 (`claude-sonnet-5-5`) e Claude Opus nos subagentes | 2026-11-21 |
 
 ## Tarefas
 
@@ -174,100 +175,154 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   voltar do `k_work` à faixa; por que parar o motor antes de publicar
   (REQ-06).
 
-### Blocos de protocolo e drivers finos (Plácido, Claude Code)
+### 2026-11-21 — Blocos de protocolo e drivers finos (wire, framers, parsers, text, uart_line, adc4, st7789)
 
-- **O que pedi:** implementar o plano `docs/plano-protocolos.md`: a parte do
-  colega que não depende dos pontos em aberto do contrato.
-- **O que a IA propôs e fez:** `services/wire`, `line_framer`, `camera_proto`,
-  `p1_proto`, `text` (lógica pura) e `hw/uart_line`, `hw/adc4`, `hw/st7789`,
-  cada um com testes. O passo 0 do plano (experimento de perda de bytes por
-  polling no Renode) **não foi feito**: `uart_line` usa `uart_poll_in`, e isso
-  precisa ser validado na fase de testes com a câmera real.
-- **Acréscimo:** adicionado `p1_uuid_format` (UUID determinístico por contador de cobrança) em `p1_proto`, com testes.
-- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher na revisão).
-- **Como verifiquei:** `firmware-coverage.py`: todas as suítes passam; 96,4% de
-  linhas e 86,3% de branches em `student/src` (cenários ainda reprovam);
-  `static-check.py`: 0 achados. O `st7789` só tem teste dos argumentos e do
-  caminho pela placa; os pixels dependem do cenário `normal`.
-- **O que aprendi / o que ainda preciso entender:** (preencher).
+- **Aluno:** Plácido Cordeiro
+- **Requisito(s):** REQ-10, REQ-11, REQ-12 (base de REQ-02 e REQ-05)
+- **O que pedi:** implementar o plano `docs/plano-protocolos.md`: a parte da
+  dupla que não depende dos pontos em aberto do contrato.
+- **O que a IA propôs:** `services/wire`, `line_framer` (linhas CRLF/LF de até
+  128 B, prazo de 1000 ms), `camera_proto`, `p1_proto`, `text` (formato
+  `BRL r.cc` e fonte 5x7), todos lógica pura, e os drivers finos `hw/uart_line`,
+  `hw/adc4` e `hw/st7789`, cada um com testes. Depois acrescentou
+  `p1_uuid_format` (UUID determinístico por contador de cobrança) em `p1_proto`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei a separação entre
+  protocolo (só sintaxe, sem estado) e serviço (regras e prazos). O passo 0 do
+  plano (experimento de perda de bytes por polling da UART no Renode) **não foi
+  feito**: `uart_line` usa `uart_poll_in` e isso fica para a integração com a
+  câmera real.
+- **Como verifiquei:** `firmware-coverage.py`: todas as suítes passam; 96,4%
+  de linhas e 86,3% de branches; `static-check.py`: 0 achados. O `st7789` só
+  tem teste dos argumentos; os pixels dependem do cenário `normal`.
+- **O que aprendi / o que ainda preciso entender:** por que o framer descarta
+  tudo até o LF quando a linha é malformada ou longa demais, e por que o
+  prazo de 1000 ms é de montagem da linha e não de resposta; como o `adc4`
+  mantém buffer e `sequence` estáticos para sobreviver a uma conclusão
+  atrasada.
 
-### Etapa 1 (M0): headers do contrato (Plácido, Claude Code)
+### 2026-11-21 — Etapa 1 (M0): headers do contrato
 
+- **Aluno:** Plácido Cordeiro
+- **Requisito(s):** contrato entre os dois lados (todos os REQ que usam eventos)
 - **O que pedi:** a etapa 1 das 5 (declarações compartilhadas), planejada por
   um subagente e implementada em seguida.
-- **O que a IA fez:** `events.h` completo (com `EV_TARIFF_OUT_OF_RANGE`),
+- **O que a IA propôs:** `events.h` completo (com `EV_TARIFF_OUT_OF_RANGE`),
   campos `camera` e `distance_cfg` e `payment_terminal_get()` em `lane_hw`,
-  headers `camera.h`, `distance.h`, `payment.h`, `screen.h`, `CONFIG_ZBUS=y`
-  e `tests/unit/lane_hw`. Nenhum serviço implementado.
-- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). Os headers
-  `presence.h`, `sessions.h` e `tariff.h` ficam com o Kauã.
+  headers `camera.h`, `distance.h`, `payment.h`, `screen.h`, `CONFIG_ZBUS=y` e
+  `tests/unit/lane_hw`. Nenhum serviço implementado.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei fechar os pontos do
+  contrato antes de codificar: `poll` na thread da faixa, a máquina cobra
+  (`payment_start(plate, cents)`), UART por polling, UUID por contador dentro
+  do `payment`. Os headers `presence.h`, `sessions.h` e `tariff.h` ficaram com
+  o Kauã.
 - **Como verifiquei:** os 4 headers compilados num `main.c` temporário
   (revertido); suítes passam, 96,4% de linhas e 86,3% de branches;
   `static-check.py` com 0 achados.
-- **O que aprendi / o que ainda preciso entender:** (preencher).
+- **O que aprendi / o que ainda preciso entender:** a regra do contrato de
+  deixar o estado coerente **antes** de publicar o evento, e por que só
+  `lanes.c` implementa `events_post`.
 
-### Etapa 2: services/camera (Plácido, Claude Code)
+### 2026-11-21 — Etapa 2: services/camera
 
+- **Aluno:** Plácido Cordeiro
+- **Requisito(s):** REQ-02, REQ-11
 - **O que pedi:** implementar `services/camera` (3 tentativas com ID novo,
-  1000 ms cada, confiança >= 85), planejado por um Opus e implementado por um
-  Sonnet.
-- **O que a IA fez:** `camera.c` (máquina IDLE/SEND/WAITING, envio no primeiro
-  `poll` depois do `start`, prazo `>= 1000 ms`, placa limpa no `start`) e 20
-  testes ztest+FFF em `tests/unit/camera/`.
-- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). Os 2 branches
-  dos `__ASSERT` ficaram sem exclusão; decisão pendente.
+  1000 ms cada, confiança >= 85), planejado por um subagente Opus e
+  implementado por um subagente Sonnet.
+- **O que a IA propôs:** `camera.c` com máquina IDLE/SEND/WAITING e uma leitura
+  de até 32 bytes por `poll`; `camera_start` só arma e o `AT+CAPTURE` sai no
+  primeiro `poll`; prazo `now - sent >= 1000`; confiança < 85 parte para a
+  próxima tentativa no mesmo `poll`; `OK`/`ERROR` não reiniciam o prazo; ID
+  expirado é ignorado; `camera_plate` devolve `-ENOENT` até haver leitura e é
+  limpa no `start`. 20 testes ztest + FFF em `tests/unit/camera/`.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei as três decisões do
+  plano: enviar no `poll` (o prazo começa no tempo virtual do envio, sem
+  `k_uptime_get()` dentro do serviço), ler os bytes antes de conferir o prazo
+  (uma resposta que chega no mesmo `poll` ainda vale) e limpar a placa no
+  `start`. Os 2 branches dos `__ASSERT` ficaram **sem** `LCOV_EXCL` (mesmo
+  padrão do `lanes.c`).
 - **Como verifiquei:** suítes passam; `camera.c` 100% de linhas e 92,86% de
-  branches; total 96,85% / 86,81%; `static-check.py` com 0 achados.
-- **O que aprendi / o que ainda preciso entender:** (preencher).
+  branches; total 96,85% / 86,81%; `static-check.py` com 0 achados. Nenhum
+  cenário passa por ela antes da integração do `main.c`.
+- **O que aprendi / o que ainda preciso entender:** por que cada tentativa usa
+  um ID novo (a câmera devolve o resultado antigo para ID repetido); por que
+  um byte atrasado de uma tentativa anterior não pode ser aceito; se o
+  polling da UART perde bytes no Renode (ainda não confirmado).
 
-### Etapa 3: services/distance (Plácido, Claude Code)
+### 2026-11-21 — Etapa 3: services/distance
 
+- **Aluno:** Plácido Cordeiro
+- **Requisito(s):** REQ-10, REQ-09 (falha do ADC trava até o reset)
 - **O que pedi:** implementar `services/distance` (ADC4 alternando os canais
-  17/18, uma conversão por vez, prazo de 100 ms, `chan_distance` no zbus, falha
-  trava e posta `EV_ADC_FAULT`), planejado por um Opus e implementado por um
-  Sonnet.
-- **O que a IA fez:** `distance.c` (IDLE/PENDING/LATCHED, `k_work_delayable` de
-  5 ms, conclusão em 100 ms ou mais conta como falha), `distance_adc_get()` em
-  `lane_hw`, `distance_start()`/`distance_poll()` no header e 16 testes.
-- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). Aceitei
-  separar `init`/`start`/`poll` (muda o contrato: o `main.c` chama
-  `distance_start()`); falha de `init` trava e devolve o erro sem postar.
+  17/18, uma conversão por vez, conclusão em menos de 100 ms, `chan_distance`
+  no zbus, falha trava e posta `EV_ADC_FAULT`), planejado por um Opus e
+  implementado por um Sonnet.
+- **O que a IA propôs:** `distance.c` com estados IDLE/PENDING/LATCHED, um
+  `k_work_delayable` de 5 ms, e `distance_adc_get()` em `lane_hw`; conclusão
+  observada com 100 ms ou mais conta como falha e não publica; após a falha
+  nunca chama o `adc4` de novo; falha posta `EV_ADC_FAULT` nas duas faixas
+  depois de travar. 16 testes.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei dividir o serviço em
+  `distance_init`/`distance_start`/`distance_poll` (muda o contrato: o `main.c`
+  chama `distance_start()`; o teste chama `poll` direto com tempo virtual
+  controlado). Aceitei que falha no `init` trave e devolva o erro sem postar
+  evento (o `main` decide). Não fiz o teste sobre o ADC real no Renode. Não
+  inventei valor inicial para o canal (0 significa carro no portão; o
+  `presence` só reage a publicações).
 - **Como verifiquei:** suítes passam; `distance.c` 100% de linhas e branches;
   total 97,17% / 87,47%; `static-check.py` com 0 achados.
-- **O que aprendi / o que ainda preciso entender:** (preencher).
+- **O que aprendi / o que ainda preciso entender:** por que o prazo de 100 ms
+  aqui é o oposto do da câmera (conclusão no prazo ou depois é falha), e por
+  que depois de travar não se rearma nada; como o driver STM32 real se
+  comporta no Renode (só passa pelo ADC quando o `presence` estiver ligado).
 
-### Etapa 4: services/screen (Plácido, Claude Code)
+### 2026-11-21 — Etapa 4: services/screen
 
+- **Aluno:** Plácido Cordeiro
+- **Requisito(s):** REQ-12
 - **O que pedi:** implementar `services/screen` (`screen_init`,
   `screen_show_plate`, `screen_show_amount`) sobre `hw/st7789` e `text`,
   planejado por um Opus e implementado por um Sonnet.
-- **O que a IA fez:** `screen.c` (textos centralizados, `BRL x.xx`,
-  `SIMULATED PAYMENT`, `NOT PIX`; limpa só a área de cobrança, y 40..167;
-  entrada inválida devolve -EINVAL sem SPI), `payment_display_get()` em
-  `lane_hw` e 17 testes.
-- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). No caminho
-  -ERANGE a máquina não deve chamar `screen_show_amount` (nota no
-  `para-kaua.md`).
+- **O que a IA propôs:** `screen.c` com placa e valor em escala 3 e
+  `SIMULATED PAYMENT` e `NOT PIX` em escala 2, todos centralizados; limpa só a
+  área de cobrança (y 40..167); entrada inválida ou larga demais devolve
+  `-EINVAL` antes de qualquer SPI; `payment_display_get()` em `lane_hw` e
+  `CONFIG_SPI=y` na suíte. 17 testes.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei limpar só a área de
+  cobrança (a tela inteira custaria 2,5x mais tempo bloqueado sem ganho).
+  Aceitei que no caminho `-ERANGE` a máquina **não** chame
+  `screen_show_amount` (nota no `para-kaua.md`).
 - **Como verifiquei:** suítes passam; `screen.c` 100% de linhas e branches;
-  total 97,35% / 88,15%; `static-check.py` com 0 achados. Pixels só serão
-  vistos quando o `main.c` chamar o serviço.
-- **O que aprendi / o que ainda preciso entender:** (preencher).
+  total 97,35% / 88,15%; `static-check.py` com 0 achados. Os pixels só serão
+  vistos num cenário quando o `main.c` chamar o serviço.
+- **O que aprendi / o que ainda preciso entender:** como a janela de pixels e
+  o RAMWR do ST7789 funcionam (linhas em sequência dentro de uma janela); por
+  que o texto é desenhado linha a linha com um buffer estático.
 
-### Etapa 5: services/payment (Plácido, Claude Code)
+### 2026-11-21 — Etapa 5: services/payment
 
+- **Aluno:** Plácido Cordeiro
+- **Requisito(s):** REQ-05, REQ-11, REQ-13
 - **O que pedi:** implementar `services/payment` (UUID por contador, 3 envios
-  de 1000 ms, só PAID exato, CANCEL no fim), planejado por um Opus e
+  de 1000 ms, só `PAID` exato, CANCEL no fim), planejado por um Opus e
   implementado por um Sonnet.
-- **O que a IA fez:** `payment.c` (IDLE/SEND/WAITING; PAID e CANCELLED só
-  valem com o UUID e o valor da cobrança atual; no 3º prazo invalida, envia
-  CANCEL e só então posta `EV_PAYMENT_FAILED`) e 23 testes.
-- **O que aceitei, mudei ou rejeitei, e por quê:** (preencher). CANCELLED atual
-  posta FAILED sem reenviar CANCEL; ERROR do terminal é ignorado e o prazo
-  resolve.
+- **O que a IA propôs:** `payment.c` com estados IDLE/SEND/WAITING; o UUID e o
+  frame `P1 CHARGE` são formados uma vez em `payment_start` e reusados nos
+  reenvios e no CANCEL; `PAID` e `CANCELLED` só valem com o UUID e o valor da
+  cobrança atual; no 3º prazo invalida a cobrança, envia CANCEL e só então
+  posta `EV_PAYMENT_FAILED`; `payment_cancel` não posta evento. 23 testes.
+- **O que aceitei, mudei ou rejeitei, e por quê:** aceitei: `CANCELLED` atual
+  posta `EV_PAYMENT_FAILED` sem reenviar CANCEL; `P1 ERROR` é ignorado e o
+  prazo resolve; `payment_cancel` antes do 1º envio não manda CANCEL (o
+  terminal nunca viu o UUID); o contador recomeça em 1 após reset.
 - **Como verifiquei:** suítes passam; `payment.c` 100% de linhas e 97,06% de
   branches (falta só o `__ASSERT` do CANCEL); total 97,61% / 88,84%;
-  `static-check.py` com 0 achados.
-- **O que aprendi / o que ainda preciso entender:** (preencher).
+  `static-check.py` com 0 achados. Os cenários `payment-*` só passam depois da
+  integração no `main.c`.
+- **O que aprendi / o que ainda preciso entender:** por que a ordem em `fail()`
+  é invalidar, enviar CANCEL e depois publicar o evento; por que um `PAID`
+  com outro valor ou UUID antigo nunca abre a cancela; uma linha `PAID` (~60 B)
+  leva 2 `poll`s de 32 bytes, então o `poll` precisa rodar a cada ~1 ms.
 
 ### 2026-11-21 — Estados de partida e assistência (fsm/states)
 
