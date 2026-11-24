@@ -47,8 +47,10 @@ DECLARE_FAKE_VALUE_FUNC(bool, hw_uart_poll_payment, struct p1_result *);
 
 /* st7789.h */
 DECLARE_FAKE_VALUE_FUNC(int, st7789_start);
-DECLARE_FAKE_VALUE_FUNC(int, st7789_show_plate, const char *);
-DECLARE_FAKE_VALUE_FUNC(int, st7789_show_charge, uint32_t);
+DECLARE_FAKE_VALUE_FUNC(int, st7789_show_plate, const char *, uint32_t *);
+DECLARE_FAKE_VALUE_FUNC(int, st7789_show_charge, uint32_t, uint32_t *);
+DECLARE_FAKE_VALUE_FUNC(uint32_t, st7789_done);
+DECLARE_FAKE_VALUE_FUNC(uint32_t, st7789_failed);
 
 /** Quadros que cabem na fila de cada porta do mundo falso. */
 #define MUNDO_FILA 4
@@ -73,6 +75,13 @@ struct mundo {
 	struct p1_result payments[MUNDO_FILA];
 	uint8_t n_payments;
 
+	/* Display: ultimo numero de pedido emitido pelos falsos de
+	 * st7789_show_*, e o que st7789_done/st7789_failed devolvem.
+	 */
+	uint32_t disp_emitidos;
+	uint32_t disp_done;
+	uint32_t disp_failed;
+
 	/* Ultima linha enviada por hw_uart_send (o argumento e da pilha). */
 	enum hw_uart_port uart_port;
 	char uart_line[FRAME_MAX];
@@ -90,9 +99,17 @@ void mundo_placa(enum hw_uart_port port, uint32_t id, const char *plate,
 /** Poe um resultado na fila do terminal. */
 void mundo_pagamento(enum p1_status status, const char *uuid, uint32_t cents);
 
+/** O display conclui todos os pedidos emitidos, sem falha. */
+void mundo_display_conclui(void);
+
+/** O display conclui todos os pedidos emitidos; o ultimo falhou. */
+void mundo_display_falha(void);
+
 /**
  * Volta todos os falsos ao padrao (sucesso, motor parado) e liga os falsos
- * de leitura ao mundo. Nao mexe no mundo.
+ * de leitura ao mundo. Os falsos de st7789_show_* emitem numeros de pedido
+ * crescentes (mundo.disp_emitidos), a menos que o return_val do falso seja
+ * negativo. Nao mexe no mundo.
  */
 void fakes_reset(void);
 

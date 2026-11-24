@@ -4,8 +4,11 @@
  * @brief Display do terminal: ST7789V 240x320, RGB565, SPI1.
  *
  * O modulo tem thread propria de prioridade baixa: a inicializacao soma cerca
- * de 400 ms de espera e nao pode atrasar a seguranca das faixas. As chamadas
- * apenas enfileiram o pedido; a ordem na fila e a ordem no barramento SPI.
+ * de 400 ms de espera e nao pode atrasar a seguranca das faixas, entao e feita
+ * no boot. As chamadas apenas enfileiram o pedido e devolvem o numero dele; a
+ * ordem na fila e a ordem no barramento SPI, e st7789_done() avisa quando um
+ * pedido terminou (a cobranca espera a placa desenhada antes de congelar o
+ * preco, e o valor desenhado antes de enviar P1 CHARGE).
  */
 
 #ifndef STUDENT_ST7789_H_
@@ -17,7 +20,7 @@
 #define ST7789_HEIGHT	320
 
 /**
- * @brief Cria a thread do display. Nao desenha nada ainda.
+ * @brief Cria a thread do display, que ja inicializa o controlador.
  * @retval 0 Sucesso.
  */
 int st7789_start(void);
@@ -28,17 +31,28 @@ int st7789_start(void);
  * Primeiro passo da cobranca: a placa aparece antes do valor e do status.
  *
  * @param plate Placa de 7 caracteres.
+ * @param ticket Recebe o numero do pedido (nunca 0); st7789_done() chega a
+ *        ele quando o pedido termina.
  * @retval 0 Enfileirado.
- * @retval -EINVAL Placa invalida.
+ * @retval -EINVAL Placa ou @p ticket invalido.
  * @retval -ENOMSG Fila cheia.
  */
-int st7789_show_plate(const char *plate);
+int st7789_show_plate(const char *plate, uint32_t *ticket);
 
 /**
  * @brief Enfileira o valor e o status: BRL r.cc, SIMULATED PAYMENT, NOT PIX.
+ * @param cents Valor congelado, em centavos.
+ * @param ticket Recebe o numero do pedido.
  * @retval 0 Enfileirado.
+ * @retval -EINVAL @p ticket nulo.
  * @retval -ENOMSG Fila cheia.
  */
-int st7789_show_charge(uint32_t cents);
+int st7789_show_charge(uint32_t cents, uint32_t *ticket);
+
+/** @return Numero do ultimo pedido concluido (desenhado ou com falha). */
+uint32_t st7789_done(void);
+
+/** @return Numero do ultimo pedido que falhou (inicializacao ou SPI). */
+uint32_t st7789_failed(void);
 
 #endif /* STUDENT_ST7789_H_ */

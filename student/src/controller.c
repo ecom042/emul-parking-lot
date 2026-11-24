@@ -18,6 +18,7 @@
 #include "st7789.h"
 
 static struct lane lanes[LANE_COUNT];
+static uint32_t display_seen; /* ultimo st7789_done() entregue a saida */
 
 static void dispatch(struct lane *lane, enum lane_ev_id id, int64_t now_ms)
 {
@@ -65,6 +66,18 @@ static void service_lane(struct lane *lane, int64_t now_ms)
 	}
 
 	if (cfg->has_payment) {
+		uint32_t done = st7789_done();
+
+		/* A falha e lida depois da conclusao: o display publica a falha
+		 * de um pedido antes de marca-lo concluido.
+		 */
+		if (done != display_seen) {
+			display_seen = done;
+			ev.id = EV_DISPLAY;
+			ev.display.done = done;
+			ev.display.failed = st7789_failed();
+			lane_handle_event(lane, &ev);
+		}
 		ev.id = EV_PAYMENT;
 		while (hw_uart_poll_payment(&ev.payment)) {
 			lane_handle_event(lane, &ev);
@@ -95,6 +108,7 @@ int controller_init(void)
 	for (size_t i = 0; i < LANE_COUNT; i++) {
 		lane_init(&lanes[i], &lane_cfgs[i]);
 	}
+	display_seen = 0;
 	return 0;
 }
 

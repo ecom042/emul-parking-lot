@@ -770,13 +770,32 @@ static void ev_pagamento(enum p1_status st, const char *uuid, uint32_t cents,
 	lane_handle_event(&lane, &ev);
 }
 
-/** Saida com sessao desde t=0; placa aceita em @p now: fica CHARGING. */
-static void ate_cobrando(int64_t now)
+/** O display avisa que concluiu ate o pedido @p done. */
+static void ev_display(uint32_t done, uint32_t failed, int64_t now)
+{
+	struct lane_event ev = { .id = EV_DISPLAY, .now_ms = now };
+
+	ev.display.done = done;
+	ev.display.failed = failed;
+	lane_handle_event(&lane, &ev);
+}
+
+/** Saida com sessao desde t=0; placa aceita em @p now: fica DISPLAYING. */
+static void ate_mostrando(int64_t now)
 {
 	zassert_ok(sessions_add("ABC1D23", 0));
 	iniciar(exit_cfg, false, true);
 	amostras(PERTO, now);
 	ev_placa(1, "ABC1D23", 93, now);
+	zassert_equal(lane.state, LANE_DISPLAYING);
+}
+
+/** Como ate_mostrando, e o display desenha placa e valor em @p now. */
+static void ate_cobrando(int64_t now)
+{
+	ate_mostrando(now);
+	ev_display(fake_ticket, 0, now);
+	ev_display(fake_ticket, 0, now);
 	zassert_equal(lane.state, LANE_CHARGING);
 }
 
@@ -943,7 +962,7 @@ ZTEST(lane, test_cancel_com_outro_erro_nao_repete)
 
 ZTEST(lane, test_display_cheio_nao_cobra)
 {
-	st7789_show_plate_fake.return_val = -ENOMSG;
+	fake_plate_rc = -ENOMSG;
 	zassert_ok(sessions_add("ABC1D23", 0));
 	iniciar(exit_cfg, false, true);
 	amostras(PERTO, 100);
@@ -955,11 +974,9 @@ ZTEST(lane, test_display_cheio_nao_cobra)
 
 ZTEST(lane, test_valor_que_nao_entra_na_tela_nao_cobra)
 {
-	st7789_show_charge_fake.return_val = -ENOMSG;
-	zassert_ok(sessions_add("ABC1D23", 0));
-	iniciar(exit_cfg, false, true);
-	amostras(PERTO, 100);
-	ev_placa(1, "ABC1D23", 93, 100);
+	fake_charge_rc = -ENOMSG;
+	ate_mostrando(100);
+	ev_display(fake_ticket, 0, 150);
 	zassert_equal(lane.state, LANE_ASSIST);
 	zassert_equal(hw_uart_send_fake.call_count, 1);
 }
@@ -969,10 +986,8 @@ ZTEST(lane, test_tarifa_acima_de_9999_unidades_pede_assistencia)
 	int64_t agora = (int64_t)(TARIFF_UNITS_MAX + 1) *
 			CONFIG_PARKING_TARIFF_UNIT_MS;
 
-	zassert_ok(sessions_add("ABC1D23", 0));
-	iniciar(exit_cfg, false, true);
-	amostras(PERTO, agora);
-	ev_placa(1, "ABC1D23", 93, agora);
+	ate_mostrando(agora);
+	ev_display(fake_ticket, 0, agora);
 	zassert_equal(lane.state, LANE_ASSIST);
 	zassert_equal(st7789_show_charge_fake.call_count, 0);
 	zassert_equal(hw_uart_send_fake.call_count, 1, "so a captura");
@@ -1183,4 +1198,108 @@ ZTEST(lane, test_feixe_com_inferior_mas_motor_ligado_trava)
 	ev_limites(false, true, 5300);
 	ev_simples(EV_BEAM_ON, 5300);
 	zassert_equal(lane.state, LANE_LOCKED);
+}
+
+/* ---- Display antes da cobranca (contrato: placa -> preco -> valor -> CHARGE) */
+
+ZTEST(lane, test_preco_congela_so_com_a_placa_desenhada)
+{
+	char esperada[FRAME_MAX];
+
+	ate_mostrando(2500);
+	zassert_str_equal(st7789_show_plate_fake.arg0_val, "ABC1D23");
+	zassert_equal(st7789_show_charge_fake.call_count, 0, "valor so depois");
+	zassert_equal(hw_uart_send_fake.call_count, 1, "so a captura");
+	zassert_equal(lane.deadline_ms, 2500 + DISPLAY_MS);
+
+	/* A placa termina em 3100 ms: 4 unidades de 1000 ms = 500 centavos. */
+	ev_display(fake_ticket, 0, 3100);
+	zassert_true(lane.price_frozen);
+	zassert_equal(lane.cents, 500);
+	zassert_equal(st7789_show_charge_fake.arg0_val, 500);
+	zassert_equal(lane.state, LANE_DISPLAYING);
+	zassert_equal(hw_uart_send_fake.call_count, 1, "CHARGE so com o valor");
+	zassert_equal(lane.deadline_ms, 3100 + DISPLAY_MS);
+
+	/* O valor termina depois: o preco nao muda, e so agora vai o CHARGE. */
+	ev_display(fake_ticket, 0, 3900);
+	zassert_equal(lane.state, LANE_CHARGING);
+	zassert_equal(lane.cents, 500);
+	linha_charge(esperada, sizeof(esperada));
+	zassert_str_equal(fake_uart_line, esperada);
+	zassert_equal(lane.deadline_ms, 3900 + CHARGE_MS);
+}
+
+ZTEST(lane, test_conclusao_de_pedido_anterior_nao_avanca)
+{
+	ate_mostrando(2500);
+	ev_display(fake_ticket - 1U, 0, 2600);
+	ev_simples(EV_BEAM_ON, 2600);
+	zassert_false(lane.price_frozen);
+	zassert_equal(st7789_show_charge_fake.call_count, 0);
+}
+
+ZTEST(lane, test_placa_que_falha_no_display_nao_cobra)
+{
+	ate_mostrando(2500);
+	ev_display(fake_ticket, fake_ticket, 2600);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_equal(st7789_show_charge_fake.call_count, 0);
+	zassert_equal(hw_uart_send_fake.call_count, 1, "nenhum CHARGE");
+	zassert_false(lane.cancel_pending, "nada a cancelar");
+}
+
+ZTEST(lane, test_valor_que_falha_no_display_nao_cobra)
+{
+	ate_mostrando(2500);
+	ev_display(fake_ticket, 0, 2600);
+	ev_display(fake_ticket, fake_ticket, 2700);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_equal(hw_uart_send_fake.call_count, 1, "nenhum CHARGE");
+}
+
+ZTEST(lane, test_prazo_do_display_pede_assistencia_sem_cobrar)
+{
+	ate_mostrando(2500);
+	tick(2500 + DISPLAY_MS - 10);
+	zassert_equal(lane.state, LANE_DISPLAYING);
+	tick(2500 + DISPLAY_MS);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_equal(hw_uart_send_fake.call_count, 1, "nenhum CHARGE");
+}
+
+ZTEST(lane, test_carro_que_sai_antes_da_cobranca_abandona_sem_cancel)
+{
+	ate_mostrando(2500);
+	ev_distancia(LONGE, 2600);
+	zassert_equal(lane.state, LANE_IDLE);
+	zassert_false(lane.cancel_pending);
+	zassert_equal(hw_uart_send_fake.call_count, 1, "nem CHARGE nem CANCEL");
+
+	/* O display terminando depois nao faz nada. */
+	ev_display(fake_ticket, 0, 2700);
+	zassert_equal(st7789_show_charge_fake.call_count, 0);
+}
+
+ZTEST(lane, test_numero_de_pedido_que_da_a_volta)
+{
+	fake_ticket = UINT32_MAX - 1U;
+	ate_mostrando(2500);
+	zassert_equal(lane.disp_ticket, UINT32_MAX);
+	ev_display(UINT32_MAX, 0, 2600);
+	zassert_equal(lane.disp_ticket, 1U, "o 0 e pulado na volta");
+	/* Antes da volta (UINT32_MAX) ainda nao e o pedido 1. */
+	ev_display(UINT32_MAX, 0, 2650);
+	zassert_equal(lane.state, LANE_DISPLAYING);
+	ev_display(1U, 0, 2700);
+	zassert_equal(lane.state, LANE_CHARGING);
+}
+
+ZTEST(lane, test_perder_o_inferior_mostrando_pede_assistencia)
+{
+	ate_mostrando(2500);
+	ev_limites(false, false, 2600);
+	zassert_equal(lane.state, LANE_ASSIST);
+	ev_display(fake_ticket, 0, 2700);
+	zassert_equal(st7789_show_charge_fake.call_count, 0);
 }

@@ -23,8 +23,10 @@ DEFINE_FAKE_VALUE_FUNC(bool, hw_uart_poll_plate, enum hw_uart_port,
 		       struct at_plate *);
 DEFINE_FAKE_VALUE_FUNC(bool, hw_uart_poll_payment, struct p1_result *);
 DEFINE_FAKE_VALUE_FUNC(int, st7789_start);
-DEFINE_FAKE_VALUE_FUNC(int, st7789_show_plate, const char *);
-DEFINE_FAKE_VALUE_FUNC(int, st7789_show_charge, uint32_t);
+DEFINE_FAKE_VALUE_FUNC(int, st7789_show_plate, const char *, uint32_t *);
+DEFINE_FAKE_VALUE_FUNC(int, st7789_show_charge, uint32_t, uint32_t *);
+DEFINE_FAKE_VALUE_FUNC(uint32_t, st7789_done);
+DEFINE_FAKE_VALUE_FUNC(uint32_t, st7789_failed);
 
 struct mundo mundo;
 
@@ -54,6 +56,18 @@ void mundo_pagamento(enum p1_status status, const char *uuid, uint32_t cents)
 	r->error = P1_ERROR_NONE;
 	strncpy(r->uuid, uuid, sizeof(r->uuid) - 1);
 	r->cents = cents;
+}
+
+void mundo_display_conclui(void)
+{
+	mundo.disp_done = mundo.disp_emitidos;
+}
+
+void mundo_display_falha(void)
+{
+	/* Como em st7789.c: a falha e publicada antes da conclusao. */
+	mundo.disp_failed = mundo.disp_emitidos;
+	mundo.disp_done = mundo.disp_emitidos;
 }
 
 static int limits_custom(const struct lane_cfg *cfg, bool *upper, bool *lower)
@@ -115,6 +129,38 @@ static int uart_custom(enum hw_uart_port port, const char *line)
 	return 0;
 }
 
+/* Fila aceita: o proximo numero de pedido; recusa: o return_val negativo. */
+static int emite(int rc, uint32_t *ticket)
+{
+	if (rc < 0) {
+		return rc;
+	}
+	*ticket = ++mundo.disp_emitidos;
+	return 0;
+}
+
+static int show_plate_custom(const char *plate, uint32_t *ticket)
+{
+	ARG_UNUSED(plate);
+	return emite(st7789_show_plate_fake.return_val, ticket);
+}
+
+static int show_charge_custom(uint32_t cents, uint32_t *ticket)
+{
+	ARG_UNUSED(cents);
+	return emite(st7789_show_charge_fake.return_val, ticket);
+}
+
+static uint32_t done_custom(void)
+{
+	return mundo.disp_done;
+}
+
+static uint32_t failed_custom(void)
+{
+	return mundo.disp_failed;
+}
+
 void fakes_reset(void)
 {
 	RESET_FAKE(hw_io_init);
@@ -135,6 +181,8 @@ void fakes_reset(void)
 	RESET_FAKE(st7789_start);
 	RESET_FAKE(st7789_show_plate);
 	RESET_FAKE(st7789_show_charge);
+	RESET_FAKE(st7789_done);
+	RESET_FAKE(st7789_failed);
 	FFF_RESET_HISTORY();
 
 	hw_limits_read_fake.custom_fake = limits_custom;
@@ -143,4 +191,8 @@ void fakes_reset(void)
 	hw_uart_poll_plate_fake.custom_fake = plate_custom;
 	hw_uart_poll_payment_fake.custom_fake = payment_custom;
 	hw_uart_send_fake.custom_fake = uart_custom;
+	st7789_show_plate_fake.custom_fake = show_plate_custom;
+	st7789_show_charge_fake.custom_fake = show_charge_custom;
+	st7789_done_fake.custom_fake = done_custom;
+	st7789_failed_fake.custom_fake = failed_custom;
 }

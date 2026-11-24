@@ -489,6 +489,37 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   vereditos. `static-check.py`: 0 achados. Suíte `lane` passa (81 testes),
   `lane.c` com 100% de linhas e 98,97% de branches.
 
+### 2026-11-24 — Cobrança espera o display (ordem do contrato)
+
+- **Aluno:** B (Ycaro Sales).
+- **O que pedi:** que o `P1 CHARGE` só saia depois de a placa e o valor
+  estarem desenhados, como pede o contrato ("Freeze at the first exit charge
+  calculation, after rendering the recognized plate and before rendering
+  amount/status and sending CHARGE"). Isso revê a minha decisão anterior de
+  congelar a tarifa ao enfileirar a placa.
+- **O que a IA propôs e fez:**
+  - `st7789.c` (do aluno A): cada pedido ganha um número (nunca 0, por isso
+    `emitidos % UINT32_MAX + 1`); a thread publica `st7789_failed()` e depois
+    `st7789_done()`; desenhar devolve o erro de SPI; a inicialização (~400 ms
+    de espera) passa a ser no boot, para não atrasar a cobrança.
+  - `controller.c`: quando `st7789_done()` muda, entrega `EV_DISPLAY` à saída.
+  - `lane.c`: estado novo `LANE_DISPLAYING`. Placa enfileirada → espera o
+    `EV_DISPLAY` dela → congela a tarifa → enfileira o valor → espera →
+    UUID novo e o primeiro `P1 CHARGE`. Falha do display ou prazo de
+    `DISPLAY_MS` (1000 ms) → assistência sem cobrar; carro que sai → abandona
+    (ainda não há cobrança a cancelar); inferior perdido → assistência.
+  - Testes: `lane` (89), `controller` (33) e `st7789` (27 + 3 da fonte).
+- **Bug achado pelos testes:** na volta do contador o número 0 se confundia
+  com o "nenhuma falha" inicial; resolvido pulando o 0 sem criar branch.
+- **Mudança de comportamento:** a tela da cobrança para no primeiro texto que
+  falha (antes desenhava o status mesmo com o valor recusado). Nenhum valor
+  válido chega a isso: o maior, `BRL 10000.00`, cabe na tela.
+- **Como verifiquei:** `lab.py --headless all`: 19/19. Fila de carros: 34/34.
+  `firmware-coverage.py`: 99,91% de linhas e 98,22% de branches, todas as
+  suítes passando. `static-check.py`: 0 achados. Os 4 desfechos que faltam
+  em `st7789.c` são checagens de janela que a API nunca dispara (texto vazio,
+  escala 0, altura além da tela).
+
 ## Código de terceiros
 
 | Arquivo/trecho | Origem | Licença |

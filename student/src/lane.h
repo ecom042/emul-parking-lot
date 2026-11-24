@@ -25,6 +25,7 @@
 enum lane_state {
 	LANE_IDLE,            /**< Cancela fechada, esperando carro. */
 	LANE_IDENTIFYING,     /**< Ate CAPTURE_TRIES capturas. */
+	LANE_DISPLAYING,      /**< So na saida: placa, depois valor, na tela. */
 	LANE_CHARGING,        /**< So na saida: cobranca em andamento. */
 	LANE_OPENING,         /**< Abrindo, prazo GATE_MOVE_MS. */
 	LANE_WAIT_PASSAGE,    /**< Aberta, prazo PASS_MS; a passagem completa fecha. */
@@ -61,6 +62,9 @@ struct lane {
 				     *   registra a passagem que completar. */
 
 	/* Cobranca (so na saida). */
+	int64_t entry_ms;           /**< Entrada da sessao que esta saindo. */
+	uint32_t disp_ticket;       /**< Pedido do display que a faixa espera. */
+	bool price_frozen;          /**< Placa ja desenhada e preco congelado. */
 	char uuid[UUID_LEN + 1];    /**< UUID da cobranca ativa; vazio = nenhuma. */
 	uint32_t cents;             /**< Valor congelado da cobranca. */
 	char cancel_uuid[UUID_LEN + 1]; /**< UUID ja invalidado a cancelar. */

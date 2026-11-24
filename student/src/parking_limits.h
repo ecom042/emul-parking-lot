@@ -46,6 +46,9 @@
 /** Confianca minima aceita. */
 #define CONF_MIN		85
 
+/** Prazo para o display concluir cada tela da cobranca. */
+#define DISPLAY_MS		1000
+
 /** Envios totais de uma cobranca. */
 #define CHARGE_TRIES		3
 /** Prazo de cada envio. */

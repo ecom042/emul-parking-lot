@@ -90,8 +90,8 @@ static void entrada_aberta(void)
 	zassert_false(faixa(LANE_ENTRY)->beam_seen);
 }
 
-/** Saida: sessao ativa, carro chega, placa boa: fica cobrando. */
-static void saida_cobrando(void)
+/** Saida: sessao ativa, carro chega, placa boa: a placa vai para a tela. */
+static void saida_mostrando_placa(void)
 {
 	zassert_equal(sessions_add(PLACA, 0), 0);
 	passo();
@@ -99,8 +99,58 @@ static void saida_cobrando(void)
 	mundo_placa(HW_UART_EXIT_CAMERA, faixa(LANE_EXIT)->capture_id, PLACA,
 		    93);
 	passo();
+	zassert_equal(faixa(LANE_EXIT)->state, LANE_DISPLAYING);
+	zassert_equal(st7789_show_plate_fake.call_count, 1);
+	zassert_str_equal(st7789_show_plate_fake.arg0_val, PLACA);
+	zassert_equal(faixa(LANE_EXIT)->disp_ticket, mundo.disp_emitidos);
+	zassert_equal(st7789_show_charge_fake.call_count, 0, "so depois da placa");
+}
+
+/**
+ * Saida ate cobrando: o display conclui a placa (preco congelado, valor
+ * pedido) e depois o valor (UUID e P1 CHARGE).
+ */
+static void saida_cobrando(void)
+{
+	saida_mostrando_placa();
+
+	mundo_display_conclui();
+	passo();
+	zassert_equal(faixa(LANE_EXIT)->state, LANE_DISPLAYING);
+	zassert_true(faixa(LANE_EXIT)->price_frozen);
+	zassert_equal(st7789_show_charge_fake.call_count, 1);
+	zassert_equal(st7789_show_charge_fake.arg0_val, faixa(LANE_EXIT)->cents);
+	zassert_equal(faixa(LANE_EXIT)->uuid[0], '\0', "ainda sem cobranca");
+
+	mundo_display_conclui();
+	passo();
 	zassert_equal(faixa(LANE_EXIT)->state, LANE_CHARGING);
 	zassert_not_equal(faixa(LANE_EXIT)->uuid[0], '\0');
+}
+
+/** Quantas linhas foram enviadas ao terminal de pagamento. */
+static int envios_ao_terminal(void)
+{
+	int n = 0;
+
+	for (unsigned int i = 0; i < hw_uart_send_fake.call_count &&
+				 i < FFF_ARG_HISTORY_LEN; i++) {
+		if (hw_uart_send_fake.arg0_history[i] == HW_UART_PAYMENT) {
+			n++;
+		}
+	}
+	return n;
+}
+
+/** Posicao da primeira chamada a @p fn no historico, ou -1. */
+static int posicao(void *fn)
+{
+	for (int i = 0; i < (int)fff.call_history_idx; i++) {
+		if (fff.call_history[i] == fn) {
+			return i;
+		}
+	}
+	return -1;
 }
 
 /* ---- controller_init ---------------------------------------------------- */
@@ -159,6 +209,28 @@ ZTEST(controller, test_init_erro_no_display_para_antes_do_adc)
 	zassert_equal(hw_uart_init_fake.call_count, 1);
 	zassert_equal(hw_adc_init_fake.call_count, 0);
 	zassert_equal(hw_motor_stop_fake.call_count, 0);
+}
+
+ZTEST(controller, test_init_zera_o_display_entregue)
+{
+	/* Display ja concluiu o pedido 3: a saida recebe EV_DISPLAY uma vez. */
+	mundo.disp_done = 3U;
+	passo();
+	zassert_equal(st7789_failed_fake.call_count, 1);
+	passo();
+	zassert_equal(st7789_failed_fake.call_count, 1, "ja entregue");
+
+	/* Depois do init o controlador nao lembra o 3: entrega de novo. */
+	zassert_equal(controller_init(), 0);
+	passo();
+	zassert_equal(st7789_failed_fake.call_count, 2,
+		      "display_seen voltou a 0");
+
+	/* Com o display em 0 depois do init, nada a entregar. */
+	zassert_equal(controller_init(), 0);
+	mundo.disp_done = 0U;
+	passo();
+	zassert_equal(st7789_failed_fake.call_count, 2);
 }
 
 ZTEST(controller, test_init_erro_no_adc_nao_impede_a_partida)
@@ -480,4 +552,121 @@ ZTEST(controller, test_pagamento_entregue_a_saida_abre)
 	zassert_equal(hw_motor_drive_fake.call_count, 1);
 	zassert_equal(hw_motor_drive_fake.arg0_val, exit_cfg);
 	zassert_true(hw_motor_drive_fake.arg1_val, "abre");
+}
+
+/* ---- controller_step: display ---------------------------------------------- */
+
+ZTEST(controller, test_display_consultado_so_na_saida_e_falha_depois)
+{
+	int i_camera_saida;
+	int i_done;
+	int i_failed;
+	int i_pagamento;
+
+	mundo.disp_done = 1U;
+	passo();
+
+	/* Uma consulta por tick, no servico da saida. */
+	zassert_equal(st7789_done_fake.call_count, 1);
+	zassert_equal(st7789_failed_fake.call_count, 1);
+	i_done = posicao((void *)st7789_done);
+	i_failed = posicao((void *)st7789_failed);
+	i_pagamento = posicao((void *)hw_uart_poll_payment);
+	i_camera_saida = -1;
+	for (int i = 0, n = 0; i < (int)fff.call_history_idx; i++) {
+		if (fff.call_history[i] == (void *)hw_uart_poll_plate &&
+		    ++n == 2) {
+			i_camera_saida = i;
+		}
+	}
+	zassert_true(i_camera_saida >= 0);
+	zassert_true(i_done > i_camera_saida, "depois da camera da saida");
+	zassert_true(i_failed > i_done, "a falha e lida depois da conclusao");
+	zassert_true(i_pagamento > i_failed, "antes do terminal");
+}
+
+ZTEST(controller, test_display_entregue_so_quando_muda)
+{
+	passo();
+	zassert_equal(st7789_done_fake.call_count, 1);
+	zassert_equal(st7789_failed_fake.call_count, 0, "done 0: nada mudou");
+
+	mundo.disp_done = 1U;
+	passo();
+	zassert_equal(st7789_failed_fake.call_count, 1);
+
+	passo();
+	passo();
+	zassert_equal(st7789_done_fake.call_count, 4);
+	zassert_equal(st7789_failed_fake.call_count, 1, "mesmo done: sem evento");
+
+	mundo.disp_done = 2U;
+	passo();
+	zassert_equal(st7789_failed_fake.call_count, 2);
+}
+
+ZTEST(controller, test_display_ignorado_fora_da_cobranca)
+{
+	/* EV_DISPLAY com a saida parada nao muda nada. */
+	mundo.disp_done = 9U;
+	passo();
+	zassert_equal(st7789_failed_fake.call_count, 1);
+	zassert_equal(faixa(LANE_EXIT)->state, LANE_IDLE);
+	zassert_equal(faixa(LANE_ENTRY)->state, LANE_IDLE);
+	zassert_equal(st7789_show_charge_fake.call_count, 0);
+	zassert_equal(envios_ao_terminal(), 0);
+}
+
+ZTEST(controller, test_display_pedido_anterior_nao_avanca)
+{
+	/* O display ja recebeu 5 pedidos (de cobrancas anteriores). */
+	mundo.disp_emitidos = 5U;
+	saida_mostrando_placa();
+	zassert_equal(faixa(LANE_EXIT)->disp_ticket, 6U);
+
+	/* O display concluiu so um pedido anterior ao da placa. */
+	mundo.disp_done = faixa(LANE_EXIT)->disp_ticket - 1U;
+	passo();
+	zassert_equal(st7789_failed_fake.call_count, 1, "entregue");
+	zassert_equal(faixa(LANE_EXIT)->state, LANE_DISPLAYING);
+	zassert_false(faixa(LANE_EXIT)->price_frozen);
+	zassert_equal(st7789_show_charge_fake.call_count, 0);
+}
+
+ZTEST(controller, test_display_falha_na_placa_vai_para_assistencia)
+{
+	saida_mostrando_placa();
+
+	mundo_display_falha();
+	passo();
+	zassert_equal(faixa(LANE_EXIT)->state, LANE_ASSIST);
+	zassert_equal(st7789_show_charge_fake.call_count, 0, "sem valor");
+	zassert_equal(faixa(LANE_EXIT)->uuid[0], '\0');
+	zassert_equal(envios_ao_terminal(), 0, "sem P1 CHARGE");
+	zassert_equal(faixa(LANE_ENTRY)->state, LANE_IDLE);
+}
+
+ZTEST(controller, test_display_falha_no_valor_vai_para_assistencia)
+{
+	saida_mostrando_placa();
+	mundo_display_conclui();
+	passo();
+	zassert_true(faixa(LANE_EXIT)->price_frozen);
+
+	mundo_display_falha();
+	passo();
+	zassert_equal(faixa(LANE_EXIT)->state, LANE_ASSIST);
+	zassert_equal(faixa(LANE_EXIT)->uuid[0], '\0');
+	zassert_equal(envios_ao_terminal(), 0, "sem P1 CHARGE");
+}
+
+ZTEST(controller, test_display_valor_concluido_envia_charge)
+{
+	saida_cobrando();
+
+	zassert_equal(envios_ao_terminal(), 1);
+	zassert_equal(mundo.uart_port, HW_UART_PAYMENT);
+	zassert_mem_equal(mundo.uart_line, "P1 CHARGE ", 10);
+	zassert_not_null(strstr(mundo.uart_line, faixa(LANE_EXIT)->uuid));
+	zassert_equal(st7789_failed_fake.call_count, 2, "um por pedido");
 }

@@ -20,11 +20,17 @@ DECLARE_FAKE_VALUE_FUNC(bool, hw_motor_running, const struct lane_cfg *);
 DECLARE_FAKE_VALUE_FUNC(int, hw_lights_set, const struct lane_cfg *, bool, bool);
 DECLARE_FAKE_VALUE_FUNC(int, hw_buzzer_pulse, const struct lane_cfg *);
 DECLARE_FAKE_VALUE_FUNC(int, hw_uart_send, enum hw_uart_port, const char *);
-DECLARE_FAKE_VALUE_FUNC(int, st7789_show_plate, const char *);
-DECLARE_FAKE_VALUE_FUNC(int, st7789_show_charge, uint32_t);
+DECLARE_FAKE_VALUE_FUNC(int, st7789_show_plate, const char *, uint32_t *);
+DECLARE_FAKE_VALUE_FUNC(int, st7789_show_charge, uint32_t, uint32_t *);
 
 /** Ultima linha enviada por hw_uart_send (o argumento e um buffer da pilha). */
 extern char fake_uart_line[64];
+
+/** Ultimo numero de pedido entregue pelos falsos do display. */
+extern uint32_t fake_ticket;
+
+/** Valores devolvidos por st7789_show_plate e st7789_show_charge. */
+extern int fake_plate_rc, fake_charge_rc;
 
 /** Valor devolvido por hw_uart_send. */
 extern int fake_uart_rc;

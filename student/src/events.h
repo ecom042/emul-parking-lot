@@ -27,6 +27,7 @@ enum lane_ev_id {
 	EV_BEAM_OFF,  /**< Feixe ficou inativo. */
 	EV_PLATE,     /**< Quadro +PLATE valido; dados em @c plate. */
 	EV_PAYMENT,   /**< P1 RESULT ou P1 ERROR; dados em @c payment. */
+	EV_DISPLAY,   /**< O display concluiu pedidos; dados em @c display. */
 	EV_ADC_FAULT, /**< Falha do ADC4: travada ate o reset. */
 	EV_HW_ERROR,  /**< Erro de driver ao ler ou comandar a faixa. */
 };
@@ -35,6 +36,12 @@ enum lane_ev_id {
 struct lane_limits {
 	bool upper; /**< Fim de curso superior acionado (aberta). */
 	bool lower; /**< Fim de curso inferior acionado (fechada). */
+};
+
+/** Progresso do display: numeros de pedido (st7789_done/st7789_failed). */
+struct lane_display {
+	uint32_t done;   /**< Ultimo pedido concluido. */
+	uint32_t failed; /**< Ultimo pedido que falhou. */
 };
 
 /** Evento entregue a lane_handle_event(). */
@@ -46,6 +53,7 @@ struct lane_event {
 		uint16_t code;             /**< Valido em EV_DISTANCE. */
 		struct at_plate plate;     /**< Valido em EV_PLATE. */
 		struct p1_result payment;  /**< Valido em EV_PAYMENT. */
+		struct lane_display display; /**< Valido em EV_DISPLAY. */
 	};
 };
 

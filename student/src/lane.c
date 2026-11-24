@@ -55,7 +55,7 @@ static bool barrier_closed(const struct lane *lane)
 static bool barrier_should_be_closed(const struct lane *lane)
 {
 	return lane->state == LANE_IDLE || lane->state == LANE_IDENTIFYING ||
-	       lane->state == LANE_CHARGING;
+	       lane->state == LANE_DISPLAYING || lane->state == LANE_CHARGING;
 }
 
 /** Esquece o ciclo de autorizacao em andamento. */
@@ -178,26 +178,27 @@ static void send_charge(struct lane *lane, int64_t now_ms)
 }
 
 /**
- * Inicia a cobranca da saida, nesta ordem: placa na tela, tarifa congelada,
- * valor na tela, P1 CHARGE. A fila do display preserva a ordem no SPI.
+ * Inicia a cobranca da saida. A ordem do contrato e: placa desenhada ->
+ * preco congelado -> valor desenhado -> P1 CHARGE. Aqui so a placa vai para
+ * a fila; o resto avanca em DISPLAYING, a cada pedido que o display conclui.
  */
 static void start_charge(struct lane *lane, int64_t entry_ms, int64_t now_ms)
 {
-	uint32_t cents = 0;
-
-	if (st7789_show_plate(lane->plate) < 0 ||
-	    tariff_cents(now_ms - entry_ms, CONFIG_PARKING_TARIFF_UNIT_MS,
-			 &cents) < 0 ||
-	    st7789_show_charge(cents) < 0) {
-		/* Sem tela ou acima de 9999 unidades: nao cobra. */
+	if (st7789_show_plate(lane->plate, &lane->disp_ticket) < 0) {
+		/* Sem tela nao ha cobranca. */
 		enter_assist(lane, LANE_ASSIST);
 		return;
 	}
-	lane->cents = cents;
-	uuid_generate(lane->uuid);
-	lane->tries = 0;
-	lane->state = LANE_CHARGING;
-	send_charge(lane, now_ms);
+	lane->entry_ms = entry_ms;
+	lane->price_frozen = false;
+	lane->deadline_ms = now_ms + DISPLAY_MS;
+	lane->state = LANE_DISPLAYING;
+}
+
+/** O pedido esperado ja foi concluido (contadores de 32 bits, com volta). */
+static bool display_reached(const struct lane *lane, uint32_t done)
+{
+	return (int32_t)(done - lane->disp_ticket) >= 0;
 }
 
 /** Liga o motor e arma o prazo do movimento. */
@@ -266,6 +267,7 @@ static bool passage_completed(struct lane *lane, const struct lane_event *ev)
 	case EV_DISTANCE:
 	case EV_PLATE:
 	case EV_PAYMENT:
+	case EV_DISPLAY:
 	case EV_ADC_FAULT:
 	case EV_HW_ERROR:
 		return false;
@@ -333,6 +335,57 @@ static void handle_event_identifying(struct lane *lane,
 	if (ev->id == EV_TICK && ev->now_ms >= lane->deadline_ms) {
 		capture_failed(lane, ev->now_ms);
 	}
+}
+
+/*
+ * Mostrando a cobranca: placa desenhada -> congela o preco e pede o valor;
+ * valor desenhado -> UUID novo e o primeiro P1 CHARGE. Falha ou prazo do
+ * display: assistencia sem cobrar. Carro que sai: abandona (ainda nao ha
+ * cobranca a cancelar).
+ */
+static void handle_event_displaying(struct lane *lane,
+				    const struct lane_event *ev)
+{
+	uint32_t cents = 0;
+
+	if ((ev->id == EV_DISTANCE || ev->id == EV_TICK) &&
+	    car_away(lane, ev->now_ms)) {
+		forget_cycle(lane);
+		lane->state = LANE_IDLE;
+		return;
+	}
+	if (ev->id == EV_TICK) {
+		if (ev->now_ms >= lane->deadline_ms) {
+			enter_assist(lane, LANE_ASSIST);
+		}
+		return;
+	}
+	if (ev->id != EV_DISPLAY || !display_reached(lane, ev->display.done)) {
+		return;
+	}
+	if (ev->display.failed == lane->disp_ticket) {
+		enter_assist(lane, LANE_ASSIST);
+		return;
+	}
+	if (!lane->price_frozen) {
+		/* Placa na tela: congela o preco agora e pede o valor. */
+		if (tariff_cents(ev->now_ms - lane->entry_ms,
+				 CONFIG_PARKING_TARIFF_UNIT_MS, &cents) < 0 ||
+		    st7789_show_charge(cents, &lane->disp_ticket) < 0) {
+			/* Acima de 9999 unidades ou sem tela: nao cobra. */
+			enter_assist(lane, LANE_ASSIST);
+			return;
+		}
+		lane->cents = cents;
+		lane->price_frozen = true;
+		lane->deadline_ms = ev->now_ms + DISPLAY_MS;
+		return;
+	}
+	/* Valor na tela: so agora a cobranca vai ao terminal. */
+	uuid_generate(lane->uuid);
+	lane->tries = 0;
+	lane->state = LANE_CHARGING;
+	send_charge(lane, ev->now_ms);
 }
 
 /* Cobrando: so o PAID exato da cobranca atual abre. */
@@ -549,6 +602,7 @@ static bool update_inputs(struct lane *lane, const struct lane_event *ev)
 	case EV_TICK:
 	case EV_PLATE:
 	case EV_PAYMENT:
+	case EV_DISPLAY:
 		return true;
 	}
 	return true;
@@ -592,6 +646,9 @@ void lane_handle_event(struct lane *lane, const struct lane_event *ev)
 		break;
 	case LANE_IDENTIFYING:
 		handle_event_identifying(lane, ev);
+		break;
+	case LANE_DISPLAYING:
+		handle_event_displaying(lane, ev);
 		break;
 	case LANE_CHARGING:
 		handle_event_charging(lane, ev);

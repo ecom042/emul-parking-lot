@@ -14,6 +14,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/spi.h>
 #include <zephyr/kernel.h>
+#include <zephyr/sys/atomic.h>
 
 #include "font.h"
 #include "st7789.h"
@@ -52,6 +53,7 @@ struct pedido {
 	enum pedido_tipo tipo;
 	char plate[8];
 	uint32_t cents;
+	uint32_t ticket; /* numero do pedido, para avisar a conclusao */
 };
 
 K_THREAD_STACK_DEFINE(disp_stack, DISPLAY_STACK);
@@ -62,6 +64,9 @@ static struct {
 	struct k_thread thread;
 	uint8_t linha[ST7789_WIDTH * 2];
 	bool inicializado;
+	uint32_t emitidos; /* ultimo numero de pedido (so a thread de controle) */
+	atomic_t feito;    /* ultimo pedido concluido pela thread do display */
+	atomic_t falho;    /* ultimo pedido que nao foi desenhado */
 } disp;
 
 static int escreve(uint8_t *dados, size_t len)
@@ -225,25 +230,45 @@ static int inicializa(void)
 	return rc;
 }
 
-static void desenha_placa(const char *plate)
+static int desenha_placa(const char *plate)
 {
 	uint8_t escala = 4;
 	uint16_t x = centralizado(plate, escala);
 
-	(void)texto(x, 40, plate, escala);
+	return texto(x, 40, plate, escala);
 }
 
-static void desenha_cobranca(uint32_t cents)
+static int desenha_cobranca(uint32_t cents)
 {
 	char valor[24];
+	int rc;
 
 	/* "BRL r.cc": parte inteira e duas casas, sempre com dois digitos. */
 	(void)snprintf(valor, sizeof(valor), "BRL %u.%02u",
 		       (unsigned int)(cents / 100U), (unsigned int)(cents % 100U));
 
-	(void)texto(centralizado(valor, 3), 120, valor, 3);
-	(void)texto(centralizado("SIMULATED PAYMENT", 2), 200, "SIMULATED PAYMENT", 2);
-	(void)texto(centralizado("NOT PIX", 2), 240, "NOT PIX", 2);
+	rc = texto(centralizado(valor, 3), 120, valor, 3);
+	if (rc == 0) {
+		rc = texto(centralizado("SIMULATED PAYMENT", 2), 200,
+			   "SIMULATED PAYMENT", 2);
+	}
+	if (rc == 0) {
+		rc = texto(centralizado("NOT PIX", 2), 240, "NOT PIX", 2);
+	}
+	return rc;
+}
+
+/* Desenha um pedido; inicializa antes se a tentativa do boot falhou. */
+static int atende(const struct pedido *pedido)
+{
+	if (!disp.inicializado) {
+		if (inicializa() != 0) {
+			return -EIO;
+		}
+		disp.inicializado = true;
+	}
+	return (pedido->tipo == PEDIDO_PLACA) ? desenha_placa(pedido->plate)
+					     : desenha_cobranca(pedido->cents);
 }
 
 static void thread_display(void *a, void *b, void *c)
@@ -254,21 +279,19 @@ static void thread_display(void *a, void *b, void *c)
 	ARG_UNUSED(b);
 	ARG_UNUSED(c);
 
+	/* Inicializa ja no boot: os ~400 ms de espera nao caem na cobranca. */
+	disp.inicializado = (inicializa() == 0);
+
 	for (;;) {
 		k_msgq_get(&disp.fila, &pedido, K_FOREVER);
 
-		if (!disp.inicializado) {
-			if (inicializa() != 0) {
-				continue;
-			}
-			disp.inicializado = true;
+		/* A falha e publicada antes da conclusao: quem le a conclusao
+		 * ja enxerga a falha do mesmo pedido.
+		 */
+		if (atende(&pedido) != 0) {
+			atomic_set(&disp.falho, (atomic_val_t)pedido.ticket);
 		}
-
-		if (pedido.tipo == PEDIDO_PLACA) {
-			desenha_placa(pedido.plate);
-		} else {
-			desenha_cobranca(pedido.cents);
-		}
+		atomic_set(&disp.feito, (atomic_val_t)pedido.ticket);
 	}
 }
 
@@ -281,20 +304,48 @@ int st7789_start(void)
 	return 0;
 }
 
-int st7789_show_plate(const char *plate)
+/*
+ * Enfileira com o proximo numero; so o numero aceito pela fila e usado. O 0
+ * e pulado na volta do contador: st7789_failed() comeca em 0 = "nenhuma".
+ */
+static int enfileira(struct pedido *pedido, uint32_t *ticket)
+{
+	pedido->ticket = (disp.emitidos % UINT32_MAX) + 1U; /* 1..UINT32_MAX */
+	if (k_msgq_put(&disp.fila, pedido, K_NO_WAIT) != 0) {
+		return -ENOMSG;
+	}
+	disp.emitidos = pedido->ticket;
+	*ticket = pedido->ticket;
+	return 0;
+}
+
+int st7789_show_plate(const char *plate, uint32_t *ticket)
 {
 	struct pedido pedido = { .tipo = PEDIDO_PLACA };
 
-	if (plate == NULL || strlen(plate) != 7) {
+	if (plate == NULL || ticket == NULL || strlen(plate) != 7) {
 		return -EINVAL;
 	}
 	memcpy(pedido.plate, plate, 8);
-	return k_msgq_put(&disp.fila, &pedido, K_NO_WAIT) == 0 ? 0 : -ENOMSG;
+	return enfileira(&pedido, ticket);
 }
 
-int st7789_show_charge(uint32_t cents)
+int st7789_show_charge(uint32_t cents, uint32_t *ticket)
 {
 	struct pedido pedido = { .tipo = PEDIDO_COBRANCA, .cents = cents };
 
-	return k_msgq_put(&disp.fila, &pedido, K_NO_WAIT) == 0 ? 0 : -ENOMSG;
+	if (ticket == NULL) {
+		return -EINVAL;
+	}
+	return enfileira(&pedido, ticket);
+}
+
+uint32_t st7789_done(void)
+{
+	return (uint32_t)atomic_get(&disp.feito);
+}
+
+uint32_t st7789_failed(void)
+{
+	return (uint32_t)atomic_get(&disp.falho);
 }
