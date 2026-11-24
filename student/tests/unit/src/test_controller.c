@@ -1016,38 +1016,55 @@ ZTEST(controller_suite, test_lane_faults_safety_and_driver_errors)
 	zassert_equal(controller_get_state()->lanes[LANE_EXIT].state,
 		      LANE_STATE_IDLE);
 
-	/* Known plate with >9999 units tariff overflow -> assistance */
+	/* Known plate with >9999 units tariff overflow -> assistance.
+	 * hw_uptime_ms stays equal to the step time: the display yields to the
+	 * ADC with that clock, and a jumped uptime would latch a false fault.
+	 */
+	(void)session_remove("EXT1A00");
+	(void)session_create("EXT1A00", -700000000LL);
 	for (int64_t t = 80; t <= 450; t += 10) {
+		hw_uptime_ms_fake.return_val = t;
 		controller_step(t);
 	}
 	sim_adc_raw_lanes[LANE_EXIT] = 500;
+	hw_uptime_ms_fake.return_val = 455;
 	controller_step(455);
+	hw_uptime_ms_fake.return_val = 460;
 	controller_step(460);
-	hw_uptime_ms_fake.return_val = 700000000LL;
 	sim_uart_push_rx(HW_UART_EXIT_CAMERA, "+PLATE:3,\"EXT1A00\",95\r\n");
+	hw_uptime_ms_fake.return_val = 465;
 	controller_step(465);
 	zassert_equal(controller_get_state()->lanes[LANE_EXIT].state,
 		      LANE_STATE_ASSISTANCE);
 	sim_adc_raw_lanes[LANE_EXIT] = 2000;
+	hw_uptime_ms_fake.return_val = 470;
 	controller_step(470);
+	hw_uptime_ms_fake.return_val = 475;
 	controller_step(475);
 
 	/* Payment departure abandons & sends CANCEL */
-	hw_uptime_ms_fake.return_val = 500;
+	(void)session_remove("EXT1A00");
+	(void)session_create("EXT1A00", 0);
+	hw_uptime_ms_fake.return_val = 480;
 	sim_adc_raw_lanes[LANE_EXIT] = 500;
 	controller_step(480);
+	hw_uptime_ms_fake.return_val = 485;
 	controller_step(485);
 	sim_uart_push_rx(HW_UART_EXIT_CAMERA, "+PLATE:4,\"EXT1A00\",95\r\n");
+	hw_uptime_ms_fake.return_val = 490;
 	controller_step(490);
 	zassert_equal(controller_get_state()->lanes[LANE_EXIT].state,
 		      LANE_STATE_PAYING);
 	sim_adc_raw_lanes[LANE_EXIT] = 2000;
+	hw_uptime_ms_fake.return_val = 495;
 	controller_step(495);
+	hw_uptime_ms_fake.return_val = 500;
 	controller_step(500);
 	zassert_not_null(strstr(sim_uart_tx_buf[HW_UART_PAYMENT], "P1 CANCEL "));
 
 	/* Negative GPIO input fault latches lane */
 	sim_in_levels[HW_IN_EXIT_LOWER] = -EIO;
+	hw_uptime_ms_fake.return_val = 505;
 	controller_step(505);
 	zassert_equal(controller_get_state()->lanes[LANE_EXIT].state,
 		      LANE_STATE_LATCHED);

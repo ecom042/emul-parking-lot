@@ -34,8 +34,13 @@ typedef struct {
 	int64_t step_ms;
 } display_ctx_t;
 
+typedef void (*display_yield_fn)(void);
+
 int display_start_init(display_ctx_t *ctx, int64_t now_ms);
 void display_service(display_ctx_t *ctx, int64_t now_ms);
+
+/* Called between display rows so ADC and safety stay inside their deadlines. */
+void display_set_yield(display_yield_fn fn);
 bool display_is_ready(const display_ctx_t *ctx);
 bool display_has_error(const display_ctx_t *ctx);
 

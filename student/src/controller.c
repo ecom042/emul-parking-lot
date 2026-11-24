@@ -16,6 +16,15 @@
 
 static controller_t g_ctrl;
 
+static void display_yield_cb(void)
+{
+	int64_t now_ms = hw_uptime_ms();
+
+	(void)adc_mgr_service(&g_ctrl.adc, now_ms);
+	lane_urgent_safety(&g_ctrl.lanes[LANE_ENTRY]);
+	lane_urgent_safety(&g_ctrl.lanes[LANE_EXIT]);
+}
+
 void controller_exti_work(void)
 {
 	lane_urgent_safety(&g_ctrl.lanes[LANE_ENTRY]);
@@ -43,6 +52,7 @@ void controller_init(void)
 	}
 
 	(void)adc_mgr_init(&g_ctrl.adc);
+	display_set_yield(display_yield_cb);
 	(void)display_start_init(&g_ctrl.display, now_ms);
 }
 

@@ -33,6 +33,20 @@
 #define RGB565_YELLOW  0xFFE0U
 #define RGB565_CYAN    0x07FFU
 
+static display_yield_fn draw_yield;
+
+void display_set_yield(display_yield_fn fn)
+{
+	draw_yield = fn;
+}
+
+static void yield_to_controller(void)
+{
+	if (draw_yield != NULL) {
+		draw_yield();
+	}
+}
+
 static int write_cmd(uint8_t cmd)
 {
 	uint8_t buf[1] = { cmd };
@@ -108,6 +122,9 @@ static int draw_centered_band(uint16_t y_top, const char *text, uint8_t scale,
 
 	for (uint16_t row = 0U; row < band_h; row++) {
 		uint16_t glyph_row = row / (uint16_t)scale;
+
+		/* A full frame is too long for the ADC deadline under coverage builds. */
+		yield_to_controller();
 
 		for (uint16_t x = 0U; x < DISPLAY_WIDTH; x++) {
 			uint16_t color = bg;

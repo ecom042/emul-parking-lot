@@ -78,8 +78,7 @@ static struct adc_sequence adc_seq = {
 
 static const struct spi_dt_spec display_spi = SPI_DT_SPEC_GET(
 	DISPLAY_NODE,
-	SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_OP_MODE_MASTER,
-	0);
+	SPI_WORD_SET(8) | SPI_TRANSFER_MSB | SPI_OP_MODE_CONTROLLER);
 
 static void exti_work_entry(struct k_work *work)
 {
