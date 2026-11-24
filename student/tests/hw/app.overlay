@@ -1,0 +1,53 @@
+/*
+ * Only for this test suite: emulated GPIO controllers (software only, no
+ * Renode peripheral) and the pins the tests drive through hw/.
+ */
+#include <zephyr/dt-bindings/gpio/gpio.h>
+
+/ {
+	/* Main test controller: interrupts on both edges, like the board's EXTI. */
+	test_gpio: gpio-emul {
+		compatible = "zephyr,gpio-emul";
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <8>;
+		rising-edge;
+		falling-edge;
+		status = "okay";
+	};
+
+	/* No edge interrupts: makes sensor_init() fail on purpose. */
+	test_gpio_no_edges: gpio-emul-no-edges {
+		compatible = "zephyr,gpio-emul";
+		gpio-controller;
+		#gpio-cells = <2>;
+		ngpios = <8>;
+		status = "okay";
+	};
+
+	/* Emulated UART: hw/uart_line reads what the test puts in its RX FIFO. */
+	test_uart: uart-emul {
+		compatible = "zephyr,uart-emul";
+		current-speed = <115200>;
+		rx-fifo-size = <64>;
+		tx-fifo-size = <64>;
+		status = "okay";
+	};
+
+	/* Emulated ADC: hw/adc4 converts the raw values the test sets per channel. */
+	test_adc: adc-emul {
+		compatible = "zephyr,adc-emul";
+		nchannels = <8>;
+		ref-internal-mv = <3300>;
+		#io-channel-cells = <1>;
+		status = "okay";
+	};
+
+	zephyr,user {
+		indicator-gpios = <&test_gpio 0 GPIO_ACTIVE_HIGH>;
+		motor-enable-gpios = <&test_gpio 1 GPIO_ACTIVE_HIGH>;
+		motor-direction-gpios = <&test_gpio 2 GPIO_ACTIVE_HIGH>;
+		sensor-gpios = <&test_gpio 3 GPIO_ACTIVE_HIGH>;
+		sensor-no-edges-gpios = <&test_gpio_no_edges 0 GPIO_ACTIVE_HIGH>;
+	};
+};

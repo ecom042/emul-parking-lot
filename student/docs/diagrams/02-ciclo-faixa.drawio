@@ -1,0 +1,129 @@
+<mxfile host="65bd71144e">
+    <diagram id="VMFG5SwgT0-hMC2c6HVg" name="Page-1">
+        <mxGraphModel dx="2706" dy="479" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1560" pageHeight="960" math="0" shadow="0" adaptiveColors="auto">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=14;" value="&lt;b&gt;Diagrama 2: ciclo de uma faixa&lt;/b&gt;&lt;br&gt;a mesma máquina serve à entrada e à saída" vertex="1">
+                    <mxGeometry height="50" width="520" x="560" y="60" as="geometry"/>
+                </mxCell>
+                <mxCell id="start" parent="1" style="ellipse;html=1;fillColor=#000000;strokeColor=#000000;" value="" vertex="1">
+                    <mxGeometry height="30" width="30" x="385" y="10" as="geometry"/>
+                </mxCell>
+                <mxCell id="ini" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;b&gt;INICIALIZANDO&lt;/b&gt;&lt;br&gt;motor off · verde off&lt;br&gt;vermelho on" vertex="1">
+                    <mxGeometry height="80" width="200" x="300" y="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="rep" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;b&gt;REPOUSO&lt;/b&gt;&lt;br&gt;cancela fechada&lt;br&gt;vermelho on" vertex="1">
+                    <mxGeometry height="80" width="200" x="300" y="280" as="geometry"/>
+                </mxCell>
+                <mxCell id="idt" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;b&gt;IDENTIFICANDO&lt;/b&gt;&lt;br&gt;câmera, até 3 tentativas&lt;br&gt;(diagrama 3)" vertex="1">
+                    <mxGeometry height="80" width="200" x="600" y="280" as="geometry"/>
+                </mxCell>
+                <mxCell id="abr" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;b&gt;ABRINDO&lt;/b&gt;&lt;br&gt;motor sobe&lt;br&gt;prazo 2500 ms" vertex="1">
+                    <mxGeometry height="80" width="200" x="900" y="280" as="geometry"/>
+                </mxCell>
+                <mxCell id="pas" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fontSize=12;fillColor=#d5e8d4;strokeColor=#82b366;" value="&lt;b&gt;AGUARDANDO PASSAGEM&lt;/b&gt;&lt;br&gt;verde on&lt;br&gt;prazo 10000 ms" vertex="1">
+                    <mxGeometry height="80" width="200" x="1200" y="280" as="geometry"/>
+                </mxCell>
+                <mxCell id="pag" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;dashed=1;" value="&lt;b&gt;AGUARDANDO PAGAMENTO&lt;/b&gt;&lt;br&gt;só na saída&lt;br&gt;(diagrama 3)" vertex="1">
+                    <mxGeometry height="80" width="200" x="600" y="500" as="geometry"/>
+                </mxCell>
+                <mxCell id="ass" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fontSize=12;fillColor=#f8cecc;strokeColor=#b85450;" value="&lt;b&gt;ASSISTÊNCIA&lt;/b&gt;&lt;br&gt;motor off · verde off&lt;br&gt;vermelho on · buzzer 100 ms" vertex="1">
+                    <mxGeometry height="80" width="200" x="300" y="500" as="geometry"/>
+                </mxCell>
+                <mxCell id="fec" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="&lt;b&gt;FECHANDO&lt;/b&gt;&lt;br&gt;verde off · vermelho on&lt;br&gt;motor desce · prazo 2500 ms" vertex="1">
+                    <mxGeometry height="80" width="200" x="1260" y="500" as="geometry"/>
+                </mxCell>
+                <mxCell id="trv" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=20;fontSize=12;fillColor=#f8cecc;strokeColor=#b85450;strokeWidth=3;" value="&lt;b&gt;ASSISTÊNCIA TRAVADA&lt;/b&gt;&lt;br&gt;mesmas saídas da assistência&lt;br&gt;só sai com reset" vertex="1">
+                    <mxGeometry height="80" width="300" x="940" y="720" as="geometry"/>
+                </mxCell>
+                <mxCell id="note" parent="1" style="shape=note;whiteSpace=wrap;html=1;size=14;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;align=left;spacingLeft=6;" value="&lt;b&gt;De qualquer estado:&lt;/b&gt;&lt;br&gt;fins de curso superior e inferior juntos&lt;br&gt;falha do ADC (diagrama 3)" vertex="1">
+                    <mxGeometry height="64" width="300" x="940" y="860" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=11;verticalAlign=top;" value="&lt;b&gt;Legenda&lt;/b&gt;&lt;br&gt;seta vermelha: falha&lt;br&gt;borda tracejada: só a faixa de saída&lt;br&gt;verde: único estado com o sinal verde aceso" vertex="1">
+                    <mxGeometry height="80" width="300" x="40" y="860" as="geometry"/>
+                </mxCell>
+                <mxCell id="t0" edge="1" parent="1" source="start" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;" target="ini" value="">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="t1" edge="1" parent="1" source="ini" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;exitX=0.3;exitY=1;exitDx=0;exitDy=0;entryX=0.3;entryY=0;entryDx=0;entryDy=0;" target="rep" value="fim de curso inferior ativo">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="t2" edge="1" parent="1" source="ini" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;strokeColor=#b85450;fontColor=#b85450;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" target="trv" value="sem fim de curso inferior">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="40" y="120"/>
+                            <mxPoint x="40" y="780"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t3" edge="1" parent="1" source="rep" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" target="idt" value="ADC &amp;lt; 683">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="t4" edge="1" parent="1" source="idt" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;exitX=0;exitY=0.7;exitDx=0;exitDy=0;entryX=1;entryY=0.7;entryDx=0;entryDy=0;" target="rep" value="ADC &amp;gt; 1024">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="t5" edge="1" parent="1" source="idt" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="abr" value="[entrada] placa aceita,&lt;br&gt;sem sessão, com vaga">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="t6" edge="1" parent="1" source="idt" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="pag" value="[saída] placa&lt;br&gt;com sessão">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="t7" edge="1" parent="1" source="idt" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;strokeColor=#b85450;fontColor=#b85450;exitX=0.15;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" target="ass" value="3 tentativas falharam · lotado&lt;br&gt;já estacionada · sem sessão">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="630" y="430"/>
+                            <mxPoint x="450" y="430"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t8" edge="1" parent="1" source="pag" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;strokeColor=#b85450;fontColor=#b85450;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="ass" value="sem PAID · CANCELLED&lt;br&gt;ADC &amp;gt; 1024">
+                    <mxGeometry relative="1" y="-20" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t9" edge="1" parent="1" source="pag" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.25;entryY=1;entryDx=0;entryDy=0;" target="abr" value="PAID exato">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="950" y="540"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t11" edge="1" parent="1" source="ass" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;exitX=0.25;exitY=0;exitDx=0;exitDy=0;entryX=0.25;entryY=1;entryDx=0;entryDy=0;" target="rep" value="ADC &amp;gt; 1024&lt;br&gt;e feixe livre">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="t12" edge="1" parent="1" source="abr" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="pas" value="superior → motor off&lt;br&gt;→ verde on">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="t13" edge="1" parent="1" source="abr" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;strokeColor=#b85450;fontColor=#b85450;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.367;entryY=0;entryDx=0;entryDy=0;" target="trv" value="&amp;gt; 2500 ms">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="t14" edge="1" parent="1" source="pas" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;exitX=0.8;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="fec" value="feixe on → off e ADC &amp;gt; 1024&lt;br&gt;cria ou encerra a sessão">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="t15" edge="1" parent="1" source="pas" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;strokeColor=#b85450;fontColor=#b85450;exitX=0.1;exitY=1;exitDx=0;exitDy=0;entryX=0.933;entryY=0;entryDx=0;entryDy=0;" target="trv" value="&amp;gt; 10000 ms">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="t16" edge="1" parent="1" source="fec" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" target="rep" value="fim de curso inferior → motor off">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1500" y="540"/>
+                            <mxPoint x="1500" y="230"/>
+                            <mxPoint x="450" y="230"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t17" edge="1" parent="1" source="fec" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;strokeColor=#b85450;fontColor=#b85450;exitX=0.3;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="trv" value="feixe ativo (motor off em 10 ms)&lt;br&gt;ou &amp;gt; 2500 ms">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1320" y="760"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="t18" edge="1" parent="1" source="note" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=default;strokeColor=#b85450;fontColor=#b85450;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="trv" value="">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
