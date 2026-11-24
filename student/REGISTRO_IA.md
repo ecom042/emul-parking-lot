@@ -8,8 +8,8 @@ entradas. Quem não usou IA escreve isso aqui.
 
 | Aluno | Matrícula | Partes que escreveu |
 |---|---|---|
-| A — _(preencher nome)_ | | parsers AT e P1, tarifa, UUID, sessões, UART dos equipamentos, display (com correções do aluno B em `at_parser.c`, `hw_uart.c` e `st7789.c`, registradas abaixo) |
-| B — Ycaro Sales | _(preencher)_ | GPIO/EXTI (`hw_io.c`), ADC4 (`hw_adc.c`), presença, máquina de estados das faixas (`lane.c`), thread de controle (`controller.c`, `main.c`), configuração das faixas e as suítes `lane`, `presence`, `controller`, `hw_io`, `hw_adc*`, `hw_uart`, `st7789` e os testes novos de `parsers` |
+| A — Kaio Nabuco | 20211840 | parsers AT e P1, tarifa, UUID, sessões, UART dos equipamentos, display (com correções do aluno B em `at_parser.c`, `hw_uart.c` e `st7789.c`, registradas abaixo) |
+| B — Ycaro Sales | 2024001007 | GPIO/EXTI (`hw_io.c`), ADC4 (`hw_adc.c`), presença, máquina de estados das faixas (`lane.c`), thread de controle (`controller.c`, `main.c`), configuração das faixas e as suítes `lane`, `presence`, `controller`, `hw_io`, `hw_adc*`, `hw_uart`, `st7789` e os testes novos de `parsers` |
 
 ## Ferramentas
 
@@ -542,6 +542,28 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
 - **Como verifiquei:** `lab.py --headless all`: 19/19. `firmware-coverage.py`:
   99,91% de linhas e 98,22% de branches, todas as suítes passando.
   `static-check.py`: 0 achados.
+
+### 2026-11-23 e 24 — Todos os pedidos do aluno B nesta sessão com a IA
+
+- **Aluno:** B (Ycaro Sales). Ferramenta: Claude Code, Claude Opus 5.5.
+- **Por que esta entrada:** a lista completa do que eu pedi, em ordem, para
+  ninguém precisar reconstruir pela conversa. Cada pedido aponta para a
+  entrada que o detalha.
+
+| # | O que pedi (resumo fiel) | Onde está |
+|---|---|---|
+| 1 | Terminar a atividade a partir do que já estava feito e do meu guia no claude.ai, seguindo os critérios de avaliação; preencher este registro a cada commit; me perguntar toda questão de arquitetura; usar só o ferramentário do `docs/`; manter, com um agente, um documento com o que foi feito em cada commit e as minhas decisões | todas as entradas da Fase 1 em diante; o documento é local (`HISTORICO_SOLUCAO.md`, fora do git) |
+| 2 | Respostas às primeiras perguntas: uma única thread; abstrair os pinos das outras camadas; histórico num arquivo local fora do git; terminar cada fase sozinho, mas tirar as dúvidas comigo antes de começá-la | Fase 1 |
+| 3 | Respostas antes de cada fase (falha do ADC nas duas faixas, buzzer por work, ISR do feixe; sem WAIT_BEAM_CLEAR, ID por faixa, falha de envio conta tentativa; tarifa, display e CANCEL; shim + FFF, testes nos parsers, `controller_run`; passagem tardia) | Fases 1 a 4; Fila de carros |
+| 4 | Rodar a bateria completa da fila de carros e preparar o texto do PR e o roteiro da sabatina (locais, fora do git) | Fila de carros |
+| 5 | Liberei espaço em disco e pedi para tentar de novo | Fila de carros (falha de disco) |
+| 6 | "Vá pushando enquanto commita": push de cada commit verificado para o repositório privado da dupla | Nota de trabalho autônomo |
+| 7 | Não me perguntar nada até 06:00 de 24/11 e seguir sozinho | Nota de trabalho autônomo; Constantes; Revisão independente |
+| 8 | Perguntei a situação e quais decisões tinham sido tomadas | respondido na conversa; resumo em "Revisão das decisões sem consulta" |
+| 9 | Perguntei o que mudar para o `P1 CHARGE` sair depois do display e pedi a mudança com push | Cobrança espera o display |
+| 10 | Revisar as decisões sem consulta; investigar o `docs/` com um agente de contexto limpo; perguntei se havia um limiar do que é obstrução quando feixe e fim de curso chegam no mesmo tick (resposta: o limiar é o próprio fim de curso inferior; o firmware não mede posição); escolhi assistência rearmável e pedi que um agente fizesse | Revisão das decisões sem consulta |
+| 11 | Atualizar o texto do PR e o roteiro depois do push | documentos locais |
+| 12 | Registrar aqui todos os meus pedidos, fazer commit e push e criar o rascunho (draft) do PR | esta entrada |
 
 ## Código de terceiros
 
