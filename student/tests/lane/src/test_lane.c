@@ -1178,16 +1178,36 @@ ZTEST(lane, test_pago_no_tick_em_que_o_carro_sai_nao_abre)
 	zassert_not_equal(lane.state, LANE_OPENING);
 }
 
-ZTEST(lane, test_feixe_no_tick_em_que_fechou_nao_trava)
+ZTEST(lane, test_feixe_no_tick_em_que_fechou_pede_assistencia_rearmavel)
 {
 	ate_aberta(100);
 	passar(3000);
 	zassert_equal(lane.state, LANE_CLOSING);
+	zassert_equal(hw_motor_drive_fake.call_count, 2, "abre e fecha");
 	/* No mesmo tick o inferior acende e o feixe fica ativo. */
 	ev_limites(false, true, 5300);
 	ev_simples(EV_BEAM_ON, 5300);
-	zassert_equal(lane.state, LANE_IDLE, "cancela fechada: sem posicao parcial");
-	zassert_equal(hw_buzzer_pulse_fake.call_count, 0);
+	zassert_equal(lane.state, LANE_ASSIST, "cancela fechada: rearmavel");
+	zassert_equal(hw_buzzer_pulse_fake.call_count, 1);
+	zassert_equal(hw_motor_drive_fake.call_count, 2, "sem reverter");
+
+	/* Carro longe, mas o feixe segue ativo: nao rearma. */
+	ev_distancia(LONGE, 5310);
+	tick(5310);
+	zassert_equal(lane.state, LANE_ASSIST, "feixe ativo");
+
+	/* Feixe livre, mas o carro esta perto: nao rearma. */
+	amostras(PERTO, 5400);
+	ev_simples(EV_BEAM_OFF, 5400);
+	tick(5400);
+	zassert_equal(lane.state, LANE_ASSIST, "carro perto");
+
+	/* Feixe livre e carro longe agora: rearma sem mexer no motor. */
+	ev_distancia(LONGE, 5500);
+	tick(5500);
+	zassert_equal(lane.state, LANE_IDLE);
+	zassert_equal(hw_buzzer_pulse_fake.call_count, 1, "um so pulso");
+	zassert_equal(hw_motor_drive_fake.call_count, 2, "motor nunca religado");
 }
 
 ZTEST(lane, test_feixe_com_inferior_mas_motor_ligado_trava)

@@ -489,9 +489,11 @@ static void handle_event_closing(struct lane *lane, const struct lane_event *ev)
 {
 	if (ev->id == EV_BEAM_ON) {
 		if (lane->lower && !hw_motor_running(lane->cfg)) {
-			/* Ja fechou neste tick: nao ha posicao parcial. */
-			forget_cycle(lane);
-			lane->state = LANE_IDLE;
+			/* Obstrucao no fechamento pede assistencia, mas a cancela
+			 * ja esta no inferior: sem posicao parcial, vale o rearme
+			 * da cancela fechada (distancia longe e feixe livre).
+			 */
+			enter_assist(lane, LANE_ASSIST);
 			return;
 		}
 		/* Parada no meio do curso: sem reverter, travada ate o reset. */

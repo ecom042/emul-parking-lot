@@ -520,6 +520,29 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   em `st7789.c` são checagens de janela que a API nunca dispara (texto vazio,
   escala 0, altura além da tela).
 
+### 2026-11-24 — Revisão das decisões sem consulta
+
+- **Aluno:** B (Ycaro Sales).
+- **O que pedi:** revisar as decisões que a IA tomou sem me consultar.
+- **O que decidi:** mantive a remoção de `GATE_TICK_TOL_MS` e
+  `BEAM_STOP_MS`, a assistência ao perder o fim de curso inferior e o
+  abandono avaliado já no evento de distância. Para o feixe que ativa no
+  mesmo tick em que a cancela chega ao inferior, pedi a um agente de contexto
+  limpo que investigasse o `docs/`: a especificação não decide o caso; o
+  oráculo (`scripts/scenario/obstruction.py`) só trava com posição > 0, e o
+  contrato diz "an obstruction during closing stops the motor and requests
+  assistance" e "assistance at a closed barrier rearms only after distance
+  >1024 with clear beam". O firmware não mede posição; o equivalente a
+  "posição 0" é o fim de curso inferior acionado. **Escolhi assistência
+  rearmável** nesse caso, em vez de IDLE (a escolha da IA) ou LOCKED.
+- **O que a IA fez:** em `handle_event_closing`, feixe com o inferior
+  acionado e o motor parado passa a `enter_assist(LANE_ASSIST)`; o teste
+  confere um pulso de buzzer, motor nunca religado e o rearme só com feixe
+  livre e carro longe.
+- **Como verifiquei:** `lab.py --headless all`: 19/19. `firmware-coverage.py`:
+  99,91% de linhas e 98,22% de branches, todas as suítes passando.
+  `static-check.py`: 0 achados.
+
 ## Código de terceiros
 
 | Arquivo/trecho | Origem | Licença |
