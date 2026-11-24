@@ -13,11 +13,11 @@ entradas. Quem não usou IA escreve isso aqui.
 
 ## Ferramentas
 
-| Aluno | Ferramenta | Modelo/versão | Período de uso |
-|---|---|---|---|
-| `<Preencher Aluno 1>` | Antigravity | Claude Opus 4.6 / Gemini | 2026-11 |
-| `<Preencher Aluno 1>` | Cursor | Grok 4.7 | 2026-11-23 |
-| `<Preencher Aluno 2>` | `<Preencher se usou IA ou "Não utilizou IA">` | `<Modelo>` | 2026-11 |
+| Aluno                 | Ferramenta                                    | Modelo/versão                   | Período de uso |
+| --------------------- | --------------------------------------------- | ------------------------------- | -------------- |
+| `Guilherme`           | Antigravity                                   | Claude Opus 4.6 / Gemini Carbon | 2026-11        |
+| `Guilherme`           | Cursor                                        | Grok 4.7                        | 2026-11-23     |
+| `<Preencher Aluno 2>` | `<Preencher se usou IA ou "Não utilizou IA">` | `<Modelo>`                      | 2026-11        |
 
 ## Tarefas
 
