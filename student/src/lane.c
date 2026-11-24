@@ -58,6 +58,7 @@ static void forget_cycle(struct lane *lane)
 	lane->tries = 0;
 	lane->beam_seen = false;
 	lane->beam_cleared = false;
+	lane->late_passage = false;
 }
 
 /**
@@ -229,13 +230,46 @@ static void plate_accepted(struct lane *lane, const struct at_plate *plate,
 	start_charge(lane, entry_ms, now_ms);
 }
 
-/** Passagem completa: so ela mexe na tabela de sessoes. */
+/** Passagem completa: cria a sessao na entrada, encerra na saida. */
+static int update_sessions(struct lane *lane, int64_t now_ms)
+{
+	return lane->cfg->has_payment ? sessions_remove(lane->plate)
+				      : sessions_add(lane->plate, now_ms);
+}
+
+/**
+ * Acompanha a passagem: feixe ativo, depois inativo, e no tick o feixe livre
+ * com carro recente a mais de 1500 mm. Feixe que volta zera o "inativo".
+ * @return true no tick em que a passagem completa.
+ */
+static bool passage_completed(struct lane *lane, const struct lane_event *ev)
+{
+	switch (ev->id) {
+	case EV_BEAM_ON:
+		lane->beam_seen = true;
+		lane->beam_cleared = false;
+		return false;
+	case EV_BEAM_OFF:
+		lane->beam_cleared = lane->beam_seen;
+		return false;
+	case EV_TICK:
+		return lane->beam_cleared && !lane->beam &&
+		       car_away(lane, ev->now_ms);
+	case EV_LIMITS:
+	case EV_DISTANCE:
+	case EV_PLATE:
+	case EV_PAYMENT:
+	case EV_ADC_FAULT:
+	case EV_HW_ERROR:
+		return false;
+	}
+	return false;
+}
+
+/** Passagem completa no prazo: so ela mexe na tabela e fecha. */
 static void passage_done(struct lane *lane, int64_t now_ms)
 {
-	int rc = lane->cfg->has_payment ? sessions_remove(lane->plate)
-					: sessions_add(lane->plate, now_ms);
-
-	if (rc < 0) {
+	if (update_sessions(lane, now_ms) < 0) {
 		/* Tabela incoerente com a autorizacao: nao fecha sozinha. */
 		enter_assist(lane, LANE_ASSIST);
 		return;
@@ -367,31 +401,21 @@ static void handle_event_opening(struct lane *lane, const struct lane_event *ev)
 static void handle_event_wait_passage(struct lane *lane,
 				      const struct lane_event *ev)
 {
-	switch (ev->id) {
-	case EV_BEAM_ON:
-		lane->beam_seen = true;
-		lane->beam_cleared = false;
-		return;
-	case EV_BEAM_OFF:
-		lane->beam_cleared = lane->beam_seen;
-		return;
-	case EV_TICK:
-		break;
-	case EV_LIMITS:
-	case EV_DISTANCE:
-	case EV_PLATE:
-	case EV_PAYMENT:
-	case EV_ADC_FAULT:
-	case EV_HW_ERROR:
-		return;
-	}
-	if (lane->beam_cleared && !lane->beam && car_away(lane, ev->now_ms)) {
+	if (passage_completed(lane, ev)) {
 		passage_done(lane, ev->now_ms);
 		return;
 	}
-	if (ev->now_ms >= lane->deadline_ms) {
-		/* Cancela aberta e parada: assistencia sem fechar no feixe. */
+	if (ev->id == EV_TICK && ev->now_ms >= lane->deadline_ms) {
+		/* Cancela aberta e parada: assistencia sem fechar no feixe. O
+		 * carro ainda pode completar a passagem depois (late_passage).
+		 */
+		bool seen = lane->beam_seen;
+		bool cleared = lane->beam_cleared;
+
 		enter_assist(lane, LANE_ASSIST);
+		lane->beam_seen = seen;
+		lane->beam_cleared = cleared;
+		lane->late_passage = true;
 	}
 }
 
@@ -422,9 +446,22 @@ static void handle_event_closing(struct lane *lane, const struct lane_event *ev)
 	}
 }
 
-/* Assistencia rearmavel: so com a cancela fechada, carro longe e feixe livre. */
+/*
+ * Assistencia rearmavel: so com a cancela fechada, carro longe e feixe livre.
+ * Se veio do prazo da passagem, a cancela segue aberta e parada; um carro que
+ * completa a passagem depois ainda entra (ou sai) da tabela de sessoes, mas
+ * nada fecha sozinho.
+ */
 static void handle_event_assist(struct lane *lane, const struct lane_event *ev)
 {
+	if (lane->late_passage) {
+		if (passage_completed(lane, ev)) {
+			lane->late_passage = false;
+			/* Ja em assistencia: um erro aqui nao tem outra reacao. */
+			(void)update_sessions(lane, ev->now_ms);
+		}
+		return;
+	}
 	if (barrier_closed(lane) && car_away(lane, ev->now_ms) && !lane->beam) {
 		lane->state = LANE_IDLE;
 	}

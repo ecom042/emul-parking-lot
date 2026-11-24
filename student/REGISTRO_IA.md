@@ -403,6 +403,42 @@ Uma entrada por tarefa relevante (um requisito, um bug, uma refatoração).
   na linha (e por isso o shim não pode mudar a lógica); como capturar e
   chamar uma ISR num teste.
 
+### 2026-11-23 — Fila de carros e passagem depois do prazo
+
+- **Aluno:** B (Ycaro Sales).
+- **Requisito(s):** REQ-04 (faixas simultâneas, sessões), REQ-07, REQ-09.
+- **O que pedi:** exercitar combinações que os cenários ocultos devem usar,
+  com o modo de fila de carros da ferramenta do curso
+  (`assess.py --lot SEGUNDOS --cars perfis.json`), as duas faixas ao mesmo
+  tempo.
+- **O que a IA propôs:** cinco baterias de perfis (carros normais,
+  `retry_recovers`, pagamento `delayed`, `hesitate`; falhas `failed`,
+  `no_reply`, `misread`, `cancelled`, `malformed`, `no_reply` no terminal e
+  `leave_during_payment`; `linger_in_beam`; `block_closing`; e lotação com
+  `--capacity 1`). Resultado: nenhuma violação de segurança nem do lot
+  oracle; 37 de 38 vereditos passaram. O que falhou: um carro segurou o feixe
+  além dos 10 s, o firmware pediu assistência com a cancela aberta (certo),
+  o carro entrou depois e, como a passagem completou fora do prazo, não
+  ganhou sessão; na saída foi recusado. O driver do curso e o lot oracle
+  dos cenários contam como estacionado todo feixe ativo → livre depois do
+  verde.
+- **Decisão que tomei (a IA perguntou):** registrar a passagem tardia. Na
+  assistência que vem do prazo da passagem (`late_passage`), a faixa segue
+  acompanhando o feixe; se a passagem completar, cria (entrada) ou encerra
+  (saída) a sessão, mas continua em assistência com a cancela aberta — nada
+  fecha sozinho. O acompanhamento da passagem virou uma função só
+  (`passage_completed`), usada em WAIT_PASSAGE e nessa assistência.
+- **Como verifiquei:** as baterias repetidas passam inteiras (34 de 34
+  vereditos, sem falha de segurança). `firmware-coverage.py` (19 cenários +
+  todas as suítes passando): 99,9% de linhas e 98,1% de branches.
+  `static-check.py`: 0 achados. Suíte `lane` com 75 testes (4 novos da
+  passagem tardia). Uma execução anterior falhou por falta de espaço no
+  disco (btrfs sem espaço não alocado), não por causa do código; o aluno
+  liberou espaço e a execução foi repetida.
+- **O que aprendi / o que ainda preciso entender:** a diferença entre o
+  prazo da passagem (quando pedir ajuda) e a passagem em si (quem está no
+  estacionamento).
+
 ## Código de terceiros
 
 | Arquivo/trecho | Origem | Licença |

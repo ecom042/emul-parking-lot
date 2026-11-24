@@ -1029,3 +1029,74 @@ ZTEST(lane, test_passagem_exige_feixe_livre_no_tick)
 	zassert_equal(lane.state, LANE_CLOSING);
 	zassert_true(sessions_has("ABC1D23"));
 }
+
+/* ---- Passagem depois do prazo (decisao do aluno B) ---------------------- */
+
+ZTEST(lane, test_passagem_tardia_na_entrada_cria_sessao_sem_fechar)
+{
+	ate_aberta(100);
+	ev_simples(EV_BEAM_ON, 3000); /* carro segura o feixe */
+	tick(2100 + PASS_MS);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_true(lane.late_passage);
+
+	ev_simples(EV_BEAM_OFF, 13000);
+	ev_distancia(LONGE, 13100);
+	tick(13100);
+	zassert_true(sessions_has("ABC1D23"), "o carro entrou");
+	zassert_false(lane.late_passage);
+	zassert_equal(lane.state, LANE_ASSIST, "segue parada, aberta");
+	zassert_equal(hw_motor_drive_fake.call_count, 1, "nunca fecha sozinha");
+	zassert_equal(hw_buzzer_pulse_fake.call_count, 1);
+
+	/* Nada mais muda a tabela nem rearma com a cancela aberta. */
+	ev_simples(EV_BEAM_ON, 13200);
+	ev_simples(EV_BEAM_OFF, 13300);
+	tick(13300);
+	zassert_equal(sessions_count(), 1);
+	zassert_equal(lane.state, LANE_ASSIST);
+}
+
+ZTEST(lane, test_passagem_tardia_exige_feixe_livre_e_carro_longe)
+{
+	ate_aberta(100);
+	tick(2100 + PASS_MS); /* ninguem passou */
+	zassert_true(lane.late_passage);
+
+	ev_distancia(LONGE, 12200);
+	tick(12200);
+	zassert_false(sessions_has("ABC1D23"), "sem feixe nao ha passagem");
+
+	ev_simples(EV_BEAM_ON, 12300);
+	ev_placa(9, "ABC1D23", 93, 12300); /* ignorado */
+	ev_distancia(LONGE, 12400);
+	tick(12400);
+	zassert_false(sessions_has("ABC1D23"), "feixe ainda ocupado");
+	zassert_true(lane.late_passage);
+}
+
+ZTEST(lane, test_passagem_tardia_na_saida_encerra_a_sessao)
+{
+	ate_cobrando(2500);
+	ev_pagamento(P1_STATUS_PAID, lane.uuid, 400, 2700);
+	ev_limites(true, false, 4800);
+	tick(4800);
+	ev_simples(EV_BEAM_ON, 5000);
+	tick(4800 + PASS_MS);
+	zassert_equal(lane.state, LANE_ASSIST);
+	zassert_false(lane.cancel_pending, "cobranca ja paga nao se cancela");
+
+	ev_simples(EV_BEAM_OFF, 15000);
+	ev_distancia(LONGE, 15000);
+	tick(15000);
+	zassert_false(sessions_has("ABC1D23"), "o carro saiu");
+}
+
+ZTEST(lane, test_falha_travada_esquece_a_passagem_tardia)
+{
+	ate_aberta(100);
+	tick(2100 + PASS_MS);
+	ev_simples(EV_ADC_FAULT, 12200);
+	zassert_equal(lane.state, LANE_LOCKED);
+	zassert_false(lane.late_passage);
+}

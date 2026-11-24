@@ -57,6 +57,8 @@ struct lane {
 	char plate[PLATE_LEN + 1];  /**< Placa aceita neste ciclo. */
 	bool beam_seen;             /**< Na passagem: feixe ja ficou ativo. */
 	bool beam_cleared;          /**< Na passagem: e depois inativo. */
+	bool late_passage;          /**< Em ASSIST pelo prazo da passagem: ainda
+				     *   registra a passagem que completar. */
 
 	/* Cobranca (so na saida). */
 	char uuid[UUID_LEN + 1];    /**< UUID da cobranca ativa; vazio = nenhuma. */
